@@ -80,6 +80,7 @@ npm run format         # Prettier 포맷팅
 - **Playground**: 활성화 상태 (`/graphql`)
 - **Introspection**: 활성화 상태
 - **Query Depth Limiting**: `graphql-depth-limit`으로 최대 깊이 5로 제한 (악의적 중첩 쿼리 방지)
+- **Stacktrace**: `includeStacktraceInErrorResponses`를 `NODE_ENV !== 'production'`으로 설정하여 운영 환경에서만 에러 stacktrace 노출을 차단한다. 개발/스테이징 환경에서는 디버깅을 위해 stacktrace를 포함한다.
 - GraphQL context에 request 객체와 DataLoader 인스턴스가 포함됨
 
 ### DataLoader
