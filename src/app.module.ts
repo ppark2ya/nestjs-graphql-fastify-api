@@ -25,8 +25,8 @@ import { DataLoaderService } from './dataloader/dataloader.service';
       useFactory: (dataLoaderService: DataLoaderService) => ({
         autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
         sortSchema: true,
-        playground: true,
-        introspection: true,
+        playground: false,
+        introspection: process.env.NODE_ENV === 'development' ? true : false,
         validationRules: [depthLimit(5)],
         // GraphQL context에 request, reply 객체 및 DataLoader 포함
         context: ({ request, reply }: { request: any; reply: any }) => ({
