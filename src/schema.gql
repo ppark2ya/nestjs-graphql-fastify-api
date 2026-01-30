@@ -32,4 +32,7 @@ type Query {
 
   """Get posts from JSONPlaceholder REST API"""
   posts: [Post!]!
+
+  """Get posts by user ID (uses DataLoader)"""
+  postsByUser(userId: Int!): [Post!]!
 }
