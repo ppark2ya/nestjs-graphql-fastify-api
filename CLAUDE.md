@@ -16,7 +16,8 @@ NestJS 기반 GraphQL API 게이트웨이 서버. 외부 REST API를 GraphQL 인
 - **인증**: API Key 기반 (X-API-Key 헤더), JWT/Passport 라이브러리 설치됨 (미사용)
 - **유효성 검사**: class-validator + class-transformer
 - **로깅**: Winston + winston-daily-rotate-file
-- **테스트**: Jest v30 + supertest
+- **빌드**: SWC (`@swc/core`) - TypeScript 대비 빠른 트랜스파일링
+- **테스트**: Jest v30 + @swc/jest + supertest
 
 ## 디렉토리 구조
 
@@ -43,7 +44,7 @@ src/
 ## 주요 명령어
 
 ```bash
-npm run build          # TypeScript 컴파일
+npm run build          # SWC 빌드 (타입 체크 포함)
 npm run start:dev      # 개발 모드 (watch)
 npm run start:debug    # 디버그 모드 (watch)
 npm run start:prod     # 프로덕션 모드 (dist/main.js)
@@ -83,6 +84,12 @@ npm run format         # Prettier 포맷팅
 - `PORT`: 서버 포트 (기본값: 4000)
 - `API_KEYS`: 유효한 API 키 목록 (쉼표 구분)
 - .env 파일은 사용하지 않으며 환경변수를 직접 참조 (`process.env`)
+
+## 빌드 시스템
+
+- `nest build` 실행 시 SWC로 트랜스파일, TSC로 타입 체크를 병렬 수행한다 (`nest-cli.json`의 `builder: "swc"`, `typeCheck: true`)
+- SWC 설정은 `.swcrc`에 정의되어 있으며 데코레이터, 데코레이터 메타데이터를 지원한다
+- Jest 테스트도 `@swc/jest`로 트랜스파일하여 테스트 실행 속도를 높인다
 
 ## 코드 컨벤션
 
