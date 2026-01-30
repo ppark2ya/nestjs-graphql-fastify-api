@@ -12,7 +12,7 @@ NestJS 기반 GraphQL API 게이트웨이 서버. 외부 REST API를 GraphQL 인
 - **Framework**: NestJS v11
 - **HTTP Server**: Fastify (`@nestjs/platform-fastify`)
 - **GraphQL**: Apollo Server v5 + `@nestjs/graphql` (Code-First 방식), DataLoader, graphql-depth-limit
-- **HTTP Client**: Axios (`@nestjs/axios`)
+- **HTTP Client**: Axios (`@nestjs/axios`), Circuit Breaker (`opossum`)
 - **인증**: API Key 기반 (X-API-Key 헤더), JWT/Passport 라이브러리 설치됨 (미사용)
 - **유효성 검사**: GraphQL 스키마 레벨 타입 검증에 의존 (게이트웨이 서버 특성상 class-validator 미사용 — 백엔드 API와의 강결합 방지)
 - **로깅**: Winston + winston-daily-rotate-file
@@ -35,6 +35,9 @@ src/
 │       ├── correlation-id.middleware.ts   # x-correlation-id 생성/전파 미들웨어
 │       ├── request-context.middleware.ts  # 요청 헤더를 AsyncLocalStorage에 저장하는 미들웨어
 │       └── logger.middleware.ts           # Winston 요청/응답 로깅 미들웨어
+├── circuit-breaker/
+│   ├── circuit-breaker.module.ts    # @Global Circuit Breaker 모듈
+│   └── circuit-breaker.service.ts   # 도메인별 breaker 생성/캐싱 + fire() 헬퍼
 ├── dataloader/
 │   ├── dataloader.interface.ts  # IDataLoaders 타입 정의
 │   ├── dataloader.service.ts    # 요청 단위 DataLoader 팩토리
@@ -96,6 +99,16 @@ npm run format         # Prettier 포맷팅
   - **AxiosExceptionFilter** (`@Catch(AxiosError)`): 백엔드 API 호출 실패 시 `AxiosError`를 직접 `GraphQLError`로 변환 (timeout→GATEWAY_TIMEOUT, unreachable→BAD_GATEWAY, HTTP 상태 코드별 매핑)
 - 서비스 레이어에서는 에러를 try-catch하지 않는다. `AxiosError`가 그대로 throw되면 필터가 자동으로 처리한다.
 - HTTP 상태 코드 → GraphQL 에러 코드 매핑: 400→BAD_REQUEST, 401→UNAUTHENTICATED, 403→FORBIDDEN, 404→NOT_FOUND, 408→GATEWAY_TIMEOUT, 429→TOO_MANY_REQUESTS, 502/503→BAD_GATEWAY, 504→GATEWAY_TIMEOUT
+
+### Circuit Breaker
+- `opossum` 라이브러리 기반의 도메인별 Circuit Breaker 패턴 적용
+- `CircuitBreakerModule`은 `@Global()` 모듈로 선언되어 어디서든 주입 가능
+- `CircuitBreakerService`는 Factory 패턴으로 도메인별 breaker 인스턴스를 `Map`에 캐싱
+- breaker의 action은 thunk executor `(fn) => fn()` — 같은 도메인의 여러 URL을 하나의 breaker로 관리
+- 서비스에서 `cbService.fire('domain', async () => { ... })`로 HTTP 호출을 래핑
+- Circuit이 open 상태면 `ServiceUnavailableException`을 throw → 기존 `HttpExceptionFilter`가 처리
+- `AxiosError`는 그대로 re-throw → 기존 `AxiosExceptionFilter`가 처리
+- 기본 옵션: timeout=false (Axios에 위임), errorThresholdPercentage=50, resetTimeout=30s, volumeThreshold=5, rollingCountTimeout=10s
 
 ### 요청 컨텍스트 및 헤더 전파
 - `AsyncLocalStorage` 기반으로 요청별 컨텍스트(`authToken`, `correlationId`)를 저장한다 (`request-context.ts`)

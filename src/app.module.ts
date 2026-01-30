@@ -17,6 +17,7 @@ import { RequestContextMiddleware } from './common/middleware/request-context.mi
 import { requestContext } from './common/context/request-context';
 import { DataLoaderModule } from './dataloader/dataloader.module';
 import { DataLoaderService } from './dataloader/dataloader.service';
+import { CircuitBreakerModule } from './circuit-breaker/circuit-breaker.module';
 import {
   HttpExceptionFilter,
   AxiosExceptionFilter,
@@ -57,6 +58,7 @@ import {
       maxRedirects: 3,
     }),
     DataLoaderModule,
+    CircuitBreakerModule,
   ],
   providers: [
     AppService,
