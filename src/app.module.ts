@@ -34,6 +34,8 @@ import {
         sortSchema: true,
         playground: false,
         introspection: process.env.NODE_ENV === 'development' ? true : false,
+        includeStacktraceInErrorResponses:
+          process.env.NODE_ENV !== 'production',
         validationRules: [depthLimit(5)],
         // GraphQL context에 request, reply 객체 및 DataLoader 포함
         context: ({ request, reply }: { request: any; reply: any }) => ({
