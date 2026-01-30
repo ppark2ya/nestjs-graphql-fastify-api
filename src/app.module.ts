@@ -1,4 +1,4 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer, OnModuleInit } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
@@ -10,8 +10,11 @@ import { AppService } from './app.service';
 import { AppResolver } from './app.resolver';
 import { ApiKeyGuard } from './auth/api-key.guard';
 import { GqlThrottlerGuard } from './auth/gql-throttler.guard';
+import { HttpService } from '@nestjs/axios';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
-import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { CORRELATION_HEADER, CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
+import { requestContext } from './common/context/request-context';
 import { DataLoaderModule } from './dataloader/dataloader.module';
 import { DataLoaderService } from './dataloader/dataloader.service';
 import {
@@ -35,9 +38,7 @@ import {
         context: ({ request, reply }: { request: any; reply: any }) => ({
           req: request,
           reply: reply,
-          loaders: dataLoaderService.createLoaders(
-            request?.headers?.authorization,
-          ),
+          loaders: dataLoaderService.createLoaders(),
       // userLoader: createApiLoader(httpService, (id) => `http://api/users/${id}`),
       // productLoader: createApiLoader(httpService, (id) => `http://api/products/${id}`),
       // orderLoader: createApiLoader(httpService, (id) => `http://api/orders/${id}`),
@@ -81,8 +82,25 @@ import {
     },
   ],
 })
-export class AppModule implements NestModule {
+export class AppModule implements NestModule, OnModuleInit {
+  constructor(private readonly httpService: HttpService) {}
+
+  onModuleInit() {
+    this.httpService.axiosRef.interceptors.request.use((config) => {
+      const store = requestContext.getStore();
+      if (store?.authToken) {
+        config.headers.Authorization = store.authToken;
+      }
+      if (store?.correlationId) {
+        config.headers[CORRELATION_HEADER] = store.correlationId;
+      }
+      return config;
+    });
+  }
+
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(CorrelationIdMiddleware, LoggerMiddleware).forRoutes('*');
+    consumer
+      .apply(CorrelationIdMiddleware, RequestContextMiddleware, LoggerMiddleware)
+      .forRoutes('*');
   }
 }

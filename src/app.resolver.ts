@@ -10,9 +10,8 @@ export class AppResolver {
   constructor(private readonly appService: AppService) { }
 
   @Query(() => [Post], { description: 'Get posts from JSONPlaceholder REST API' })
-  async posts(@Context() context: any): Promise<Post[]> {
-    const authToken = context.req?.headers?.authorization;
-    return this.appService.getPosts(authToken);
+  async posts(): Promise<Post[]> {
+    return this.appService.getPosts();
   }
 
   @Public()

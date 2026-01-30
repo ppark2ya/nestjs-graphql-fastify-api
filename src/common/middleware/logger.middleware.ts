@@ -1,6 +1,7 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import * as winston from 'winston';
 import DailyRotateFile = require('winston-daily-rotate-file');
+import { CORRELATION_HEADER } from './correlation-id.middleware';
 
 @Injectable()
 export class LoggerMiddleware implements NestMiddleware {
@@ -39,7 +40,7 @@ export class LoggerMiddleware implements NestMiddleware {
   use(req: any, res: any, next: (error?: any) => void) {
     const { method, originalUrl, headers } = req;
     const userAgent = headers['user-agent'] || '';
-    const correlationId = headers['x-correlation-id'] || '';
+    const correlationId = headers[CORRELATION_HEADER] || '';
     const start = Date.now();
 
     res.on('finish', () => {

@@ -29,8 +29,12 @@ src/
 ├── common/
 │   ├── filter/
 │   │   └── http-exception.filter.ts  # HttpException/AxiosError → GraphQLError 변환 필터
+│   ├── context/
+│   │   └── request-context.ts       # AsyncLocalStorage 기반 요청 컨텍스트 (authToken, correlationId)
 │   └── middleware/
-│       └── logger.middleware.ts  # Winston 요청/응답 로깅 미들웨어
+│       ├── correlation-id.middleware.ts   # x-correlation-id 생성/전파 미들웨어
+│       ├── request-context.middleware.ts  # 요청 헤더를 AsyncLocalStorage에 저장하는 미들웨어
+│       └── logger.middleware.ts           # Winston 요청/응답 로깅 미들웨어
 ├── dataloader/
 │   ├── dataloader.interface.ts  # IDataLoaders 타입 정의
 │   ├── dataloader.service.ts    # 요청 단위 DataLoader 팩토리
@@ -92,6 +96,14 @@ npm run format         # Prettier 포맷팅
   - **AxiosExceptionFilter** (`@Catch(AxiosError)`): 백엔드 API 호출 실패 시 `AxiosError`를 직접 `GraphQLError`로 변환 (timeout→GATEWAY_TIMEOUT, unreachable→BAD_GATEWAY, HTTP 상태 코드별 매핑)
 - 서비스 레이어에서는 에러를 try-catch하지 않는다. `AxiosError`가 그대로 throw되면 필터가 자동으로 처리한다.
 - HTTP 상태 코드 → GraphQL 에러 코드 매핑: 400→BAD_REQUEST, 401→UNAUTHENTICATED, 403→FORBIDDEN, 404→NOT_FOUND, 408→GATEWAY_TIMEOUT, 429→TOO_MANY_REQUESTS, 502/503→BAD_GATEWAY, 504→GATEWAY_TIMEOUT
+
+### 요청 컨텍스트 및 헤더 전파
+- `AsyncLocalStorage` 기반으로 요청별 컨텍스트(`authToken`, `correlationId`)를 저장한다 (`request-context.ts`)
+- 미들웨어 실행 순서: `CorrelationIdMiddleware` → `RequestContextMiddleware` → `LoggerMiddleware`
+  - `CorrelationIdMiddleware`: 클라이언트 요청에 `x-correlation-id`가 없으면 UUID를 생성하여 `req.headers`와 응답 헤더에 세팅
+  - `RequestContextMiddleware`: `req.headers`에서 `authorization`, `x-correlation-id`를 읽어 `AsyncLocalStorage`에 저장하고 `run()` 콜백 안에서 `next()` 호출
+- `AppModule.onModuleInit()`에서 Axios request interceptor를 등록하여, `AsyncLocalStorage`에서 `authToken`과 `correlationId`를 읽어 백엔드 API 호출 시 `Authorization`, `x-correlation-id` 헤더로 자동 전파한다
+- 서비스 레이어에서는 인증 토큰이나 요청 추적 헤더를 직접 다루지 않는다. 모든 헤더 전파는 interceptor가 처리한다.
 
 ### 미들웨어/파이프라인
 - **LoggerMiddleware** (전역): 모든 요청의 method, URL, status, user-agent, 응답 시간 로깅

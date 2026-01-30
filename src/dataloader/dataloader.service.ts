@@ -8,13 +8,10 @@ import { Post } from '../models/post.model';
 export class DataLoaderService {
   constructor(private readonly appService: AppService) {}
 
-  createLoaders(authToken?: string): IDataLoaders {
+  createLoaders(): IDataLoaders {
     const postsLoader = new DataLoader<number, Post[]>(
       async (userIds: readonly number[]) => {
-        const posts = await this.appService.getPostsByUserIds(
-          [...userIds],
-          authToken,
-        );
+        const posts = await this.appService.getPostsByUserIds([...userIds]);
 
         const postsMap = new Map<number, Post[]>();
         for (const post of posts) {
