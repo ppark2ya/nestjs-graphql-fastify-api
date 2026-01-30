@@ -2,21 +2,23 @@ version: "3.8"
 
 services:
   api:
-    image: nestjs-graphql-fastify-api:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: repo-nexus.dozn.co.kr:5000/dozn/nestjs-graphql-fastify-api:latest
     ports:
-      - "4000:4000"
+      - target: 4000
+        published: 4000
+        protocol: tcp
+        mode: host
     environment:
       - NODE_ENV=production
       - PORT=4000
     deploy:
       replicas: 2
+      placement:
+        max_replicas_per_node: 1
       update_config:
         parallelism: 1
         delay: 10s
-        order: start-first
+        order: stop-first
       rollback_config:
         parallelism: 1
         delay: 5s
