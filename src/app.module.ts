@@ -28,9 +28,10 @@ import { DataLoaderService } from './dataloader/dataloader.service';
         playground: true,
         introspection: true,
         validationRules: [depthLimit(5)],
-        // GraphQL context에 request 객체 및 DataLoader 포함
-        context: ({ request }: { request: any }) => ({
+        // GraphQL context에 request, reply 객체 및 DataLoader 포함
+        context: ({ request, reply }: { request: any; reply: any }) => ({
           req: request,
+          reply: reply,
           loaders: dataLoaderService.createLoaders(
             request?.headers?.authorization,
           ),
