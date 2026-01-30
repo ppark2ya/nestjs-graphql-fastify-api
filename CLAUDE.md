@@ -14,7 +14,7 @@ NestJS 기반 GraphQL API 게이트웨이 서버. 외부 REST API를 GraphQL 인
 - **GraphQL**: Apollo Server v5 + `@nestjs/graphql` (Code-First 방식), DataLoader, graphql-depth-limit
 - **HTTP Client**: Axios (`@nestjs/axios`)
 - **인증**: API Key 기반 (X-API-Key 헤더), JWT/Passport 라이브러리 설치됨 (미사용)
-- **유효성 검사**: class-validator + class-transformer
+- **유효성 검사**: GraphQL 스키마 레벨 타입 검증에 의존 (게이트웨이 서버 특성상 class-validator 미사용 — 백엔드 API와의 강결합 방지)
 - **로깅**: Winston + winston-daily-rotate-file
 - **빌드**: SWC (`@swc/core`) - TypeScript 대비 빠른 트랜스파일링
 - **테스트**: Jest v30 + @swc/jest + supertest
@@ -86,7 +86,7 @@ npm run format         # Prettier 포맷팅
 
 ### 미들웨어/파이프라인
 - **LoggerMiddleware** (전역): 모든 요청의 method, URL, status, user-agent, 응답 시간 로깅
-- **ValidationPipe** (전역): `transform: true`로 DTO 자동 변환 및 유효성 검사
+- 입력 유효성 검사는 GraphQL 스키마의 타입 시스템에 위임한다. 게이트웨이 서버에서 class-validator 등으로 세부 검증을 하면 백엔드 API와 강결합이 발생하여 버그를 유발할 수 있으므로 사용하지 않는다.
 - 로그 파일은 `logs/` 디렉토리에 일별 로테이션으로 저장
 
 ## 환경 설정

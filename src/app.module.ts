@@ -6,7 +6,6 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { join } from 'path';
 import { HttpModule } from '@nestjs/axios';
 import depthLimit from 'graphql-depth-limit';
-import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AppResolver } from './app.resolver';
 import { ApiKeyGuard } from './auth/api-key.guard';
@@ -35,6 +34,9 @@ import { DataLoaderService } from './dataloader/dataloader.service';
           loaders: dataLoaderService.createLoaders(
             request?.headers?.authorization,
           ),
+      // userLoader: createApiLoader(httpService, (id) => `http://api/users/${id}`),
+      // productLoader: createApiLoader(httpService, (id) => `http://api/products/${id}`),
+      // orderLoader: createApiLoader(httpService, (id) => `http://api/orders/${id}`),
         }),
       }),
     }),
@@ -51,7 +53,6 @@ import { DataLoaderService } from './dataloader/dataloader.service';
     }),
     DataLoaderModule,
   ],
-  controllers: [AppController],
   providers: [
     AppService,
     AppResolver,
