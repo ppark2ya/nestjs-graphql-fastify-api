@@ -1,7 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  HttpException,
+  BadGatewayException,
+  GatewayTimeoutException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, retry, timer } from 'rxjs';
-import { GraphQLError } from 'graphql';
 import { AxiosError } from 'axios';
 import { Post } from './models/post.model';
 
@@ -67,37 +73,29 @@ export class AppService {
     }
   }
 
-  private handleHttpError(error: unknown, url: string): GraphQLError {
+  private handleHttpError(error: unknown, url: string): HttpException {
     if (error instanceof AxiosError) {
       const status = error.response?.status;
       const code = error.code;
 
       if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
         this.logger.error(`Backend timeout: ${url}`, error.message);
-        return new GraphQLError('Backend service timeout', {
-          extensions: { code: 'GATEWAY_TIMEOUT', statusCode: 504 },
-        });
+        return new GatewayTimeoutException('Backend service timeout');
       }
 
       if (!status) {
         this.logger.error(`Backend unreachable: ${url}`, error.message);
-        return new GraphQLError('Backend service unavailable', {
-          extensions: { code: 'BAD_GATEWAY', statusCode: 502 },
-        });
+        return new BadGatewayException('Backend service unavailable');
       }
 
       this.logger.error(
         `Backend error: ${url} responded with ${status}`,
         error.message,
       );
-      return new GraphQLError(`Backend service error (${status})`, {
-        extensions: { code: 'BAD_GATEWAY', statusCode: 502 },
-      });
+      return new BadGatewayException(`Backend service error (${status})`);
     }
 
     this.logger.error(`Unexpected error calling ${url}`, error);
-    return new GraphQLError('Internal server error', {
-      extensions: { code: 'INTERNAL_SERVER_ERROR', statusCode: 500 },
-    });
+    return new InternalServerErrorException('Internal server error');
   }
 }

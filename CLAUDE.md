@@ -27,6 +27,8 @@ src/
 │   ├── api-key.guard.ts     # API Key 검증 글로벌 가드
 │   └── public.decorator.ts  # 인증 우회 데코레이터 (@Public)
 ├── common/
+│   ├── filter/
+│   │   └── http-exception.filter.ts  # HttpException → GraphQLError 변환 필터
 │   └── middleware/
 │       └── logger.middleware.ts  # Winston 요청/응답 로깅 미들웨어
 ├── dataloader/
@@ -83,6 +85,11 @@ npm run format         # Prettier 포맷팅
 - 유효한 API 키: 환경변수 `API_KEYS`(쉼표 구분) 또는 기본값 `test-api-key-1`, `test-api-key-2`
 - `@Public()` 데코레이터를 사용하면 인증 없이 접근 가능 (예: `health` 쿼리)
 - 인증 실패 시 GraphQL 에러 (401 UNAUTHENTICATED) 반환
+
+### 에러 처리
+- **HttpExceptionFilter** (전역): `@Catch(HttpException)` + `GqlExceptionFilter` 구현체. 백엔드 API 호출 실패 시 발생하는 `HttpException`을 `GraphQLError`로 변환하여 클라이언트에 일관된 GraphQL 에러 응답을 제공한다.
+- 서비스 레이어에서는 `AxiosError`를 NestJS 표준 예외(`BadGatewayException`, `GatewayTimeoutException` 등)로 throw하고, 필터가 이를 GraphQL 에러 코드(`BAD_GATEWAY`, `GATEWAY_TIMEOUT` 등)로 매핑한다.
+- HTTP 상태 코드 → GraphQL 에러 코드 매핑: 400→BAD_REQUEST, 401→UNAUTHENTICATED, 403→FORBIDDEN, 404→NOT_FOUND, 408→GATEWAY_TIMEOUT, 429→TOO_MANY_REQUESTS, 502/503→BAD_GATEWAY, 504→GATEWAY_TIMEOUT
 
 ### 미들웨어/파이프라인
 - **LoggerMiddleware** (전역): 모든 요청의 method, URL, status, user-agent, 응답 시간 로깅

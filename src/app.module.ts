@@ -1,5 +1,5 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -14,6 +14,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { DataLoaderModule } from './dataloader/dataloader.module';
 import { DataLoaderService } from './dataloader/dataloader.service';
+import { HttpExceptionFilter } from './common/filter/http-exception.filter';
 
 @Module({
   imports: [
@@ -56,6 +57,11 @@ import { DataLoaderService } from './dataloader/dataloader.service';
   providers: [
     AppService,
     AppResolver,
+    // 전역 Filter 등록 - 백엔드 API HttpException → GraphQLError 변환
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
     // 전역 Guard 등록 - Rate Limiting
     {
       provide: APP_GUARD,
