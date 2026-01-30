@@ -12,6 +12,9 @@ async function bootstrap() {
     new FastifyAdapter(),
   );
 
+  // Graceful shutdown 활성화 (SIGTERM/SIGINT 수신 시 정리 작업 수행)
+  app.enableShutdownHooks();
+
   // CORS 설정 (필요시 활성화)
   app.enableCors();
 

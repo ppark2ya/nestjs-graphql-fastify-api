@@ -22,16 +22,14 @@ RUN npm run build
 # ---- Stage 3: Production ----
 FROM node:20-alpine AS production
 
-RUN npm install -g pm2
-
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY package.json ecosystem.config.js ./
+COPY package.json ./
 
 USER node
 
 EXPOSE 4000
 
-CMD ["pm2-runtime", "ecosystem.config.js"]
+CMD ["node", "dist/main.js"]
