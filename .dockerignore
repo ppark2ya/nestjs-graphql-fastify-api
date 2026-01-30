@@ -1,0 +1,14 @@
+node_modules
+dist
+logs
+.git
+.github
+.claude
+.env
+.env.*
+*.md
+*.log
+coverage
+tmp
+.temp
+.tmp
