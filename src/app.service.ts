@@ -29,4 +29,22 @@ export class AppService {
     );
     return data;
   }
+
+  async getPostsByUserIds(
+    userIds: number[],
+    authToken?: string,
+  ): Promise<Post[]> {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers['Authorization'] = authToken;
+    }
+
+    const { data } = await firstValueFrom(
+      this.httpService.get<Post[]>(
+        'https://jsonplaceholder.typicode.com/posts',
+        { headers },
+      ),
+    );
+    return data.filter((post) => userIds.includes(post.userId));
+  }
 }

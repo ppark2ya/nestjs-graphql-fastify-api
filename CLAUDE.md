@@ -11,7 +11,7 @@ NestJS 기반 GraphQL API 게이트웨이 서버. 외부 REST API를 GraphQL 인
 - **Runtime**: Node.js + TypeScript (v5.7, target ES2023, strict mode)
 - **Framework**: NestJS v11
 - **HTTP Server**: Fastify (`@nestjs/platform-fastify`)
-- **GraphQL**: Apollo Server v5 + `@nestjs/graphql` (Code-First 방식)
+- **GraphQL**: Apollo Server v5 + `@nestjs/graphql` (Code-First 방식), DataLoader, graphql-depth-limit
 - **HTTP Client**: Axios (`@nestjs/axios`)
 - **인증**: API Key 기반 (X-API-Key 헤더), JWT/Passport 라이브러리 설치됨 (미사용)
 - **유효성 검사**: class-validator + class-transformer
@@ -29,6 +29,10 @@ src/
 ├── common/
 │   └── middleware/
 │       └── logger.middleware.ts  # Winston 요청/응답 로깅 미들웨어
+├── dataloader/
+│   ├── dataloader.interface.ts  # IDataLoaders 타입 정의
+│   ├── dataloader.service.ts    # 요청 단위 DataLoader 팩토리
+│   └── dataloader.module.ts     # DataLoader 모듈
 ├── dto/
 │   └── add-numbers.input.ts # GraphQL InputType
 ├── models/
@@ -66,7 +70,13 @@ npm run format         # Prettier 포맷팅
 - **Code-First 방식**: TypeScript 클래스와 데코레이터로 스키마를 정의하면 `src/schema.gql`이 자동 생성됨
 - **Playground**: 활성화 상태 (`/graphql`)
 - **Introspection**: 활성화 상태
-- GraphQL context에 request 객체가 포함되어 가드에서 인증 정보 접근 가능
+- **Query Depth Limiting**: `graphql-depth-limit`으로 최대 깊이 5로 제한 (악의적 중첩 쿼리 방지)
+- GraphQL context에 request 객체와 DataLoader 인스턴스가 포함됨
+
+### DataLoader
+- Context 기반 팩토리 패턴: 매 요청마다 `DataLoaderService.createLoaders()`로 새 인스턴스 생성 (크로스 요청 캐시 누수 방지)
+- `GraphQLModule.forRootAsync()`를 통해 `DataLoaderService`를 주입하여 context에 loaders를 제공
+- 새 DataLoader 추가 시: `IDataLoaders` 인터페이스에 타입 추가 → `DataLoaderService.createLoaders()`에 인스턴스 생성 → 리졸버에서 `@Context('loaders')` 사용
 
 ### 인증 흐름
 - `ApiKeyGuard`가 글로벌 가드로 등록되어 모든 요청에 `X-API-Key` 헤더 검증

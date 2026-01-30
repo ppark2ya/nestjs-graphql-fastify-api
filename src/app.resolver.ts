@@ -3,6 +3,7 @@ import { AppService } from './app.service';
 import { AddNumbersInput } from './dto/add-numbers.input';
 import { Post } from './models/post.model';
 import { Public } from './auth/public.decorator';
+import type { IDataLoaders } from './dataloader/dataloader.interface';
 
 @Resolver()
 export class AppResolver {
@@ -33,5 +34,13 @@ export class AppResolver {
   @Query(() => Int, { description: 'Add two numbers' })
   add(@Args('input') input: AddNumbersInput): number {
     return input.a + input.b;
+  }
+
+  @Query(() => [Post], { description: 'Get posts by user ID (uses DataLoader)' })
+  async postsByUser(
+    @Args('userId', { type: () => Int }) userId: number,
+    @Context('loaders') loaders: IDataLoaders,
+  ): Promise<Post[]> {
+    return loaders.postsLoader.load(userId);
   }
 }
