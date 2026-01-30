@@ -2,6 +2,7 @@ import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { join } from 'path';
 import { HttpModule } from '@nestjs/axios';
 import depthLimit from 'graphql-depth-limit';
@@ -9,6 +10,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AppResolver } from './app.resolver';
 import { ApiKeyGuard } from './auth/api-key.guard';
+import { GqlThrottlerGuard } from './auth/gql-throttler.guard';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { DataLoaderModule } from './dataloader/dataloader.module';
@@ -35,6 +37,13 @@ import { DataLoaderService } from './dataloader/dataloader.service';
         }),
       }),
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
     HttpModule.register({
       timeout: 5000,
       maxRedirects: 3,
@@ -45,6 +54,11 @@ import { DataLoaderService } from './dataloader/dataloader.service';
   providers: [
     AppService,
     AppResolver,
+    // 전역 Guard 등록 - Rate Limiting
+    {
+      provide: APP_GUARD,
+      useClass: GqlThrottlerGuard,
+    },
     // 전역 Guard 등록 - API Key 검증
     {
       provide: APP_GUARD,
