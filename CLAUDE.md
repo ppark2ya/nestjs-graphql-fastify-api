@@ -28,7 +28,7 @@ src/
 │   └── public.decorator.ts  # 인증 우회 데코레이터 (@Public)
 ├── common/
 │   ├── filter/
-│   │   └── http-exception.filter.ts  # HttpException → GraphQLError 변환 필터
+│   │   └── http-exception.filter.ts  # HttpException/AxiosError → GraphQLError 변환 필터
 │   └── middleware/
 │       └── logger.middleware.ts  # Winston 요청/응답 로깅 미들웨어
 ├── dataloader/
@@ -87,8 +87,10 @@ npm run format         # Prettier 포맷팅
 - 인증 실패 시 GraphQL 에러 (401 UNAUTHENTICATED) 반환
 
 ### 에러 처리
-- **HttpExceptionFilter** (전역): `@Catch(HttpException)` + `GqlExceptionFilter` 구현체. 백엔드 API 호출 실패 시 발생하는 `HttpException`을 `GraphQLError`로 변환하여 클라이언트에 일관된 GraphQL 에러 응답을 제공한다.
-- 서비스 레이어에서는 `AxiosError`를 NestJS 표준 예외(`BadGatewayException`, `GatewayTimeoutException` 등)로 throw하고, 필터가 이를 GraphQL 에러 코드(`BAD_GATEWAY`, `GATEWAY_TIMEOUT` 등)로 매핑한다.
+- 두 개의 글로벌 `GqlExceptionFilter`가 `APP_FILTER`로 등록되어 있다 (`http-exception.filter.ts`):
+  - **HttpExceptionFilter** (`@Catch(HttpException)`): NestJS 표준 예외를 `GraphQLError`로 변환
+  - **AxiosExceptionFilter** (`@Catch(AxiosError)`): 백엔드 API 호출 실패 시 `AxiosError`를 직접 `GraphQLError`로 변환 (timeout→GATEWAY_TIMEOUT, unreachable→BAD_GATEWAY, HTTP 상태 코드별 매핑)
+- 서비스 레이어에서는 에러를 try-catch하지 않는다. `AxiosError`가 그대로 throw되면 필터가 자동으로 처리한다.
 - HTTP 상태 코드 → GraphQL 에러 코드 매핑: 400→BAD_REQUEST, 401→UNAUTHENTICATED, 403→FORBIDDEN, 404→NOT_FOUND, 408→GATEWAY_TIMEOUT, 429→TOO_MANY_REQUESTS, 502/503→BAD_GATEWAY, 504→GATEWAY_TIMEOUT
 
 ### 미들웨어/파이프라인

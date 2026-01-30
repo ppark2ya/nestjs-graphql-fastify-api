@@ -14,7 +14,10 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { DataLoaderModule } from './dataloader/dataloader.module';
 import { DataLoaderService } from './dataloader/dataloader.service';
-import { HttpExceptionFilter } from './common/filter/http-exception.filter';
+import {
+  HttpExceptionFilter,
+  AxiosExceptionFilter,
+} from './common/filter/http-exception.filter';
 
 @Module({
   imports: [
@@ -57,10 +60,14 @@ import { HttpExceptionFilter } from './common/filter/http-exception.filter';
   providers: [
     AppService,
     AppResolver,
-    // 전역 Filter 등록 - 백엔드 API HttpException → GraphQLError 변환
+    // 전역 Filter 등록 - 백엔드 API 에러 → GraphQLError 변환
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: AxiosExceptionFilter,
     },
     // 전역 Guard 등록 - Rate Limiting
     {

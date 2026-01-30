@@ -1,20 +1,10 @@
-import {
-  Injectable,
-  Logger,
-  HttpException,
-  BadGatewayException,
-  GatewayTimeoutException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, retry, timer } from 'rxjs';
-import { AxiosError } from 'axios';
 import { Post } from './models/post.model';
 
 @Injectable()
 export class AppService {
-  private readonly logger = new Logger(AppService.name);
-
   constructor(private readonly httpService: HttpService) {}
 
   getHello(): string {
@@ -62,40 +52,10 @@ export class AppService {
     url: string,
     headers: Record<string, string>,
   ): Promise<{ data: T }> {
-    try {
-      return await firstValueFrom(
-        this.httpService
-          .get<T>(url, { headers })
-          .pipe(retry({ count: 2, delay: (_, retryIndex) => timer(retryIndex * 500) })),
-      );
-    } catch (error) {
-      throw this.handleHttpError(error, url);
-    }
-  }
-
-  private handleHttpError(error: unknown, url: string): HttpException {
-    if (error instanceof AxiosError) {
-      const status = error.response?.status;
-      const code = error.code;
-
-      if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
-        this.logger.error(`Backend timeout: ${url}`, error.message);
-        return new GatewayTimeoutException('Backend service timeout');
-      }
-
-      if (!status) {
-        this.logger.error(`Backend unreachable: ${url}`, error.message);
-        return new BadGatewayException('Backend service unavailable');
-      }
-
-      this.logger.error(
-        `Backend error: ${url} responded with ${status}`,
-        error.message,
-      );
-      return new BadGatewayException(`Backend service error (${status})`);
-    }
-
-    this.logger.error(`Unexpected error calling ${url}`, error);
-    return new InternalServerErrorException('Internal server error');
+    return firstValueFrom(
+      this.httpService
+        .get<T>(url, { headers })
+        .pipe(retry({ count: 2, delay: (_, retryIndex) => timer(retryIndex * 500) })),
+    );
   }
 }
