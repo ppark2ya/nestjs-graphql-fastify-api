@@ -4,7 +4,12 @@ import { DataLoaderService } from './dataloader.service';
 import { AppService } from '../app.service';
 
 @Module({
-  imports: [HttpModule],
+  imports: [
+    HttpModule.register({
+      timeout: 5000,
+      maxRedirects: 3,
+    }),
+  ],
   providers: [DataLoaderService, AppService],
   exports: [DataLoaderService],
 })

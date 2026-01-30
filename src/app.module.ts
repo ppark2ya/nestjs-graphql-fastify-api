@@ -10,6 +10,7 @@ import { AppService } from './app.service';
 import { AppResolver } from './app.resolver';
 import { ApiKeyGuard } from './auth/api-key.guard';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { DataLoaderModule } from './dataloader/dataloader.module';
 import { DataLoaderService } from './dataloader/dataloader.service';
 
@@ -34,7 +35,10 @@ import { DataLoaderService } from './dataloader/dataloader.service';
         }),
       }),
     }),
-    HttpModule,
+    HttpModule.register({
+      timeout: 5000,
+      maxRedirects: 3,
+    }),
     DataLoaderModule,
   ],
   controllers: [AppController],
@@ -50,6 +54,6 @@ import { DataLoaderService } from './dataloader/dataloader.service';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(LoggerMiddleware).forRoutes('*');
+    consumer.apply(CorrelationIdMiddleware, LoggerMiddleware).forRoutes('*');
   }
 }

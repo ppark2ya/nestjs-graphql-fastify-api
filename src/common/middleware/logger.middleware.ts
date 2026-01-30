@@ -1,5 +1,4 @@
-import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { Injectable, NestMiddleware } from '@nestjs/common';
 import * as winston from 'winston';
 import DailyRotateFile = require('winston-daily-rotate-file');
 
@@ -40,6 +39,7 @@ export class LoggerMiddleware implements NestMiddleware {
   use(req: any, res: any, next: (error?: any) => void) {
     const { method, originalUrl, headers } = req;
     const userAgent = headers['user-agent'] || '';
+    const correlationId = headers['x-correlation-id'] || '';
     const start = Date.now();
 
     res.on('finish', () => {
@@ -47,23 +47,19 @@ export class LoggerMiddleware implements NestMiddleware {
       const duration = Date.now() - start;
 
       const logMessage = `${method} ${originalUrl} ${statusCode} - ${userAgent} +${duration}ms`;
+      const meta = {
+        correlationId,
+        method,
+        url: originalUrl,
+        statusCode,
+        userAgent,
+        duration,
+      };
 
       if (statusCode >= 400) {
-        this.logger.error(logMessage, {
-          method,
-          url: originalUrl,
-          statusCode,
-          userAgent,
-          duration,
-        });
+        this.logger.error(logMessage, meta);
       } else {
-        this.logger.info(logMessage, {
-          method,
-          url: originalUrl,
-          statusCode,
-          userAgent,
-          duration,
-        });
+        this.logger.info(logMessage, meta);
       }
     });
 
