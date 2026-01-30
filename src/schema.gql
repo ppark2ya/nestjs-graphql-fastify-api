@@ -1,0 +1,35 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+input AddNumbersInput {
+  """첫 번째 숫자"""
+  a: Int!
+
+  """두 번째 숫자"""
+  b: Int!
+}
+
+type Post {
+  body: String!
+  id: Int!
+  title: String!
+  userId: Int!
+}
+
+type Query {
+  """Add two numbers"""
+  add(input: AddNumbersInput!): Int!
+
+  """Echo the input message"""
+  echo(message: String!): String!
+
+  """Health check query"""
+  health: String!
+
+  """Returns hello message"""
+  hello: String!
+
+  """Get posts from JSONPlaceholder REST API"""
+  posts: [Post!]!
+}
