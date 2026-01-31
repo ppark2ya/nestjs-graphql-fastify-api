@@ -17,3 +17,7 @@ export { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 // Common - Filter
 export { HTTP_STATUS_TO_ERROR_CODE } from './common/filter/http-status-mapping';
+
+// Common - Interceptor
+export { LoggingInterceptor } from './common/interceptor/logging.interceptor';
+

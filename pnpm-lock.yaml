@@ -25,10 +25,13 @@ dependencies:
     version: 4.0.2(@nestjs/common@11.1.12)(rxjs@7.8.2)
   '@nestjs/core':
     specifier: ^11.0.1
-    version: 11.1.12(@nestjs/common@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    version: 11.1.12(@nestjs/common@11.1.12)(@nestjs/microservices@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
   '@nestjs/graphql':
     specifier: ^13.2.3
     version: 13.2.3(@nestjs/common@11.1.12)(@nestjs/core@11.1.12)(graphql@16.12.0)(reflect-metadata@0.2.2)
+  '@nestjs/microservices':
+    specifier: ^11.1.12
+    version: 11.1.12(@nestjs/common@11.1.12)(@nestjs/core@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
   '@nestjs/passport':
     specifier: ^11.0.5
     version: 11.0.5(@nestjs/common@11.1.12)(passport@0.7.0)
@@ -108,7 +111,7 @@ devDependencies:
     version: 11.0.9(chokidar@4.0.3)(typescript@5.9.3)
   '@nestjs/testing':
     specifier: ^11.0.1
-    version: 11.1.12(@nestjs/common@11.1.12)(@nestjs/core@11.1.12)
+    version: 11.1.12(@nestjs/common@11.1.12)(@nestjs/core@11.1.12)(@nestjs/microservices@11.1.12)
   '@nx/eslint':
     specifier: ^21.3.2
     version: 21.6.10(@swc/core@1.15.11)(eslint@9.39.2)(nx@21.6.10)
@@ -3298,7 +3301,7 @@ packages:
       '@apollo/server-plugin-landing-page-graphql-playground': 4.0.1(@apollo/server@5.3.0)
       '@as-integrations/fastify': 3.1.0(@apollo/server@5.3.0)(fastify@5.7.2)
       '@nestjs/common': 11.1.12(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(@nestjs/microservices@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/graphql': 13.2.3(@nestjs/common@11.1.12)(@nestjs/core@11.1.12)(graphql@16.12.0)(reflect-metadata@0.2.2)
       graphql: 16.12.0
       iterall: 1.3.0
@@ -3394,7 +3397,7 @@ packages:
       rxjs: 7.8.2
     dev: false
 
-  /@nestjs/core@11.1.12(@nestjs/common@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2):
+  /@nestjs/core@11.1.12(@nestjs/common@11.1.12)(@nestjs/microservices@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2):
     resolution: {integrity: sha512-97DzTYMf5RtGAVvX1cjwpKRiCUpkeQ9CCzSAenqkAhOmNVVFaApbhuw+xrDt13rsCa2hHVOYPrV4dBgOYMJjsA==}
     engines: {node: '>= 20'}
     requiresBuild: true
@@ -3414,6 +3417,7 @@ packages:
         optional: true
     dependencies:
       '@nestjs/common': 11.1.12(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/microservices': 11.1.12(@nestjs/common@11.1.12)(@nestjs/core@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nuxt/opencollective': 0.4.1
       fast-safe-stringify: 2.1.1
       iterare: 1.2.1
@@ -3448,7 +3452,7 @@ packages:
       '@graphql-tools/schema': 10.0.30(graphql@16.12.0)
       '@graphql-tools/utils': 10.11.0(graphql@16.12.0)
       '@nestjs/common': 11.1.12(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(@nestjs/microservices@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/mapped-types': 2.1.0(@nestjs/common@11.1.12)(reflect-metadata@0.2.2)
       chokidar: 4.0.3
       fast-glob: 3.3.3
@@ -3486,6 +3490,49 @@ packages:
       reflect-metadata: 0.2.2
     dev: false
 
+  /@nestjs/microservices@11.1.12(@nestjs/common@11.1.12)(@nestjs/core@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2):
+    resolution: {integrity: sha512-WhkQPvqRJukzWJ0NXE2PJuFcurejRgiPmQ2jumcphkTi/oFu/uEXfTa3Bz6CSKp3eh2fkqtG6YGPoVbUdJS9/A==}
+    peerDependencies:
+      '@grpc/grpc-js': '*'
+      '@nestjs/common': ^11.0.0
+      '@nestjs/core': ^11.0.0
+      '@nestjs/websockets': ^11.0.0
+      amqp-connection-manager: '*'
+      amqplib: '*'
+      cache-manager: '*'
+      ioredis: '*'
+      kafkajs: '*'
+      mqtt: '*'
+      nats: '*'
+      reflect-metadata: ^0.1.12 || ^0.2.0
+      rxjs: ^7.1.0
+    peerDependenciesMeta:
+      '@grpc/grpc-js':
+        optional: true
+      '@nestjs/websockets':
+        optional: true
+      amqp-connection-manager:
+        optional: true
+      amqplib:
+        optional: true
+      cache-manager:
+        optional: true
+      ioredis:
+        optional: true
+      kafkajs:
+        optional: true
+      mqtt:
+        optional: true
+      nats:
+        optional: true
+    dependencies:
+      '@nestjs/common': 11.1.12(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(@nestjs/microservices@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      iterare: 1.2.1
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+      tslib: 2.8.1
+
   /@nestjs/passport@11.0.5(@nestjs/common@11.1.12)(passport@0.7.0):
     resolution: {integrity: sha512-ulQX6mbjlws92PIM15Naes4F4p2JoxGnIJuUsdXQPT+Oo2sqQmENEZXM7eYuimocfHnKlcfZOuyzbA33LwUlOQ==}
     peerDependencies:
@@ -3512,7 +3559,7 @@ packages:
       '@fastify/cors': 11.2.0
       '@fastify/formbody': 8.0.2
       '@nestjs/common': 11.1.12(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(@nestjs/microservices@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       fast-querystring: 1.1.2
       fastify: 5.6.2
       fastify-plugin: 5.1.0
@@ -3538,7 +3585,7 @@ packages:
       - chokidar
     dev: true
 
-  /@nestjs/testing@11.1.12(@nestjs/common@11.1.12)(@nestjs/core@11.1.12):
+  /@nestjs/testing@11.1.12(@nestjs/common@11.1.12)(@nestjs/core@11.1.12)(@nestjs/microservices@11.1.12):
     resolution: {integrity: sha512-W0M/i5nb9qRQpTQfJm+1mGT/+y4YezwwdcD7mxFG8JEZ5fz/ZEAk1Ayri2VBJKJUdo20B1ggnvqew4dlTMrSNg==}
     peerDependencies:
       '@nestjs/common': ^11.0.0
@@ -3552,7 +3599,8 @@ packages:
         optional: true
     dependencies:
       '@nestjs/common': 11.1.12(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(@nestjs/microservices@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/microservices': 11.1.12(@nestjs/common@11.1.12)(@nestjs/core@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       tslib: 2.8.1
     dev: true
 
@@ -3564,7 +3612,7 @@ packages:
       reflect-metadata: ^0.1.13 || ^0.2.0
     dependencies:
       '@nestjs/common': 11.1.12(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.12(@nestjs/common@11.1.12)(@nestjs/microservices@11.1.12)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       reflect-metadata: 0.2.2
     dev: false
 

@@ -50,6 +50,9 @@ type Mutation {
   """토큰 갱신"""
   refreshToken(input: RefreshTokenInput!): AuthToken!
 
+  """2FA 설정 (JWT 인증 필요)"""
+  setupTwoFactor(input: TotpSetupInput!): TotpSetupResult!
+
   """2FA TOTP 검증"""
   verifyTwoFactor(input: TotpVerifyInput!): AuthToken!
 }
@@ -84,6 +87,22 @@ type Query {
 input RefreshTokenInput {
   """리프레시 토큰"""
   refreshToken: String!
+}
+
+input TotpSetupInput {
+  """TOTP 코드 (6자리)"""
+  totpCode: String
+}
+
+type TotpSetupResult {
+  """2FA 활성화 완료 여부"""
+  enabled: Boolean
+
+  """TOTP Key URI (QR코드 생성용)"""
+  keyUri: String
+
+  """TOTP Secret (QR코드 생성용)"""
+  secret: String
 }
 
 input TotpVerifyInput {
