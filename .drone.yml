@@ -1,6 +1,7 @@
 # ================================================================
 # Drone CI Pipeline Configuration
 # Gateway와 Auth를 분리된 파이프라인으로 빌드
+# 각 서비스 관련 소스가 변경될 때만 트리거
 # ================================================================
 
 # ================== Gateway Pipeline ==================
@@ -15,6 +16,16 @@ trigger:
   event:
     - push
     - tag
+  paths:
+    include:
+      - apps/gateway/**
+      - libs/shared/**
+      - package.json
+      - pnpm-lock.yaml
+      - tsconfig.base.json
+      - nest-cli.json
+      - nx.json
+      - .swcrc
 
 steps:
   - name: build-and-push-gateway
@@ -48,6 +59,16 @@ trigger:
   event:
     - push
     - tag
+  paths:
+    include:
+      - apps/auth/**
+      - libs/shared/**
+      - package.json
+      - pnpm-lock.yaml
+      - tsconfig.base.json
+      - nest-cli.json
+      - nx.json
+      - .swcrc
 
 steps:
   - name: build-and-push-auth
@@ -67,3 +88,4 @@ steps:
     when:
       status:
         - success
+
