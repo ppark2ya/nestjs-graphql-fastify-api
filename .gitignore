@@ -31,3 +31,8 @@ lerna-debug.log*
 
 # RS256 keys
 keys/
+
+# Drone / CI Local
+secrets.txt
+docker/local-cicd/.env
+.drone.local.yml
