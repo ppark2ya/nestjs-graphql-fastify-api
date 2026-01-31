@@ -35,7 +35,7 @@ services:
           cpus: "0.25"
           memory: 128M
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/graphql?query=%7Bhealth%7D"]
+      test: ["CMD-SHELL", "wget -q --header='Content-Type: application/json' --post-data='{\"query\":\"{ health }\"}' -O - http://localhost:4000/graphql | grep -q '\"health\"' || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
