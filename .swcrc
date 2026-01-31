@@ -1,6 +1,9 @@
 {
   "$schema": "https://swc.rs/schema.json",
   "sourceMaps": true,
+  "module": {
+    "type": "commonjs"
+  },
   "jsc": {
     "parser": {
       "syntax": "typescript",

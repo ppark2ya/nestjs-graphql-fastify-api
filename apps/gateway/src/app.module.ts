@@ -3,6 +3,7 @@ import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
 import { HttpModule } from '@nestjs/axios';
 import depthLimit from 'graphql-depth-limit';
@@ -26,6 +27,10 @@ import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.local', '.env'],
+    }),
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
       imports: [DataLoaderModule],
@@ -34,7 +39,7 @@ import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
         autoSchemaFile: join(process.cwd(), 'apps/gateway/src/schema.gql'),
         sortSchema: true,
         playground: false,
-        introspection: process.env.NODE_ENV === 'development' ? true : false,
+        introspection: process.env.NODE_ENV !== 'production',
         includeStacktraceInErrorResponses:
           process.env.NODE_ENV !== 'production',
         validationRules: [depthLimit(5)],
