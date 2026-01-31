@@ -2,18 +2,7 @@ import { Catch, HttpException, Logger } from '@nestjs/common';
 import { GqlExceptionFilter } from '@nestjs/graphql';
 import { GraphQLError } from 'graphql';
 import { AxiosError } from 'axios';
-
-const HTTP_STATUS_TO_GQL_CODE: Record<number, string> = {
-  400: 'BAD_REQUEST',
-  401: 'UNAUTHENTICATED',
-  403: 'FORBIDDEN',
-  404: 'NOT_FOUND',
-  408: 'GATEWAY_TIMEOUT',
-  429: 'TOO_MANY_REQUESTS',
-  502: 'BAD_GATEWAY',
-  503: 'BAD_GATEWAY',
-  504: 'GATEWAY_TIMEOUT',
-};
+import { HTTP_STATUS_TO_ERROR_CODE } from '@monorepo/shared/common/filter/http-status-mapping';
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements GqlExceptionFilter {
@@ -29,7 +18,7 @@ export class HttpExceptionFilter implements GqlExceptionFilter {
 
     this.logger.error(`HttpException [${status}]: ${message}`);
 
-    const code = HTTP_STATUS_TO_GQL_CODE[status] ?? 'INTERNAL_SERVER_ERROR';
+    const code = HTTP_STATUS_TO_ERROR_CODE[status] ?? 'INTERNAL_SERVER_ERROR';
 
     return new GraphQLError(message, {
       extensions: { code, statusCode: status },
@@ -65,7 +54,7 @@ export class AxiosExceptionFilter implements GqlExceptionFilter {
       exception.message,
     );
 
-    const gqlCode = HTTP_STATUS_TO_GQL_CODE[status] ?? 'BAD_GATEWAY';
+    const gqlCode = HTTP_STATUS_TO_ERROR_CODE[status] ?? 'BAD_GATEWAY';
 
     return new GraphQLError(`Backend service error (${status})`, {
       extensions: { code: gqlCode, statusCode: status },
