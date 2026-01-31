@@ -56,6 +56,11 @@ services:
       - DATABASE_NAME=${DB_NAME}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - JWT_PUBLIC_KEY_PATH=/run/secrets/jwt_public_key
+      - JWT_PRIVATE_KEY_PATH=/run/secrets/jwt_private_key
+    secrets:
+      - jwt_public_key
+      - jwt_private_key
     deploy:
       replicas: 1
       update_config:
@@ -80,3 +85,9 @@ networks:
   app-network:
     driver: overlay
     attachable: true
+
+secrets:
+  jwt_public_key:
+    external: true
+  jwt_private_key:
+    external: true
