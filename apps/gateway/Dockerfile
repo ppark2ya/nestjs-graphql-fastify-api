@@ -48,6 +48,7 @@ COPY --from=build /app/dist ./dist
 
 # package.json 복사 (버전 정보 등)
 COPY package.json ./
+COPY keys ./keys
 
 # 로그 디렉토리 권한 설정
 RUN mkdir -p logs && chown -R node:node .
