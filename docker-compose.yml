@@ -1,8 +1,8 @@
 version: "3.8"
 
 services:
-  api:
-    image: repo-nexus.dozn.co.kr:5000/dozn/nestjs-graphql-fastify-api:latest
+  gateway:
+    image: ${DOCKER_REPO_GATEWAY:-ppark2ya/nestjs-gateway}:${TAG:-latest}
     ports:
       - target: 4000
         published: 4000
@@ -10,11 +10,12 @@ services:
         mode: host
     environment:
       - NODE_ENV=production
-      - PORT=4000
+      - AUTH_TCP_PORT=4002
+      - AUTH_SERVICE_HOST=auth
+    depends_on:
+      - auth
     deploy:
-      replicas: 2
-      placement:
-        max_replicas_per_node: 1
+      replicas: 1
       update_config:
         parallelism: 1
         delay: 10s
@@ -39,6 +40,39 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    networks:
+      - app-network
+
+  auth:
+    image: ${DOCKER_REPO_AUTH:-ppark2ya/nestjs-auth}:${TAG:-latest}
+    environment:
+      - NODE_ENV=production
+      - AUTH_HTTP_PORT=4001
+      - AUTH_TCP_PORT=4002
+      - DATABASE_HOST=${DB_HOST}
+      - DATABASE_PORT=${DB_PORT:-3306}
+      - DATABASE_USER=${DB_USER}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
     networks:
       - app-network
 
