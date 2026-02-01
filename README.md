@@ -1,98 +1,96 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# NestJS GraphQL Fastify API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Nx Monorepo 기반의 고성능 마이크로서비스 아키텍처 예제 프로젝트입니다.
+**Gateway (GraphQL)**와 **Auth (REST)** 두 개의 애플리케이션으로 구성되어 있으며, 인프라 및 배포 파이프라인까지 포함합니다.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 🏗 아키텍처
 
-## Description
+이 프로젝트는 **Nx Integrated Monorepo** 패턴을 따릅니다.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Gateway (Port 4000)**: GraphQL 엔드포인트. 외부 REST API 및 Auth 서비스를 GraphQL 스키마로 통합하여 제공합니다.
+- **Auth (Port 4001)**: 인증 전담 서버. JWT 발급, 검증, 2FA(TOTP), Refresh Token Rotation을 수행합니다.
+- **Shared Lib**: 공통 상수, 타입, 유틸리티를 공유합니다.
 
-## Project setup
+### 핵심 기능
 
-```bash
-$ npm install
-```
+| 기능 | 설명 | 기술 스택 |
+|---|---|---|
+| **GraphQL Gateway** | 단일 API 진입점, REST to GraphQL 변환 | Apollo Server, DataLoader |
+| **인증 시스템** | JWT RS256 비대칭 키 서명, Refresh Token Rotation | jose, Passport, bcrypt |
+| **2FA** | TOTP 기반 2단계 인증 | otplib |
+| **안정성** | 외부 서비스 호출 시 서킷 브레이커 적용 | Opossum |
+| **성능** | Fastify 기반의 높은 처리량 | Fastify Adapter |
 
-## Compile and run the project
+## 🛠 기술 스택
 
-```bash
-# development
-$ npm run start
+- **Framework**: NestJS v11, Fastify
+- **Language**: TypeScript (ES2023)
+- **GraphQL**: Code-First, DataLoader
+- **Database**: MySQL, Drizzle ORM
+- **Build**: SWC, Nx
+- **Infrastructure**: Docker Swarm, Portainer, Drone CI
 
-# watch mode
-$ npm run start:dev
+## 🚀 시작하기
 
-# production mode
-$ npm run start:prod
-```
+### 사전 요구사항
+- Node.js v20+
+- pnpm
+- Docker & Docker Compose (선택사항)
 
-## Run tests
+### 설치
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+pnpm install
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 키 생성 (로컬 개발용)
+Auth 서버 구동을 위해 RS256 키 쌍이 필요합니다.
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# keys 디렉토리에 public.pem, private.pem 생성
+./generate_keys.sh
+```
+*(주의: 실제 배포 시에는 Docker Swarm Secrets를 사용하므로 키 파일이 필요 없습니다.)*
+
+### 실행
+
+```bash
+# 개발 모드 (Watch)
+pnpm run start:gateway:dev
+pnpm run start:auth:dev
+
+# 프로덕션 모드
+pnpm run start:gateway:prod
+pnpm run start:auth:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 테스트
 
-## Resources
+```bash
+pnpm run test           # Unit Test
+pnpm run test:e2e:auth  # E2E Test
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+## 🐳 인프라 및 배포
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+이 프로젝트는 **Docker Swarm**을 이용한 무중단 배포 환경을 지원합니다.
 
-## Support
+### 주요 특징
+- **Docker Secrets**: 민감한 키 파일을 이미지에 포함하지 않고 안전하게 주입
+- **Overlay Network**: 마이크로서비스 간 사설 네트워크 통신
+- **Healthcheck**: 서비스 상태 모니터링 및 자동 복구
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### 배포 파이프라인
+1. **Drone CI**: 코드 푸시 감지 및 Docker 이미지 빌드
+2. **Docker Registry**: 빌드된 이미지 푸시
+3. **Portainer**: Webhook 또는 UI를 통해 Swarm Stack 업데이트
 
-## Stay in touch
+자세한 인프라 설정 및 아키텍처는 [CLAUDE.md](./CLAUDE.md) 파일을 참고하세요.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## 📝 문서
+
+더 상세한 개발 가이드와 아키텍처 설명은 `CLAUDE.md` 파일에 기술되어 있습니다. LLM(Claude 등)을 활용하여 개발할 때 이 파일을 컨텍스트로 제공하면 효율적입니다.
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+[MIT licensed](LICENSE)
