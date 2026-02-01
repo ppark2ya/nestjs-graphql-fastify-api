@@ -258,3 +258,132 @@ import { requestContext } from '@monorepo/shared/common/context/request-context'
 - GraphQL 스키마 파일(`schema.gql`)은 빌드 시 자동 생성되므로 직접 수정하지 않는다
 - Auth DTO 검증: zod 스키마 + ZodValidationPipe
 - Gateway 입력 검증: GraphQL 스키마 타입 시스템에 위임
+
+## 인프라 및 배포
+
+### Docker 설정
+
+**Dockerfile** (`apps/gateway/Dockerfile`, `apps/auth/Dockerfile`):
+- Multi-stage 빌드: `deps` → `build` → `production` 3단계
+- Alpine 기반 Node.js 이미지 사용
+- pnpm을 통한 의존성 설치 (production only)
+- 보안: non-root 사용자(`node`)로 실행
+- `logs/` 디렉토리 생성 및 권한 설정 포함
+
+**docker-compose.yml** (Swarm Stack 배포용):
+```yaml
+services:
+  gateway:
+    image: ${DOCKER_REPO_GATEWAY}:${TAG}
+    ports: ["4000:4000"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --header='Content-Type: application/json' --post-data='{\"query\":\"{ health }\"}' -O - http://localhost:4000/graphql | grep -q '\"health\"'"]
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+
+  auth:
+    image: ${DOCKER_REPO_AUTH}:${TAG}
+    secrets:
+      - jwt_public_key
+      - jwt_private_key
+    environment:
+      - JWT_PUBLIC_KEY_PATH=/run/secrets/jwt_public_key
+      - JWT_PRIVATE_KEY_PATH=/run/secrets/jwt_private_key
+
+networks:
+  app-network:
+    driver: overlay
+    attachable: true
+
+secrets:
+  jwt_public_key:
+    external: true
+  jwt_private_key:
+    external: true
+```
+
+### Docker Swarm Secrets
+
+JWT 키는 이미지에 포함하지 않고 **Docker Swarm Secrets**로 주입:
+- `jwt_public_key`: RS256 공개키
+- `jwt_private_key`: RS256 비밀키
+- 컨테이너 내 경로: `/run/secrets/<secret_name>`
+- 환경변수 `JWT_PUBLIC_KEY_PATH`, `JWT_PRIVATE_KEY_PATH`로 경로 지정
+
+**Secret 생성 (CLI)**:
+```bash
+docker secret create jwt_public_key keys/public.pem
+docker secret create jwt_private_key keys/private.pem
+```
+
+### CI/CD (Drone)
+
+**`.drone.yml`**: Gateway/Auth 분리 파이프라인
+```yaml
+kind: pipeline
+type: docker
+name: gateway  # 또는 auth
+
+trigger:
+  branch: [main, develop]
+  event: [push, tag]
+
+steps:
+  - name: build-and-push
+    image: plugins/docker
+    settings:
+      repo: { from_secret: docker_repo_gateway }
+      dockerfile: apps/gateway/Dockerfile
+      tags: ["${DRONE_TAG}", "latest"]
+      username: { from_secret: docker_username }
+      password: { from_secret: docker_password }
+```
+
+**로컬 파이프라인 테스트**:
+```bash
+# secrets.txt 필요 (docker_username, docker_password, docker_repo_*)
+DRONE_TAG=local drone exec --trusted --pipeline=gateway --secret-file=secrets.txt
+```
+
+### 로컬 CI/CD 환경 (선택사항)
+
+`docker/local-cicd/docker-compose.yml`:
+- **Portainer** (`:9000`): Docker 관리 UI
+- **Drone Server** (`:8080`): CI 서버 (GitHub OAuth)
+- **Drone Runner**: 파이프라인 실행기
+
+```bash
+# 시작
+docker-compose -f docker/local-cicd/docker-compose.yml up -d
+
+# 종료 및 정리
+docker-compose -f docker/local-cicd/docker-compose.yml down
+docker swarm leave --force  # Swarm 모드 해제
+```
+
+### 배포 방식
+
+| 방식 | 명령어/도구 | 특징 |
+|------|-------------|------|
+| CLI (Swarm) | `docker stack deploy -c docker-compose.yml <stack>` | 무중단 배포, Rolling Update |
+| Portainer UI | Stacks > Add stack | 웹 에디터, 환경변수 관리 |
+
+**주의**: CLI로 배포한 스택은 Portainer에서 "Limited" 상태로 표시되며 에디터 사용 불가. Portainer에서 완전 관리하려면 UI에서 직접 배포해야 함.
+
+### 환경변수 (배포용)
+
+| 변수명 | 설명 | 기본값 |
+|--------|------|--------|
+| `DOCKER_REPO_GATEWAY` | Gateway 이미지 저장소 | - |
+| `DOCKER_REPO_AUTH` | Auth 이미지 저장소 | - |
+| `TAG` | 이미지 태그 | `latest` |
+| `DB_HOST` | MySQL 호스트 | `localhost` |
+| `DB_PORT` | MySQL 포트 | `3306` |
+| `JWT_PUBLIC_KEY_PATH` | 공개키 경로 | `keys/public.pem` |
+| `JWT_PRIVATE_KEY_PATH` | 비밀키 경로 | `keys/private.pem` |
+
+Swarm 환경에서 호스트 DB 접속 시: `DB_HOST=host.docker.internal`
