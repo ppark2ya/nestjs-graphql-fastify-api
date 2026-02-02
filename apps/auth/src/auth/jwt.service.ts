@@ -1,16 +1,15 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFile } from 'fs/promises';
-import { importPKCS8, importSPKI, SignJWT, jwtVerify } from 'jose';
-import type { CryptoKey, KeyObject } from 'jose';
+import { importPKCS8, importSPKI, SignJWT, jwtVerify, type KeyLike } from 'jose';
 import { randomUUID } from 'crypto';
 import { AUTH_CONSTANTS } from '@monorepo/shared';
 import type { JwtPayload } from '@monorepo/shared';
 
 @Injectable()
 export class JwtTokenService implements OnModuleInit {
-  private privateKey: CryptoKey | KeyObject;
-  private publicKey: CryptoKey | KeyObject;
+  private privateKey: KeyLike;
+  private publicKey: KeyLike;
 
   constructor(private readonly config: ConfigService) {}
 
