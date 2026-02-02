@@ -1,0 +1,114 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+input AddNumbersInput {
+  """첫 번째 숫자"""
+  a: Int!
+
+  """두 번째 숫자"""
+  b: Int!
+}
+
+type AuthToken {
+  """JWT 액세스 토큰"""
+  accessToken: String!
+
+  """액세스 토큰 만료 시간 (초)"""
+  expiresIn: Int!
+
+  """리프레시 토큰"""
+  refreshToken: String!
+}
+
+input LoginInput {
+  """비밀번호"""
+  password: String!
+
+  """사용자명"""
+  username: String!
+}
+
+type LoginResult {
+  """2FA 인증 필요 여부"""
+  requiresTwoFactor: Boolean!
+
+  """로그인 성공 시 토큰 (2FA 불필요 시)"""
+  tokens: AuthToken
+
+  """2FA 임시 토큰 (2FA 필요 시)"""
+  twoFactorToken: String
+}
+
+type Mutation {
+  """로그인"""
+  login(input: LoginInput!): LoginResult!
+
+  """로그아웃"""
+  logout(refreshToken: String!): Boolean!
+
+  """토큰 갱신"""
+  refreshToken(input: RefreshTokenInput!): AuthToken!
+
+  """2FA 설정 (JWT 인증 필요)"""
+  setupTwoFactor(input: TotpSetupInput!): TotpSetupResult!
+
+  """2FA TOTP 검증"""
+  verifyTwoFactor(input: TotpVerifyInput!): AuthToken!
+}
+
+type Post {
+  body: String!
+  id: Int!
+  title: String!
+  userId: Int!
+}
+
+type Query {
+  """Add two numbers"""
+  add(input: AddNumbersInput!): Int!
+
+  """Echo the input message"""
+  echo(message: String!): String!
+
+  """Health check query"""
+  health: String!
+
+  """Returns hello message"""
+  hello: String!
+
+  """Get posts from JSONPlaceholder REST API"""
+  posts: [Post!]!
+
+  """Get posts by user ID (uses DataLoader)"""
+  postsByUser(userId: Int!): [Post!]!
+}
+
+input RefreshTokenInput {
+  """리프레시 토큰"""
+  refreshToken: String!
+}
+
+input TotpSetupInput {
+  """TOTP 코드 (6자리)"""
+  totpCode: String
+}
+
+type TotpSetupResult {
+  """2FA 활성화 완료 여부"""
+  enabled: Boolean
+
+  """TOTP Key URI (QR코드 생성용)"""
+  keyUri: String
+
+  """TOTP Secret (QR코드 생성용)"""
+  secret: String
+}
+
+input TotpVerifyInput {
+  """TOTP 6자리 코드"""
+  totpCode: String!
+
+  """2FA 임시 토큰"""
+  twoFactorToken: String!
+}
