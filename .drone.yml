@@ -88,4 +88,64 @@ steps:
     when:
       status:
         - success
+---
+# ================== Gateway Pipeline ==================
+kind: pipeline
+type: docker
+name: gateway
 
+trigger:
+  event:
+    - tag
+  ref:
+    - refs/tags/v*
+
+steps:
+  - name: build-and-push-gateway
+    image: plugins/docker
+    settings:
+      dockerfile: apps/gateway/Dockerfile
+      context: .
+      repo:
+        from_secret: docker_repo_gateway
+      tags:
+        - ${DRONE_TAG}
+        - latest
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+    when:
+      status:
+        - success
+
+---
+# ================== Auth Pipeline ==================
+kind: pipeline
+type: docker
+name: auth
+
+trigger:
+  event:
+    - tag
+  ref:
+    - refs/tags/v*
+
+steps:
+  - name: build-and-push-auth
+    image: plugins/docker
+    settings:
+      dockerfile: apps/auth/Dockerfile
+      context: .
+      repo:
+        from_secret: docker_repo_auth
+      tags:
+        - ${DRONE_TAG}
+        - latest
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+    when:
+      status:
+        - success

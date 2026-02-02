@@ -8,7 +8,10 @@ export class LoggerMiddleware implements NestMiddleware {
   private logger = winston.createLogger({
     level: 'info',
     format: winston.format.combine(
-      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+      winston.format.timestamp({
+        format: () =>
+          new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }),
+      }),
       winston.format.json(),
     ),
     transports: [
@@ -19,20 +22,11 @@ export class LoggerMiddleware implements NestMiddleware {
         ),
       }),
       new DailyRotateFile({
-        filename: 'logs/info-%DATE%.log',
+        filename: 'logs/app-%DATE%.log',
         datePattern: 'YYYY-MM-DD',
         zippedArchive: true,
         maxSize: '10m',
         maxFiles: '14d',
-        level: 'info',
-      }),
-      new DailyRotateFile({
-        filename: 'logs/error-%DATE%.log',
-        datePattern: 'YYYY-MM-DD',
-        zippedArchive: true,
-        maxSize: '10m',
-        maxFiles: '14d',
-        level: 'error',
       }),
     ],
   });
