@@ -1,4 +1,6 @@
-import { Injectable, LoggerService, LogLevel } from '@nestjs/common';
+import { Injectable, LoggerService } from '@nestjs/common';
+import { existsSync, mkdirSync, renameSync } from 'fs';
+import { basename, join } from 'path';
 import * as winston from 'winston';
 import DailyRotateFile = require('winston-daily-rotate-file');
 
@@ -18,6 +20,8 @@ const koreaTimestamp = winston.format.timestamp({
   format: () => new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }),
 });
 
+const ARCHIVE_DIR = 'logs/archive';
+
 @Injectable()
 export class WinstonLoggerService implements LoggerService {
   private logger: winston.Logger;
@@ -36,16 +40,38 @@ export class WinstonLoggerService implements LoggerService {
           ),
         }),
         // 파일: JSON 포맷
-        new DailyRotateFile({
-          filename: 'logs/app-%DATE%.log',
-          datePattern: 'YYYY-MM-DD',
-          zippedArchive: true,
-          maxSize: '10m',
-          maxFiles: '14d',
-          format: winston.format.combine(koreaTimestamp, winston.format.json()),
-        }),
+        this.createFileTransport(),
       ],
     });
+  }
+
+  private createFileTransport(): DailyRotateFile {
+    // archive 디렉토리 생성
+    if (!existsSync(ARCHIVE_DIR)) {
+      mkdirSync(ARCHIVE_DIR, { recursive: true });
+    }
+
+    const transport = new DailyRotateFile({
+      filename: 'logs/app-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '10m',
+      maxFiles: '14d',
+      format: winston.format.combine(koreaTimestamp, winston.format.json()),
+    });
+
+    // 로테이션 시 archive 디렉토리로 이동
+    transport.on('rotate', (oldFilename: string) => {
+      const fileName = basename(oldFilename);
+      const archivePath = join(ARCHIVE_DIR, fileName);
+      try {
+        renameSync(oldFilename, archivePath);
+      } catch {
+        // 파일이 이미 이동되었거나 존재하지 않을 경우 무시
+      }
+    });
+
+    return transport;
   }
 
   setContext(context: string) {
