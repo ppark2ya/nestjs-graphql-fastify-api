@@ -7,6 +7,7 @@ import { HttpModule } from '@nestjs/axios';
     HttpModule.register({
       timeout: 5000,
       maxRedirects: 3,
+      adapter: 'fetch',
     }),
   ],
   exports: [HttpModule],
