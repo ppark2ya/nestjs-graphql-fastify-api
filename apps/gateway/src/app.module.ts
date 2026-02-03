@@ -1,12 +1,12 @@
 import { Module, NestModule, MiddlewareConsumer, OnModuleInit } from '@nestjs/common';
-import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
-import { HttpModule } from '@nestjs/axios';
 import depthLimit from 'graphql-depth-limit';
+import { GlobalHttpModule } from './http/global-http.module';
 import { AppService } from './app.service';
 import { AppResolver } from './app.resolver';
 import { ApiKeyGuard } from './auth/api-key.guard';
@@ -24,6 +24,7 @@ import {
   AxiosExceptionFilter,
 } from './common/filter/http-exception.filter';
 import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
+import { LoggingInterceptor } from '@monorepo/shared/common/interceptor/logging.interceptor';
 
 @Module({
   imports: [
@@ -57,10 +58,7 @@ import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
         limit: 100,
       },
     ]),
-    HttpModule.register({
-      timeout: 5000,
-      maxRedirects: 3,
-    }),
+    GlobalHttpModule,
     DataLoaderModule,
     CircuitBreakerModule,
     AuthProxyModule,
@@ -75,6 +73,10 @@ import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
     {
       provide: APP_FILTER,
       useClass: AxiosExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
     },
     {
       provide: APP_GUARD,
