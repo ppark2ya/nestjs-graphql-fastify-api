@@ -32,20 +32,21 @@ export class LoggerMiddleware implements NestMiddleware {
   });
 
   use(req: any, res: any, next: (error?: any) => void) {
-    const { method, originalUrl, headers } = req;
-    const userAgent = headers['user-agent'] || '';
-    const correlationId = headers[CORRELATION_HEADER] || '';
+    const method = req.method;
+    const url = req.originalUrl || req.url;
+    const userAgent = req.headers['user-agent'] || '';
+    const correlationId = req.headers[CORRELATION_HEADER] || '';
     const start = Date.now();
 
     res.on('finish', () => {
       const { statusCode } = res;
       const duration = Date.now() - start;
 
-      const logMessage = `${method} ${originalUrl} ${statusCode} - ${userAgent} +${duration}ms`;
+      const logMessage = `${method} ${url} ${statusCode} - ${userAgent} +${duration}ms`;
       const meta = {
         correlationId,
         method,
-        url: originalUrl,
+        url,
         statusCode,
         userAgent,
         duration,

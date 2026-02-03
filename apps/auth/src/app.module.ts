@@ -9,6 +9,7 @@ import { LoggerMiddleware } from '@monorepo/shared/common/middleware/logger.midd
 import { CorrelationIdMiddleware } from '@monorepo/shared/common/middleware/correlation-id.middleware';
 import { RequestContextMiddleware } from '@monorepo/shared/common/middleware/request-context.middleware';
 import { LoggingInterceptor } from '@monorepo/shared/common/interceptor/logging.interceptor';
+import { envSchema } from './env.schema';
 
 const useMockAuth = process.env.USE_MOCK_AUTH === 'true';
 
@@ -17,7 +18,10 @@ const dbModules = useMockAuth ? [] : [DatabaseModule, UserModule, TokenModule];
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: (config) => envSchema.parse(config),
+    }),
     ...dbModules,
     AuthModule,
   ],

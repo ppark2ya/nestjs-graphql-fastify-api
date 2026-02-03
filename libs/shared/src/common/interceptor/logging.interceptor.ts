@@ -5,25 +5,31 @@ import {
   CallHandler,
   Logger,
 } from '@nestjs/common';
+import { GqlExecutionContext } from '@nestjs/graphql';
 import { Observable, tap, catchError } from 'rxjs';
 
 /**
- * LoggingInterceptor - HTTP 및 TCP 메시지 모두 로깅
- * HTTP 요청과 Microservice 메시지 패턴을 구분하여 처리
+ * LoggingInterceptor - HTTP, GraphQL, TCP 메시지 모두 로깅
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('LoggingInterceptor');
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const contextType = context.getType();
+    const contextType = context.getType<string>();
     const now = Date.now();
 
     let logPrefix: string;
     let logData: string;
 
-    if (contextType === 'http') {
-      // HTTP 요청 로깅
+    if (contextType === 'graphql') {
+      const gqlContext = GqlExecutionContext.create(context);
+      const info = gqlContext.getInfo();
+      const operationName = info.parentType.name;
+      const fieldName = info.fieldName;
+      logPrefix = `GraphQL ${operationName} [${fieldName}]`;
+      logData = '';
+    } else if (contextType === 'http') {
       const request = context.switchToHttp().getRequest();
       const method = request.method;
       const url = request.url;
