@@ -25,6 +25,7 @@ import {
 } from './common/filter/http-exception.filter';
 import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
 import { LoggingInterceptor } from '@monorepo/shared/common/interceptor/logging.interceptor';
+import { WinstonLoggerModule, WinstonLoggerService } from '@monorepo/shared';
 import { envSchema } from './env.schema';
 
 @Module({
@@ -64,6 +65,7 @@ import { envSchema } from './env.schema';
     DataLoaderModule,
     CircuitBreakerModule,
     AuthProxyModule,
+    WinstonLoggerModule,
   ],
   providers: [
     AppService,
@@ -91,10 +93,19 @@ import { envSchema } from './env.schema';
   ],
 })
 export class AppModule implements NestModule, OnModuleInit {
-  constructor(private readonly httpService: HttpService) { }
+  private readonly logger: WinstonLoggerService;
+
+  constructor(
+    private readonly httpService: HttpService,
+    logger: WinstonLoggerService,
+  ) {
+    this.logger = logger.setContext('HttpClient');
+  }
 
   onModuleInit() {
     this.httpService.axiosRef.interceptors.request.use((config) => {
+      this.logger.log(`→ ${config.method?.toUpperCase()} ${config.url}`);
+
       const store = requestContext.getStore();
       if (store?.authToken) {
         config.headers.Authorization = store.authToken;
@@ -104,6 +115,19 @@ export class AppModule implements NestModule, OnModuleInit {
       }
       return config;
     });
+
+    this.httpService.axiosRef.interceptors.response.use(
+      (response) => {
+        this.logger.log(`← ${response.status} ${response.config.url}`);
+        return response;
+      },
+      (error) => {
+        const status = error.response?.status || 'ERR';
+        const url = error.config?.url || 'unknown';
+        this.logger.error(`← ${status} ${url}`, error.message);
+        return Promise.reject(error);
+      },
+    );
   }
 
   configure(consumer: MiddlewareConsumer) {

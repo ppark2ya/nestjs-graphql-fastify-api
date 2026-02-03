@@ -21,3 +21,7 @@ export { HTTP_STATUS_TO_ERROR_CODE } from './common/filter/http-status-mapping';
 // Common - Interceptor
 export { LoggingInterceptor } from './common/interceptor/logging.interceptor';
 
+// Common - Logger
+export { WinstonLoggerModule } from './common/logger/logger.module';
+export { WinstonLoggerService } from './common/logger/winston-logger.service';
+
