@@ -25,12 +25,14 @@ import {
 } from './common/filter/http-exception.filter';
 import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
 import { LoggingInterceptor } from '@monorepo/shared/common/interceptor/logging.interceptor';
+import { envSchema } from './env.schema';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
+      validate: (config) => envSchema.parse(config),
     }),
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
@@ -89,7 +91,7 @@ import { LoggingInterceptor } from '@monorepo/shared/common/interceptor/logging.
   ],
 })
 export class AppModule implements NestModule, OnModuleInit {
-  constructor(private readonly httpService: HttpService) {}
+  constructor(private readonly httpService: HttpService) { }
 
   onModuleInit() {
     this.httpService.axiosRef.interceptors.request.use((config) => {
