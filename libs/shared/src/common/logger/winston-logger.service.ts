@@ -4,11 +4,22 @@ import { basename, join } from 'path';
 import * as winston from 'winston';
 import DailyRotateFile = require('winston-daily-rotate-file');
 
+// 레벨별 컬러 매핑
+const levelColors: Record<string, string> = {
+  error: '\x1b[31m',   // red
+  warn: '\x1b[33m',    // yellow
+  info: '\x1b[32m',    // green
+  debug: '\x1b[34m',   // blue
+  verbose: '\x1b[36m', // cyan
+};
+const resetColor = '\x1b[0m';
+
 const nestLikeConsoleFormat = winston.format.printf(
   ({ level, message, timestamp, context, ...meta }) => {
     const pid = process.pid;
-    const formattedLevel = level.toUpperCase().padEnd(7);
-    const contextStr = context ? `[${context}] ` : '';
+    const color = levelColors[level] || '';
+    const formattedLevel = `${color}${level.toUpperCase().padEnd(7)}${resetColor}`;
+    const contextStr = context ? `\x1b[33m[${context}]\x1b[0m ` : '';
     const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
 
     // NestJS 스타일: [Nest] PID - TIMESTAMP LOG [Context] Message
@@ -35,7 +46,6 @@ export class WinstonLoggerService implements LoggerService {
         new winston.transports.Console({
           format: winston.format.combine(
             koreaTimestamp,
-            winston.format.colorize({ all: true }),
             nestLikeConsoleFormat,
           ),
         }),
