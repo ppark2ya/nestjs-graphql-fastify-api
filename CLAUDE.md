@@ -4,20 +4,22 @@
 
 ## 프로젝트 개요
 
-Nx monorepo 기반의 NestJS 멀티 서버 프로젝트. 두 개의 애플리케이션으로 구성된다:
-- **Gateway** (port 4000): GraphQL API 게이트웨이. 외부 REST API를 GraphQL 인터페이스로 통합하여 단일 엔드포인트로 제공한다.
+Nx monorepo 기반의 멀티 서버 프로젝트. 세 개의 애플리케이션으로 구성된다:
+- **Gateway** (port 4000): GraphQL API 게이트웨이. 외부 REST API를 GraphQL 인터페이스로 통합하여 단일 엔드포인트로 제공한다. GraphQL Subscription (Redis PubSub)을 지원한다.
 - **Auth** (port 4001): REST 기반 인증 서버. JWT(RS256) 토큰 발급, TOTP 2FA, refresh token rotation을 처리한다.
+- **Log Streamer** (port 4003): Go 기반 Docker 로그 스트리밍 서비스. Docker 컨테이너 로그를 WebSocket으로 스트리밍한다.
 
-공통 코드는 `libs/shared`로 분리되어 양쪽 앱에서 `@monorepo/shared` 경로로 import한다.
+공통 코드는 `libs/shared`로 분리되어 NestJS 앱에서 `@monorepo/shared` 경로로 import한다.
 
 ## 기술 스택
 
-- **Runtime**: Node.js + TypeScript (v5.7, target ES2023, strict mode)
+- **Runtime**: Node.js + TypeScript (v5.7, target ES2023, strict mode), Go 1.18+
 - **Monorepo**: Nx (integrated monorepo)
-- **Framework**: NestJS v11
+- **Framework**: NestJS v11 (Gateway, Auth), Go net/http (Log Streamer)
 - **HTTP Server**: Fastify (`@nestjs/platform-fastify`)
-- **GraphQL** (gateway): Apollo Server v5 + `@nestjs/graphql` (Code-First 방식), DataLoader, graphql-depth-limit
+- **GraphQL** (gateway): Apollo Server v5 + `@nestjs/graphql` (Code-First 방식), DataLoader, graphql-depth-limit, graphql-ws (Subscriptions)
 - **HTTP Client**: Axios (`@nestjs/axios`), Circuit Breaker (`opossum`)
+- **Real-time**: Redis PubSub (`graphql-redis-subscriptions`), WebSocket (`ws`, `gorilla/websocket`)
 - **인증 (gateway)**: API Key 기반 (X-API-Key 헤더) — 클라이언트 애플리케이션 식별
 - **인증 (auth)**: JWT RS256 (jose), TOTP 2FA (otplib), Passport, bcrypt — 사용자 식별
 - **DB (auth)**: Drizzle ORM + MySQL2
@@ -25,7 +27,7 @@ Nx monorepo 기반의 NestJS 멀티 서버 프로젝트. 두 개의 애플리케
 - **유효성 검사 (auth)**: zod 스키마 + ZodValidationPipe
 - **환경변수 (auth)**: `@nestjs/config`
 - **로깅**: Winston + winston-daily-rotate-file (공통)
-- **빌드**: SWC (`@swc/core`) + TSC 타입 체크 (Nx targets)
+- **빌드**: SWC (`@swc/core`) + TSC 타입 체크 (Nx targets), Go build
 - **테스트**: Jest v30 + @swc/jest + supertest
 
 ## 디렉토리 구조
@@ -41,6 +43,12 @@ Nx monorepo 기반의 NestJS 멀티 서버 프로젝트. 두 개의 애플리케
 ├── eslint.config.mjs
 ├── .prettierrc
 ├── keys/                                # RS256 키 페어 (gitignored)
+├── docker-compose.yml                   # Swarm Stack 배포용
+├── docker-compose.local.yml             # 로컬 테스트용 (redis, log-streamer)
+├── scripts/                             # 테스트 스크립트
+│   ├── load-test.sh                     # GraphQL 부하 테스트
+│   ├── test-websocket.js                # Log-Streamer WebSocket 테스트
+│   └── test-subscription.js             # GraphQL Subscription 테스트
 │
 ├── apps/
 │   ├── gateway/                         # GraphQL 게이트웨이 (port 4000)
@@ -54,6 +62,8 @@ Nx monorepo 기반의 NestJS 멀티 서버 프로젝트. 두 개의 애플리케
 │   │   │   │   └── models/                 # AuthToken, LoginResult
 │   │   │   ├── circuit-breaker/
 │   │   │   ├── common/filter/           # GqlExceptionFilter (GraphQL 전용)
+│   │   │   ├── pubsub/                  # Redis PubSub 모듈
+│   │   │   ├── log-streamer-proxy/      # Log Streamer 프록시 (GraphQL Subscription)
 │   │   │   ├── dataloader/
 │   │   │   ├── dto/
 │   │   │   ├── models/
@@ -66,6 +76,22 @@ Nx monorepo 기반의 NestJS 멀티 서버 프로젝트. 두 개의 애플리케
 │   │   ├── project.json
 │   │   ├── tsconfig.app.json
 │   │   └── .swcrc
+│   │
+│   ├── log-streamer/                    # Go 로그 스트리밍 서비스 (port 4003)
+│   │   ├── cmd/server/main.go           # 엔트리포인트
+│   │   ├── internal/
+│   │   │   ├── config/config.go         # 환경변수 로드
+│   │   │   ├── docker/client.go         # Docker SDK 클라이언트
+│   │   │   ├── handler/
+│   │   │   │   ├── health.go            # GET /health
+│   │   │   │   ├── containers.go        # GET /api/containers
+│   │   │   │   └── logs.go              # WS /ws/logs
+│   │   │   ├── middleware/              # CORS, Logging, Correlation
+│   │   │   └── server/server.go
+│   │   ├── go.mod
+│   │   ├── go.sum
+│   │   ├── project.json                 # Nx 프로젝트 설정
+│   │   └── Dockerfile
 │   │
 │   └── auth/                            # 인증 서버 (port 4001)
 │       ├── src/
@@ -126,14 +152,17 @@ Nx monorepo 기반의 NestJS 멀티 서버 프로젝트. 두 개의 애플리케
 pnpm run build                    # 전체 빌드 (nx run-many -t build)
 pnpm run build:gateway            # 게이트웨이만 빌드
 pnpm run build:auth               # auth 서버만 빌드
+pnpm run build:log-streamer       # log-streamer 빌드 (Go)
 
 # 개발
 pnpm run start:gateway:dev        # 게이트웨이 개발 모드 (watch)
 pnpm run start:auth:dev           # auth 서버 개발 모드 (watch)
+pnpm run start:log-streamer:dev   # log-streamer 개발 모드 (go run)
 
 # 프로덕션
 pnpm run start:gateway:prod       # node dist/apps/gateway/main
 pnpm run start:auth:prod          # node dist/apps/auth/main
+pnpm run start:log-streamer:prod  # ./dist/apps/log-streamer/log-streamer
 
 # 테스트
 pnpm run test                     # 전체 테스트
@@ -156,7 +185,7 @@ pnpm run format                   # Prettier
 - Nx integrated monorepo. `nx.json`에서 빌드 캐싱 및 의존성 그래프 관리
 - `tsconfig.base.json`의 paths alias로 `@monorepo/shared` import 경로 제공
 - 각 프로젝트의 `project.json`에 빌드 타겟 정의 (tsc 타입체크 → swc 트랜스파일)
-- 빌드 출력: `dist/apps/gateway/`, `dist/apps/auth/`, `dist/libs/shared/`
+- 빌드 출력: `dist/apps/gateway/`, `dist/apps/auth/`, `dist/apps/log-streamer/`, `dist/libs/shared/`
 - nest-cli.json은 monorepo 모드로 설정 (`nest start gateway --watch` 등 지원)
 
 ### 게이트웨이 패턴
@@ -170,7 +199,33 @@ pnpm run format                   # Prettier
 - **Introspection**: 개발 환경에서만 활성화
 - **Query Depth Limiting**: `graphql-depth-limit`으로 최대 깊이 5로 제한
 - **Stacktrace**: `NODE_ENV !== 'production'`일 때만 포함
+- **Subscriptions**: `graphql-ws` 프로토콜 사용 (`subscriptions-transport-ws` 비활성화)
 - GraphQL context에 request 객체와 DataLoader 인스턴스가 포함됨
+
+### Log Streamer (Go)
+- Docker SDK (v23)를 사용하여 컨테이너 목록 조회 및 로그 스트리밍
+- WebSocket으로 실시간 로그 전송 (subscribe/unsubscribe 메시지 기반)
+- Gateway가 WebSocket 클라이언트로 연결하여 로그를 Redis PubSub으로 재배포
+- GraphQL Subscription `containerLog(containerId: String!)`로 클라이언트에 노출
+- 미들웨어 체인: CORS → Correlation → Logging
+- Logging 미들웨어는 `http.Hijacker` 인터페이스를 구현하여 WebSocket 업그레이드 지원
+
+**API 엔드포인트**:
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/health` | 헬스체크 (Docker 연결 상태 포함) |
+| GET | `/api/containers` | 컨테이너 목록 (REST) |
+| WS | `/ws/logs` | WebSocket 로그 스트림 |
+
+**WebSocket 메시지 포맷**:
+```json
+// 구독 요청
+{ "type": "subscribe", "containerId": "abc123" }
+// 구독 해제
+{ "type": "unsubscribe", "containerId": "abc123" }
+// 로그 메시지 (서버 → 클라이언트)
+{ "type": "log", "containerId": "abc123", "timestamp": "...", "message": "...", "stream": "stdout" }
+```
 
 ### 인증 아키텍처
 - **API Key** (gateway): 클라이언트 애플리케이션 식별. `X-API-Key` 헤더. `@Public()`으로 우회 가능.
@@ -236,12 +291,18 @@ import { requestContext } from '@monorepo/shared/common/context/request-context'
 
 **Gateway** (기본값):
 - `PORT` (4000), `API_KEYS` (쉼표 구분), `AUTH_SERVER_URL` (`http://localhost:4001`)
+- `LOG_STREAMER_URL` (`http://localhost:4003`), `LOG_STREAMER_WS_URL` (`ws://localhost:4003/ws/logs`)
+- `REDIS_HOST` (`localhost`), `REDIS_PORT` (`6379`)
 
 **Auth**:
 - `AUTH_PORT` (4001)
 - `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`
 - `JWT_PRIVATE_KEY_PATH` (`keys/private.pem`), `JWT_PUBLIC_KEY_PATH` (`keys/public.pem`)
 - `NODE_ENV`
+
+**Log Streamer** (Go):
+- `LOG_STREAMER_PORT` (4003)
+- `LOG_LEVEL` (`info`)
 
 ## 빌드 시스템
 
@@ -263,27 +324,45 @@ import { requestContext } from '@monorepo/shared/common/context/request-context'
 
 ### Docker 설정
 
-**Dockerfile** (`apps/gateway/Dockerfile`, `apps/auth/Dockerfile`):
+**Dockerfile (NestJS)** (`apps/gateway/Dockerfile`, `apps/auth/Dockerfile`):
 - Multi-stage 빌드: `deps` → `build` → `production` 3단계
 - Alpine 기반 Node.js 이미지 사용
 - pnpm을 통한 의존성 설치 (production only)
 - 보안: non-root 사용자(`node`)로 실행
 - `logs/` 디렉토리 생성 및 권한 설정 포함
 
+**Dockerfile (Go)** (`apps/log-streamer/Dockerfile`):
+- Multi-stage 빌드: `builder` (golang:1.19-alpine) → `production` (alpine:3.19)
+- CGO 비활성화, 정적 링크 바이너리 생성
+- `ldflags='-s -w'`로 바이너리 크기 최적화
+- 보안: non-root 사용자(`appuser`)로 실행 (단, Docker 소켓 접근 시 root 필요)
+
 **docker-compose.yml** (Swarm Stack 배포용):
 ```yaml
 services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+
+  log-streamer:
+    image: ${DOCKER_REPO_LOG_STREAMER}:${TAG}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4003/health"]
+
   gateway:
     image: ${DOCKER_REPO_GATEWAY}:${TAG}
     ports: ["4000:4000"]
+    environment:
+      - LOG_STREAMER_URL=http://log-streamer:4003
+      - LOG_STREAMER_WS_URL=ws://log-streamer:4003/ws/logs
+      - REDIS_HOST=redis
+    depends_on: [redis, log-streamer]
     healthcheck:
       test: ["CMD-SHELL", "wget -q --header='Content-Type: application/json' --post-data='{\"query\":\"{ health }\"}' -O - http://localhost:4000/graphql | grep -q '\"health\"'"]
-    deploy:
-      replicas: 1
-      update_config:
-        parallelism: 1
-        delay: 10s
-        order: start-first
 
   auth:
     image: ${DOCKER_REPO_AUTH}:${TAG}
@@ -298,6 +377,9 @@ networks:
   app-network:
     driver: overlay
     attachable: true
+
+volumes:
+  redis-data:
 
 secrets:
   jwt_public_key:
@@ -380,6 +462,7 @@ docker swarm leave --force  # Swarm 모드 해제
 |--------|------|--------|
 | `DOCKER_REPO_GATEWAY` | Gateway 이미지 저장소 | - |
 | `DOCKER_REPO_AUTH` | Auth 이미지 저장소 | - |
+| `DOCKER_REPO_LOG_STREAMER` | Log Streamer 이미지 저장소 | - |
 | `TAG` | 이미지 태그 | `latest` |
 | `DB_HOST` | MySQL 호스트 | `localhost` |
 | `DB_PORT` | MySQL 포트 | `3306` |
@@ -387,3 +470,35 @@ docker swarm leave --force  # Swarm 모드 해제
 | `JWT_PRIVATE_KEY_PATH` | 비밀키 경로 | `keys/private.pem` |
 
 Swarm 환경에서 호스트 DB 접속 시: `DB_HOST=host.docker.internal`
+
+## 로컬 테스트 환경
+
+`docker-compose.local.yml`을 사용하여 Gateway 통합 테스트를 수행할 수 있다.
+
+```bash
+# 1. Redis + Log-Streamer 컨테이너 시작
+docker-compose -f docker-compose.local.yml up -d
+
+# 2. Gateway 로컬 실행
+LOG_STREAMER_URL=http://localhost:4003 \
+LOG_STREAMER_WS_URL=ws://localhost:4003/ws/logs \
+REDIS_HOST=localhost REDIS_PORT=6379 API_KEYS=test-api-key \
+node dist/apps/gateway/main.js
+
+# 3. 테스트 실행
+bash scripts/load-test.sh                    # GraphQL 부하 테스트
+node scripts/test-websocket.js test-redis    # WebSocket 직접 테스트
+node scripts/test-subscription.js test-redis # GraphQL Subscription 테스트
+
+# 4. 정리
+docker-compose -f docker-compose.local.yml down
+```
+
+**테스트 스크립트**:
+| 파일 | 설명 |
+|------|------|
+| `scripts/load-test.sh` | 20회 반복 GraphQL 쿼리 부하 테스트 |
+| `scripts/test-websocket.js` | Log-Streamer WebSocket 직접 연결 테스트 |
+| `scripts/test-subscription.js` | Gateway GraphQL Subscription 테스트 |
+
+**참고**: Log-Streamer 컨테이너는 Docker 소켓 접근을 위해 `user: root`로 실행된다.

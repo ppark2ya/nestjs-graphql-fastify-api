@@ -1,6 +1,65 @@
 version: "3.8"
 
 services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - app-network
+
+  log-streamer:
+    image: ${DOCKER_REPO_LOG_STREAMER:-ppark2ya/log-streamer}:${TAG:-latest}
+    environment:
+      - LOG_STREAMER_PORT=4003
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - app-network
+
   gateway:
     image: ${DOCKER_REPO_GATEWAY:-ppark2ya/nestjs-gateway}:${TAG:-latest}
     ports:
@@ -12,8 +71,14 @@ services:
       - NODE_ENV=production
       - AUTH_TCP_PORT=4002
       - AUTH_SERVICE_HOST=auth
+      - LOG_STREAMER_URL=http://log-streamer:4003
+      - LOG_STREAMER_WS_URL=ws://log-streamer:4003/ws/logs
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       - auth
+      - redis
+      - log-streamer
     deploy:
       replicas: 1
       update_config:
@@ -87,6 +152,9 @@ networks:
   app-network:
     driver: overlay
     attachable: true
+
+volumes:
+  redis-data:
 
 secrets:
   jwt_public_key:

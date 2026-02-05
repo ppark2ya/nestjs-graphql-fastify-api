@@ -21,6 +21,45 @@ type AuthToken {
   refreshToken: String!
 }
 
+"""Docker container information"""
+type Container {
+  """Unix timestamp of container creation"""
+  created: Int!
+
+  """Container ID (short format)"""
+  id: String!
+
+  """Image name"""
+  image: String!
+
+  """Container name"""
+  name: String!
+
+  """Port mappings"""
+  ports: [String!]!
+
+  """Container state (e.g., "running")"""
+  state: String!
+
+  """Container status (e.g., "Up 2 hours")"""
+  status: String!
+}
+
+"""Container log entry"""
+type LogEntry {
+  """Container ID"""
+  containerId: String!
+
+  """Log message content"""
+  message: String!
+
+  """Output stream: stdout or stderr"""
+  stream: String!
+
+  """Log timestamp (RFC3339 format)"""
+  timestamp: String!
+}
+
 input LoginInput {
   """비밀번호"""
   password: String!
@@ -68,6 +107,9 @@ type Query {
   """Add two numbers"""
   add(input: AddNumbersInput!): Int!
 
+  """List all Docker containers"""
+  containers: [Container!]!
+
   """Echo the input message"""
   echo(message: String!): String!
 
@@ -87,6 +129,11 @@ type Query {
 input RefreshTokenInput {
   """리프레시 토큰"""
   refreshToken: String!
+}
+
+type Subscription {
+  """Subscribe to container logs"""
+  containerLog(containerId: String!): LogEntry!
 }
 
 input TotpSetupInput {
