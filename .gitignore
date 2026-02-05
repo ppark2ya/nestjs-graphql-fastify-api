@@ -29,6 +29,9 @@ lerna-debug.log*
 # Claude Code local settings
 .claude/settings.local.json
 
+# mise local settings
+.mise.local.toml
+
 # RS256 keys
 keys/
 

@@ -13,7 +13,8 @@ Nx monorepo 기반의 멀티 서버 프로젝트. 세 개의 애플리케이션�
 
 ## 기술 스택
 
-- **Runtime**: Node.js + TypeScript (v5.7, target ES2023, strict mode), Go 1.18+
+- **Runtime**: Node.js v24 + TypeScript (v5.7, target ES2023, strict mode), Go 1.18+
+- **Version Manager**: mise (Node.js, Go 버전 관리)
 - **Monorepo**: Nx (integrated monorepo)
 - **Framework**: NestJS v11 (Gateway, Auth), Go net/http (Log Streamer)
 - **HTTP Server**: Fastify (`@nestjs/platform-fastify`)
@@ -42,6 +43,7 @@ Nx monorepo 기반의 멀티 서버 프로젝트. 세 개의 애플리케이션�
 ├── nest-cli.json                        # NestJS CLI monorepo 설정
 ├── eslint.config.mjs
 ├── .prettierrc
+├── .mise.toml                           # mise 런타임 버전 설정 (Node.js, Go)
 ├── keys/                                # RS256 키 페어 (gitignored)
 ├── docker-compose.yml                   # Swarm Stack 배포용
 ├── docker-compose.local.yml             # 로컬 테스트용 (redis, log-streamer)
@@ -319,6 +321,39 @@ import { requestContext } from '@monorepo/shared/common/context/request-context'
 - GraphQL 스키마 파일(`schema.gql`)은 빌드 시 자동 생성되므로 직접 수정하지 않는다
 - Auth DTO 검증: zod 스키마 + ZodValidationPipe
 - Gateway 입력 검증: GraphQL 스키마 타입 시스템에 위임
+
+## 개발 환경 설정
+
+### mise (런타임 버전 관리)
+
+[mise](https://mise.jdx.dev/)를 사용하여 Node.js와 Go 버전을 관리한다. 프로젝트 루트의 `.mise.toml`에 정의된 버전이 자동으로 적용된다.
+
+```bash
+# mise 설치 (macOS)
+brew install mise
+
+# 또는 curl 설치
+curl https://mise.run | sh
+
+# 셸 설정 (bash/zsh)
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc  # zsh
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc  # bash
+
+# 프로젝트 런타임 설치
+cd /path/to/project
+mise install
+
+# 현재 버전 확인
+mise current
+```
+
+**프로젝트 런타임 버전** (`.mise.toml`):
+| 런타임 | 버전 |
+|--------|------|
+| Node.js | 24 |
+| Go | 1.18 |
+
+**로컬 오버라이드**: `.mise.local.toml`을 생성하여 개인 설정을 추가할 수 있다 (gitignored).
 
 ## 인프라 및 배포
 
