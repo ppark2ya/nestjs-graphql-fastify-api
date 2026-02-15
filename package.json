@@ -23,6 +23,7 @@
     "start:auth:prod": "node dist/apps/auth/main",
     "start:log-streamer:dev": "nx serve log-streamer",
     "start:log-streamer:prod": "./dist/apps/log-streamer/log-streamer",
+    "start:log-viewer:dev": "nx serve log-viewer",
     "lint": "eslint \"{apps,libs}/**/*.ts\" --fix",
     "test": "nx run-many -t test",
     "test:gateway": "jest --config apps/gateway/jest.config.ts",
