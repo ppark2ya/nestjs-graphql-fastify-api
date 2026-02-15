@@ -22,4 +22,16 @@ export class Container {
 
   @Field(() => [String], { description: 'Port mappings' })
   ports: string[];
+
+  @Field(() => String, {
+    nullable: true,
+    description: 'Swarm service name (null if not a swarm service)',
+  })
+  serviceName?: string;
+
+  @Field(() => String, {
+    nullable: true,
+    description: 'Swarm task ID (null if not a swarm service)',
+  })
+  taskSlot?: string;
 }

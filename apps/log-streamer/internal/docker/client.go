@@ -16,13 +16,15 @@ type Client struct {
 }
 
 type ContainerInfo struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Image   string   `json:"image"`
-	Status  string   `json:"status"`
-	State   string   `json:"state"`
-	Created int64    `json:"created"`
-	Ports   []string `json:"ports"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Image       string   `json:"image"`
+	Status      string   `json:"status"`
+	State       string   `json:"state"`
+	Created     int64    `json:"created"`
+	Ports       []string `json:"ports"`
+	ServiceName string   `json:"serviceName,omitempty"`
+	TaskSlot    string   `json:"taskSlot,omitempty"`
 }
 
 func NewClient() (*Client, error) {
@@ -44,7 +46,7 @@ func (c *Client) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	containers, err := c.cli.ContainerList(ctx, types.ContainerListOptions{All: true})
+	containers, err := c.cli.ContainerList(ctx, types.ContainerListOptions{All: false})
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +68,7 @@ func (c *Client) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
 			}
 		}
 
-		result = append(result, ContainerInfo{
+		info := ContainerInfo{
 			ID:      ctr.ID[:12],
 			Name:    name,
 			Image:   ctr.Image,
@@ -74,7 +76,16 @@ func (c *Client) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
 			State:   ctr.State,
 			Created: ctr.Created,
 			Ports:   ports,
-		})
+		}
+
+		if svc, ok := ctr.Labels["com.docker.swarm.service.name"]; ok {
+			info.ServiceName = svc
+		}
+		if slot, ok := ctr.Labels["com.docker.swarm.task.id"]; ok {
+			info.TaskSlot = slot[:12]
+		}
+
+		result = append(result, info)
 	}
 
 	return result, nil

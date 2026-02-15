@@ -38,11 +38,17 @@ type Container {
   """Port mappings"""
   ports: [String!]!
 
+  """Swarm service name (null if not a swarm service)"""
+  serviceName: String
+
   """Container state (e.g., "running")"""
   state: String!
 
   """Container status (e.g., "Up 2 hours")"""
   status: String!
+
+  """Swarm task ID (null if not a swarm service)"""
+  taskSlot: String
 }
 
 """Container log entry"""

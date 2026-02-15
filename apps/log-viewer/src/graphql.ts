@@ -10,6 +10,8 @@ export const CONTAINERS_QUERY = gql`
       state
       created
       ports
+      serviceName
+      taskSlot
     }
   }
 `;
@@ -33,6 +35,8 @@ export interface Container {
   state: string;
   created: number;
   ports: string[];
+  serviceName?: string;
+  taskSlot?: string;
 }
 
 export interface LogEntry {
@@ -40,4 +44,9 @@ export interface LogEntry {
   timestamp: string;
   message: string;
   stream: string;
+}
+
+export interface ServiceGroup {
+  serviceName: string;
+  containers: Container[];
 }
