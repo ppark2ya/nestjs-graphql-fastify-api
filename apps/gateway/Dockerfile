@@ -33,8 +33,8 @@ COPY apps/gateway ./apps/gateway
 COPY apps/log-viewer ./apps/log-viewer
 COPY libs ./libs
 
-# Log-viewer 빌드 → Gateway 빌드 (Nx dependsOn이 순서 보장)
-RUN pnpm build:gateway
+# Shared 라이브러리 → Log-viewer → Gateway 순서로 빌드
+RUN pnpm nx build shared && pnpm build:gateway
 
 # ---- Stage 3: Production ----
 FROM node:24-alpine AS production

@@ -1,0 +1,93 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    networks:
+      - app-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  log-streamer:
+    image: log-streamer:local
+    user: root
+    environment:
+      - LOG_STREAMER_PORT=4003
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - app-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 5s
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4003/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      - redis
+
+  gateway:
+    image: gateway:local
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - API_KEYS=test-api-key
+      - LOG_STREAMER_URL=http://log-streamer:4003
+      - LOG_STREAMER_WS_URL=ws://log-streamer:4003/ws/logs
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - app-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 5s
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --header='Content-Type: application/json' --header='X-API-Key: test-api-key' --post-data='{\"query\":\"{ health }\"}' -O - http://localhost:4000/graphql | grep -q health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - redis
+      - log-streamer
+
+  relay:
+    image: relay:local
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_PATH=/data/relay.db
+      - PORT=8080
+    volumes:
+      - relay-data:/data
+    networks:
+      - app-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 5s
+
+networks:
+  app-network:
+    driver: overlay
+    attachable: true
+
+volumes:
+  relay-data:
