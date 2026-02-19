@@ -52,6 +52,7 @@ func (h *LogsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	subscriptions := make(map[string]*logSubscription)
 	var subMu sync.Mutex
+	var writeMu sync.Mutex
 
 	// Cleanup on disconnect
 	defer func() {
@@ -74,14 +75,14 @@ func (h *LogsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		var msg WSMessage
 		if err := json.Unmarshal(message, &msg); err != nil {
-			h.sendError(conn, "invalid message format")
+			h.writeJSON(conn, &writeMu, WSMessage{Type: "error", Message: "invalid message format"})
 			continue
 		}
 
 		switch msg.Type {
 		case "subscribe":
 			if msg.ContainerID == "" {
-				h.sendError(conn, "containerId is required")
+				h.writeJSON(conn, &writeMu, WSMessage{Type: "error", Message: "containerId is required"})
 				continue
 			}
 
@@ -94,7 +95,7 @@ func (h *LogsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Verify container exists
 			if !h.dockerClient.ContainerExists(r.Context(), msg.ContainerID) {
 				subMu.Unlock()
-				h.sendError(conn, "container not found: "+msg.ContainerID)
+				h.writeJSON(conn, &writeMu, WSMessage{Type: "error", Message: "container not found: " + msg.ContainerID})
 				continue
 			}
 
@@ -102,7 +103,7 @@ func (h *LogsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			subscriptions[msg.ContainerID] = sub
 			subMu.Unlock()
 
-			go h.streamLogs(conn, msg.ContainerID, sub.cancel)
+			go h.streamLogs(conn, &writeMu, msg.ContainerID, sub.cancel)
 
 		case "unsubscribe":
 			if msg.ContainerID == "" {
@@ -119,7 +120,7 @@ func (h *LogsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *LogsHandler) streamLogs(conn *websocket.Conn, containerID string, cancel chan struct{}) {
+func (h *LogsHandler) streamLogs(conn *websocket.Conn, writeMu *sync.Mutex, containerID string, cancel chan struct{}) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	go func() {
 		<-cancel
@@ -128,7 +129,7 @@ func (h *LogsHandler) streamLogs(conn *websocket.Conn, containerID string, cance
 
 	reader, err := h.dockerClient.GetContainerLogs(ctx, containerID)
 	if err != nil {
-		h.sendError(conn, "failed to get logs: "+err.Error())
+		h.writeJSON(conn, writeMu, WSMessage{Type: "error", Message: "failed to get logs: " + err.Error()})
 		return
 	}
 	defer reader.Close()
@@ -183,16 +184,15 @@ func (h *LogsHandler) streamLogs(conn *websocket.Conn, containerID string, cance
 			Stream:      streamType,
 		}
 
-		if err := conn.WriteJSON(msg); err != nil {
+		if err := h.writeJSON(conn, writeMu, msg); err != nil {
 			log.Printf("WebSocket write error: %v", err)
 			return
 		}
 	}
 }
 
-func (h *LogsHandler) sendError(conn *websocket.Conn, message string) {
-	conn.WriteJSON(WSMessage{
-		Type:    "error",
-		Message: message,
-	})
+func (h *LogsHandler) writeJSON(conn *websocket.Conn, mu *sync.Mutex, msg WSMessage) error {
+	mu.Lock()
+	defer mu.Unlock()
+	return conn.WriteJSON(msg)
 }
