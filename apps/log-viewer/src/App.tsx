@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { ApolloProvider } from '@apollo/client/react';
 import { createApolloClient } from './apollo';
 import ContainerList from './ContainerList';
@@ -7,6 +7,7 @@ import ServiceLogViewer from './ServiceLogViewer';
 import { Container, ServiceGroup } from './graphql';
 
 const DEFAULT_GATEWAY_URL = 'http://localhost:4000/graphql';
+const client = createApolloClient(DEFAULT_GATEWAY_URL);
 
 type Selection =
   | { type: 'container'; container: Container }
@@ -15,7 +16,6 @@ type Selection =
 
 export default function App() {
   const [selection, setSelection] = useState<Selection>(null);
-  const client = useMemo(() => createApolloClient(DEFAULT_GATEWAY_URL), []);
 
   return (
     <ApolloProvider client={client}>

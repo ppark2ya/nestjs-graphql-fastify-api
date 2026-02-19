@@ -1,6 +1,7 @@
 import { useSubscription } from '@apollo/client/react';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, ServiceGroup } from './graphql';
+import { formatTime } from './utils';
 
 interface Props {
   service: ServiceGroup;
@@ -58,31 +59,22 @@ export default function ServiceLogViewer({ service }: Props) {
     }
   }, [logs, autoScroll]);
 
-  const handleScroll = useCallback(() => {
+  const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
     setAutoScroll(isAtBottom);
-  }, []);
+  };
 
-  const handleLog = useCallback((entry: LogEntry) => {
+  const handleLog = (entry: LogEntry) => {
     setLogs((prev) => {
       const next = [...prev, entry];
-      // Keep sorted by timestamp (insertion sort since mostly in order)
       const len = next.length;
       if (len > 1 && next[len - 1].timestamp < next[len - 2].timestamp) {
         next.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
       }
       return next;
     });
-  }, []);
-
-  const formatTime = (timestamp: string) => {
-    try {
-      return new Date(timestamp).toLocaleTimeString('ko-KR', { hour12: false });
-    } catch {
-      return timestamp;
-    }
   };
 
   return (
