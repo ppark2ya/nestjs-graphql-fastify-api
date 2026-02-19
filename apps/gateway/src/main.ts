@@ -20,7 +20,7 @@ async function bootstrap() {
   const staticRoot = join(process.cwd(), 'dist', 'apps', 'log-viewer');
   const fastifyInstance = app.getHttpAdapter().getInstance();
 
-  await fastifyInstance.register(fastifyStatic, {
+  await fastifyInstance.register(fastifyStatic as any, {
     root: staticRoot,
     decorateReply: false,
     wildcard: false,
@@ -29,7 +29,7 @@ async function bootstrap() {
   // SPA fallback: NestJS/정적 파일에 매칭되지 않는 GET 요청 → index.html
   fastifyInstance.setNotFoundHandler((request, reply) => {
     if (request.method === 'GET' && !request.url.startsWith('/graphql')) {
-      return reply.sendFile('index.html', staticRoot);
+      return (reply as any).sendFile('index.html', staticRoot);
     }
     reply.status(404).send({ statusCode: 404, message: 'Not Found' });
   });

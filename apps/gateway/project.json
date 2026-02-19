@@ -5,6 +5,12 @@
   "projectType": "application",
   "targets": {
     "build": {
+      "dependsOn": [
+        {
+          "projects": ["log-viewer"],
+          "target": "build"
+        }
+      ],
       "executor": "nx:run-commands",
       "options": {
         "commands": [
