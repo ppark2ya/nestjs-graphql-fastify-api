@@ -26,14 +26,6 @@ async function bootstrap() {
     wildcard: false,
   });
 
-  // SPA fallback: NestJS/정적 파일에 매칭되지 않는 GET 요청 → index.html
-  fastifyInstance.setNotFoundHandler((request, reply) => {
-    if (request.method === 'GET' && !request.url.startsWith('/graphql')) {
-      return (reply as any).sendFile('index.html', staticRoot);
-    }
-    reply.status(404).send({ statusCode: 404, message: 'Not Found' });
-  });
-
   await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
   console.log(`🚀 Application is running on: ${await app.getUrl()}`);
   console.log(`📊 GraphQL endpoint: ${await app.getUrl()}/graphql`);
