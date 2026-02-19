@@ -1,13 +1,10 @@
 import { useState } from 'react';
 import { ApolloProvider } from '@apollo/client/react';
-import { createApolloClient } from './apollo';
+import { client } from './apollo';
 import ContainerList from './ContainerList';
 import LogViewer from './LogViewer';
 import ServiceLogViewer from './ServiceLogViewer';
 import { Container, ServiceGroup } from './graphql';
-
-const DEFAULT_GATEWAY_URL = 'http://localhost:4000/graphql';
-const client = createApolloClient(DEFAULT_GATEWAY_URL);
 
 type Selection =
   | { type: 'container'; container: Container }
@@ -22,7 +19,6 @@ export default function App() {
       <div className="h-screen flex flex-col bg-gray-900 text-gray-100">
         <header className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900">
           <h1 className="text-base font-semibold">Docker Log Viewer</h1>
-          <span className="text-xs text-gray-500">Gateway: {DEFAULT_GATEWAY_URL}</span>
         </header>
 
         <div className="flex flex-1 overflow-hidden">

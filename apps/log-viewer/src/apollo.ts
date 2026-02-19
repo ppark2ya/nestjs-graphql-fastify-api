@@ -5,35 +5,33 @@ import { createClient } from 'graphql-ws';
 
 const API_KEY = 'test-api-key';
 
-export function createApolloClient(gatewayUrl: string) {
-  const httpLink = new HttpLink({
-    uri: gatewayUrl,
-    headers: {
-      'X-API-Key': API_KEY,
-    },
-  });
+const httpLink = new HttpLink({
+  uri: '/graphql',
+  headers: {
+    'X-API-Key': API_KEY,
+  },
+});
 
-  const wsUrl = gatewayUrl.replace(/^http/, 'ws');
-  const wsLink = new GraphQLWsLink(
-    createClient({
-      url: wsUrl,
-    }),
-  );
+const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsLink = new GraphQLWsLink(
+  createClient({
+    url: `${wsProtocol}//${window.location.host}/graphql`,
+  }),
+);
 
-  const splitLink = split(
-    ({ query }) => {
-      const definition = getMainDefinition(query);
-      return (
-        definition.kind === 'OperationDefinition' &&
-        definition.operation === 'subscription'
-      );
-    },
-    wsLink,
-    httpLink,
-  );
+const splitLink = split(
+  ({ query }) => {
+    const definition = getMainDefinition(query);
+    return (
+      definition.kind === 'OperationDefinition' &&
+      definition.operation === 'subscription'
+    );
+  },
+  wsLink,
+  httpLink,
+);
 
-  return new ApolloClient({
-    link: splitLink,
-    cache: new InMemoryCache(),
-  });
-}
+export const client = new ApolloClient({
+  link: splitLink,
+  cache: new InMemoryCache(),
+});
