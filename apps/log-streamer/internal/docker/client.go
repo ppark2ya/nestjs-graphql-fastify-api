@@ -25,6 +25,7 @@ type ContainerInfo struct {
 	Ports       []string `json:"ports"`
 	ServiceName string   `json:"serviceName,omitempty"`
 	TaskSlot    string   `json:"taskSlot,omitempty"`
+	NodeName    string   `json:"nodeName,omitempty"`
 }
 
 func NewClient() (*Client, error) {
@@ -49,6 +50,14 @@ func (c *Client) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
 	containers, err := c.cli.ContainerList(ctx, types.ContainerListOptions{All: false})
 	if err != nil {
 		return nil, err
+	}
+
+	// Build Swarm node ID → hostname map (best-effort, non-Swarm envs just skip)
+	nodeNames := make(map[string]string)
+	if nodes, err := c.cli.NodeList(ctx, types.NodeListOptions{}); err == nil {
+		for _, n := range nodes {
+			nodeNames[n.ID] = n.Description.Hostname
+		}
 	}
 
 	result := make([]ContainerInfo, 0, len(containers))
@@ -83,6 +92,13 @@ func (c *Client) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
 		}
 		if slot, ok := ctr.Labels["com.docker.swarm.task.id"]; ok {
 			info.TaskSlot = slot[:12]
+		}
+		if nodeID, ok := ctr.Labels["com.docker.swarm.node.id"]; ok {
+			if hostname, found := nodeNames[nodeID]; found {
+				info.NodeName = hostname
+			} else {
+				info.NodeName = nodeID[:12]
+			}
 		}
 
 		result = append(result, info)

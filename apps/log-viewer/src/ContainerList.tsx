@@ -88,14 +88,14 @@ export default function ContainerList({
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-1 truncate">{svc.containers[0].image}</p>
-              <div className="flex gap-1 mt-1">
+              <div className="flex gap-1 mt-1 flex-wrap">
                 {svc.containers.map((c) => (
                   <span
                     key={c.id}
                     className={`w-1.5 h-1.5 rounded-full ${
                       c.state === 'running' ? 'bg-green-500' : 'bg-gray-500'
                     }`}
-                    title={`${c.name} (${c.id})`}
+                    title={`${c.name} (${c.id})${c.nodeName ? ` @ ${c.nodeName}` : ''}`}
                   />
                 ))}
               </div>

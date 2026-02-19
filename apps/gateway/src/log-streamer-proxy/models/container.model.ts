@@ -34,4 +34,10 @@ export class Container {
     description: 'Swarm task ID (null if not a swarm service)',
   })
   taskSlot?: string;
+
+  @Field(() => String, {
+    nullable: true,
+    description: 'Swarm node hostname (null if not a swarm service)',
+  })
+  nodeName?: string;
 }

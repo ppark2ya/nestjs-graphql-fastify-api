@@ -46,6 +46,7 @@ export default function ServiceLogViewer({ service }: Props) {
     service.containers.map((c, i) => [c.id, REPLICA_COLORS[i % REPLICA_COLORS.length]]),
   );
   const containerNameMap = new Map(service.containers.map((c) => [c.id, c.name]));
+  const containerNodeMap = new Map(service.containers.map((c) => [c.id, c.nodeName ?? '']));
 
   // Reset logs when service changes
   useEffect(() => {
@@ -108,10 +109,13 @@ export default function ServiceLogViewer({ service }: Props) {
       </div>
 
       {/* Replica legend */}
-      <div className="flex items-center gap-3 px-4 py-1.5 border-b border-gray-800 bg-gray-900/50">
+      <div className="flex items-center gap-3 px-4 py-1.5 border-b border-gray-800 bg-gray-900/50 flex-wrap">
         {service.containers.map((c) => (
           <span key={c.id} className={`text-xs ${containerColorMap.get(c.id)}`}>
             {c.id.slice(0, 8)}
+            {c.nodeName && (
+              <span className="text-gray-500 ml-1">@{c.nodeName}</span>
+            )}
           </span>
         ))}
       </div>
@@ -137,8 +141,11 @@ export default function ServiceLogViewer({ service }: Props) {
               }`}
             >
               <span className="text-gray-600 shrink-0">{formatTime(log.timestamp)}</span>
-              <span className={`shrink-0 w-18 truncate ${containerColorMap.get(log.containerId) ?? 'text-gray-500'}`}>
+              <span className={`shrink-0 truncate ${containerColorMap.get(log.containerId) ?? 'text-gray-500'}`}>
                 {log.containerId.slice(0, 8)}
+                {containerNodeMap.get(log.containerId) && (
+                  <span className="text-gray-600">@{containerNodeMap.get(log.containerId)}</span>
+                )}
               </span>
               <span
                 className={`shrink-0 w-12 ${

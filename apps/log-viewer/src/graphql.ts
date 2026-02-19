@@ -12,6 +12,7 @@ export const CONTAINERS_QUERY = gql`
       ports
       serviceName
       taskSlot
+      nodeName
     }
   }
 `;
@@ -37,6 +38,7 @@ export interface Container {
   ports: string[];
   serviceName?: string;
   taskSlot?: string;
+  nodeName?: string;
 }
 
 export interface LogEntry {
