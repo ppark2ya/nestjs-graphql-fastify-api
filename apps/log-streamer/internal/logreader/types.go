@@ -7,9 +7,10 @@ type LogApp struct {
 
 // LogFile - 로그 파일 메타데이터
 type LogFile struct {
-	Name string `json:"name"`
-	Date string `json:"date"` // YYYY-MM-DD (파일명에서 추출)
-	Size int64  `json:"size"`
+	Name       string `json:"name"`       // 상대 경로 포함 (예: "archive/app-2026-02-22.log.gz")
+	Date       string `json:"date"`       // YYYY-MM-DD (파일명에서 추출)
+	Size       int64  `json:"size"`
+	Compressed bool   `json:"compressed"` // .gz 여부
 }
 
 // LogLine - 파싱된 로그 라인
