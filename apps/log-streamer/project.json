@@ -9,24 +9,24 @@
       "executor": "nx:run-commands",
       "options": {
         "commands": [
-          "cd apps/log-streamer && go build -ldflags='-s -w' -o ../../dist/apps/log-streamer/log-streamer ./cmd/server"
+          "cd apps/log-streamer && go build -mod=vendor -ldflags='-s -w' -o ../../dist/apps/log-streamer/log-streamer ./cmd/server"
         ],
         "cwd": "{workspaceRoot}"
       },
-      "inputs": ["{projectRoot}/**/*.go", "{projectRoot}/go.mod", "{projectRoot}/go.sum"],
+      "inputs": ["{projectRoot}/**/*.go", "{projectRoot}/go.mod", "{projectRoot}/go.sum", "{projectRoot}/vendor/**"],
       "outputs": ["{workspaceRoot}/dist/apps/log-streamer"]
     },
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "cd apps/log-streamer && go run ./cmd/server",
+        "command": "cd apps/log-streamer && go run -mod=vendor ./cmd/server",
         "cwd": "{workspaceRoot}"
       }
     },
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "cd apps/log-streamer && go test -v ./...",
+        "command": "cd apps/log-streamer && go test -mod=vendor -v ./...",
         "cwd": "{workspaceRoot}"
       }
     },

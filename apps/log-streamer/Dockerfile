@@ -3,18 +3,11 @@ FROM golang:1.19-alpine AS builder
 
 WORKDIR /app
 
-# Install git for go mod download
-RUN apk add --no-cache git
-
-# Copy go mod files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
+# Copy source code + vendor (no network required)
 COPY . .
 
-# Build with optimizations
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o /log-streamer ./cmd/server
+# Build with vendor mode
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags='-s -w' -o /log-streamer ./cmd/server
 
 # Production stage
 FROM alpine:3.19
