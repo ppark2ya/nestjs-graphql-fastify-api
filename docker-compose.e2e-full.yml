@@ -1,4 +1,6 @@
-version: "3.8"
+# E2E 테스트용 Docker Swarm 스택
+# Apache reverse proxy + Gateway + Log-Streamer + Redis
+# 사용: docker stack deploy -c docker-compose.e2e-full.yml e2e
 
 services:
   redis:
@@ -22,6 +24,7 @@ services:
     user: root
     environment:
       - LOG_STREAMER_PORT=4003
+      - DOCKER_API_VERSION=1.44
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -36,13 +39,10 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
-    depends_on:
-      - redis
+      start_period: 5s
 
   gateway:
     image: gateway:local
-    ports:
-      - "4000:4000"
     environment:
       - NODE_ENV=production
       - PORT=4000
@@ -59,16 +59,28 @@ services:
         parallelism: 1
         delay: 5s
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --header='Content-Type: application/json' --header='X-API-Key: test-api-key' --post-data='{\"query\":\"{ health }\"}' -O - http://localhost:4000/graphql | grep -q health"]
+      test: ["CMD-SHELL", "wget -q --header='Content-Type: application/json' --header='X-API-Key: test-api-key' --post-data='{\"query\":\"{ health }\"}' -O - http://127.0.0.1:4000/graphql | grep -q health"]
       interval: 10s
       timeout: 5s
       retries: 3
-    depends_on:
-      - redis
-      - log-streamer
+      start_period: 15s
+
+  apache:
+    image: apache-proxy:local
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+    networks:
+      - app-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
 
 networks:
   app-network:
     driver: overlay
     attachable: true
-

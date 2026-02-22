@@ -33,7 +33,10 @@
     "test:cov": "jest --coverage",
     "db:generate": "drizzle-kit generate --config apps/auth/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config apps/auth/drizzle.config.ts",
-    "db:push": "drizzle-kit push --config apps/auth/drizzle.config.ts"
+    "db:push": "drizzle-kit push --config apps/auth/drizzle.config.ts",
+    "test:e2e:swarm": "playwright test --config tests/e2e-swarm/playwright.config.ts",
+    "test:e2e:swarm:setup": "bash scripts/e2e-swarm-setup.sh",
+    "test:e2e:swarm:teardown": "bash scripts/e2e-swarm-teardown.sh"
   },
   "dependencies": {
     "@apollo/client": "^4.1.4",
@@ -85,6 +88,7 @@
     "@nx/eslint": "^21.3.2",
     "@nx/jest": "^21.3.2",
     "@nx/js": "^21.3.2",
+    "@playwright/test": "^1.58.2",
     "@swc/cli": "^0.7.10",
     "@swc/core": "^1.15.11",
     "@swc/jest": "^0.2.39",
