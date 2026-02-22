@@ -10,6 +10,7 @@ import (
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/config"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/docker"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/handler"
+	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/logreader"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/middleware"
 )
 
@@ -42,6 +43,11 @@ func (s *Server) Start() error {
 	mux.Handle("/health", healthHandler)
 	mux.Handle("/api/containers", containersHandler)
 	mux.Handle("/ws/logs", logsHandler)
+
+	// Log file reader handlers
+	logReader := logreader.NewReader(s.config.LogDir)
+	logFilesHandler := handler.NewLogFilesHandler(logReader)
+	logFilesHandler.RegisterRoutes(mux)
 
 	// Apply middleware chain
 	var h http.Handler = mux
