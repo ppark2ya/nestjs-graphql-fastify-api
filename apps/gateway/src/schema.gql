@@ -35,6 +35,9 @@ type Container {
   """Container name"""
   name: String!
 
+  """Swarm node hostname (null if not a swarm service)"""
+  nodeName: String
+
   """Port mappings"""
   ports: [String!]!
 
@@ -51,6 +54,15 @@ type Container {
   taskSlot: String
 }
 
+"""로그 앱 정보"""
+type LogApp {
+  """앱 이름 (디렉토리명)"""
+  name: String!
+
+  """노드명"""
+  node: String!
+}
+
 """Container log entry"""
 type LogEntry {
   """Container ID"""
@@ -64,6 +76,73 @@ type LogEntry {
 
   """Log timestamp (RFC3339 format)"""
   timestamp: String!
+}
+
+"""파싱된 로그 라인"""
+type LogLine {
+  """로그 파일명"""
+  file: String!
+
+  """로그 레벨 (ERROR, WARN, INFO, DEBUG)"""
+  level: String
+
+  """파일 내 라인 번호"""
+  lineNo: Int!
+
+  """로그 메시지 (파싱 실패 시 원본 라인 전체)"""
+  message: String!
+
+  """Swarm 노드명"""
+  node: String!
+
+  """소스 (클래스명, 모듈명)"""
+  source: String
+
+  """타임스탬프 (파싱 불가 시 null)"""
+  timestamp: String
+}
+
+"""로그 검색 입력"""
+input LogSearchInput {
+  """타임스탬프 커서 (페이지네이션)"""
+  after: String
+
+  """앱 이름"""
+  app: String!
+
+  """시작 날짜 (YYYY-MM-DD)"""
+  from: String!
+
+  """키워드 검색"""
+  keyword: String
+
+  """로그 레벨 필터"""
+  level: String
+
+  """결과 수 제한"""
+  limit: Int = 100
+
+  """노드 필터"""
+  node: String
+
+  """종료 날짜 (YYYY-MM-DD)"""
+  to: String!
+}
+
+"""로그 검색 결과"""
+type LogSearchResult {
+  hasMore: Boolean!
+  lines: [LogLine!]!
+  summary: LogSummary!
+}
+
+"""로그 요약 통계"""
+type LogSummary {
+  errorCount: Int!
+  fileCount: Int!
+  infoCount: Int!
+  totalLines: Int!
+  warnCount: Int!
 }
 
 input LoginInput {
@@ -124,6 +203,12 @@ type Query {
 
   """Returns hello message"""
   hello: String!
+
+  """로그 앱 목록 조회"""
+  logApps: [LogApp!]!
+
+  """로그 검색"""
+  logSearch(input: LogSearchInput!): LogSearchResult!
 
   """Get posts from JSONPlaceholder REST API"""
   posts: [Post!]!

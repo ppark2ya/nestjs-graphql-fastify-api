@@ -29,6 +29,7 @@ import { WinstonLoggerModule, WinstonLoggerService } from '@monorepo/shared';
 import { envSchema } from './env.schema';
 import { PubSubModule } from './pubsub/pubsub.module';
 import { LogStreamerProxyModule } from './log-streamer-proxy/log-streamer-proxy.module';
+import { LogHistoryModule } from './log-history/log-history.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { LogStreamerProxyModule } from './log-streamer-proxy/log-streamer-proxy.
     WinstonLoggerModule,
     PubSubModule,
     LogStreamerProxyModule,
+    LogHistoryModule,
   ],
   providers: [
     AppService,
