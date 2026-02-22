@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Port     int
 	LogLevel string
+	LogDir   string
 }
 
 func Load() *Config {
@@ -28,8 +29,14 @@ func Load() *Config {
 		logLevel = "info"
 	}
 
+	logDir := os.Getenv("LOG_DIR")
+	if logDir == "" {
+		logDir = "/opt/logs"
+	}
+
 	return &Config{
 		Port:     port,
 		LogLevel: logLevel,
+		LogDir:   logDir,
 	}
 }
