@@ -32,8 +32,10 @@ services:
     image: ${DOCKER_REPO_LOG_STREAMER:-ppark2ya/log-streamer}:${TAG:-latest}
     environment:
       - LOG_STREAMER_PORT=4003
+      - LOG_DIR=/opt/logs
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/logs:/opt/logs:ro
     deploy:
       replicas: 1
       update_config:
