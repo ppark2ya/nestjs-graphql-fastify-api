@@ -46,7 +46,7 @@ func (s *Server) Start() error {
 
 	// Log file reader handlers
 	logReader := logreader.NewReader(s.config.LogDir)
-	logFilesHandler := handler.NewLogFilesHandler(logReader)
+	logFilesHandler := handler.NewLogFilesHandler(logReader, s.dockerClient)
 	logFilesHandler.RegisterRoutes(mux)
 
 	// Apply middleware chain

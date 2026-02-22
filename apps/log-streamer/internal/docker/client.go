@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/docker/docker/api/types"
@@ -105,6 +106,40 @@ func (c *Client) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
 	}
 
 	return result, nil
+}
+
+// GetSwarmNodeName - 현재 컨테이너가 실행 중인 Swarm 노드의 호스트명 반환
+func (c *Client) GetSwarmNodeName(ctx context.Context) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Swarm 노드 목록에서 자신의 호스트명 조회
+	nodes, err := c.cli.NodeList(ctx, types.NodeListOptions{})
+	if err != nil {
+		return ""
+	}
+
+	// 현재 컨테이너의 hostname (= container ID)
+	hostname, _ := os.Hostname()
+
+	// Info에서 현재 노드의 ID를 가져온다
+	info, err := c.cli.Info(ctx)
+	if err != nil {
+		// fallback: 노드가 1개면 그 호스트명 사용
+		if len(nodes) == 1 {
+			return nodes[0].Description.Hostname
+		}
+		return hostname
+	}
+
+	// 현재 Swarm 노드 ID로 호스트명 매핑
+	for _, n := range nodes {
+		if n.ID == info.Swarm.NodeID {
+			return n.Description.Hostname
+		}
+	}
+
+	return hostname
 }
 
 func (c *Client) GetContainerLogs(ctx context.Context, containerID string) (io.ReadCloser, error) {
