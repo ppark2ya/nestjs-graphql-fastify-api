@@ -1,12 +1,14 @@
 import { NavLink } from 'react-router-dom';
-import { cn } from '../lib/utils';
-import { useAuth } from '../auth/AuthContext';
+import { LogOut } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/auth/AuthContext';
+import { Button } from '@/components/ui/button';
 
 export default function Navigation() {
   const { user, logout } = useAuth();
 
   return (
-    <header className="flex items-center px-4 py-3 border-b border-gray-700 bg-gray-900">
+    <header className="flex items-center px-4 py-3 border-b border-border bg-card">
       <h1 className="text-base font-semibold mr-8">System Dashboard</h1>
       <nav className="flex gap-1">
         <NavLink
@@ -17,7 +19,7 @@ export default function Navigation() {
               'px-3 py-1.5 rounded text-sm transition-colors',
               isActive
                 ? 'bg-gray-700 text-white'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800',
+                : 'text-muted-foreground hover:text-secondary-foreground hover:bg-secondary',
             )
           }
         >
@@ -30,7 +32,7 @@ export default function Navigation() {
               'px-3 py-1.5 rounded text-sm transition-colors',
               isActive
                 ? 'bg-gray-700 text-white'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800',
+                : 'text-muted-foreground hover:text-secondary-foreground hover:bg-secondary',
             )
           }
         >
@@ -40,14 +42,12 @@ export default function Navigation() {
 
       <div className="ml-auto flex items-center gap-3">
         {user && (
-          <span className="text-sm text-gray-400">{user.username}</span>
+          <span className="text-sm text-muted-foreground">{user.username}</span>
         )}
-        <button
-          onClick={logout}
-          className="px-3 py-1.5 rounded text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
-        >
+        <Button variant="ghost" size="sm" onClick={logout}>
+          <LogOut className="h-4 w-4" />
           로그아웃
-        </button>
+        </Button>
       </div>
     </header>
   );

@@ -14,9 +14,9 @@ export default function LiveStreamPage() {
 
   return (
     <div className="flex flex-1 overflow-hidden">
-      <aside className="w-64 border-r border-gray-700 flex flex-col overflow-hidden shrink-0">
-        <div className="px-4 py-2 border-b border-gray-700">
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+      <aside className="w-64 border-r border-border flex flex-col overflow-hidden shrink-0">
+        <div className="px-4 py-2 border-b border-border">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Containers
           </h2>
         </div>
@@ -49,7 +49,7 @@ export default function LiveStreamPage() {
             containerName={selection.container.name}
           />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-600">
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <p>Select a container or service to view logs</p>
           </div>
         )}

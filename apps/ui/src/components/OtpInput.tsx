@@ -74,8 +74,8 @@ export default function OtpInput({ length = 6, value, onChange, disabled }: OtpI
           onPaste={handlePaste}
           onFocus={(e) => e.target.select()}
           className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-mono rounded-lg
-            bg-gray-800 border border-gray-700 text-white
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+            bg-secondary border border-input text-foreground
+            focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
             disabled:opacity-50 transition-all"
           autoComplete="one-time-code"
         />

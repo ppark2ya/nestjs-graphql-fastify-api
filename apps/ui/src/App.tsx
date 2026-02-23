@@ -23,7 +23,7 @@ function AppRoutes() {
         path="/"
         element={
           <AuthGuard>
-            <div className="h-screen flex flex-col bg-gray-900 text-gray-100">
+            <div className="h-screen flex flex-col bg-card text-foreground">
               <Navigation />
               <LiveStreamPage />
             </div>
@@ -34,7 +34,7 @@ function AppRoutes() {
         path="/history"
         element={
           <AuthGuard>
-            <div className="h-screen flex flex-col bg-gray-900 text-gray-100">
+            <div className="h-screen flex flex-col bg-card text-foreground">
               <Navigation />
               <HistoryPage />
             </div>

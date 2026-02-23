@@ -41,7 +41,7 @@ test.describe('Login Page', () => {
   test('should be responsive on mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await expect(page.getByRole('heading', { name: '시스템 로그인' })).toBeVisible();
-    const card = page.locator('.bg-gray-900.border');
+    const card = page.getByTestId('login-card');
     const box = await card.boundingBox();
     expect(box!.width).toBeLessThanOrEqual(375);
   });

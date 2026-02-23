@@ -2,6 +2,8 @@ import { useSubscription } from '@apollo/client/react';
 import { useEffect, useRef, useState } from 'react';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, ServiceGroup } from './graphql';
 import { formatTime } from './utils';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
   service: ServiceGroup;
@@ -80,41 +82,45 @@ export default function ServiceLogViewer({ service }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-sm bg-purple-500" />
-          <h2 className="text-sm font-medium text-gray-200">{service.serviceName}</h2>
-          <span className="text-xs text-purple-400">{containerIds.length} replicas</span>
+          <h2 className="text-sm font-medium text-secondary-foreground">{service.serviceName}</h2>
+          <Badge variant="secondary" className="text-purple-400">{containerIds.length} replicas</Badge>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500">{logs.length} lines</span>
+          <span className="text-xs text-muted-foreground">{logs.length} lines</span>
           {!autoScroll && (
-            <button
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0"
               onClick={() => {
                 setAutoScroll(true);
                 bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="text-xs text-blue-400 hover:text-blue-300"
             >
               Follow
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto p-0"
             onClick={() => setLogs([])}
-            className="text-xs text-gray-400 hover:text-gray-200"
           >
             Clear
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Replica legend */}
-      <div className="flex items-center gap-3 px-4 py-1.5 border-b border-gray-800 bg-gray-900/50 flex-wrap">
+      <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-card/50 flex-wrap">
         {service.containers.map((c) => (
           <span key={c.id} className={`text-xs ${containerColorMap.get(c.id)}`}>
             {c.id.slice(0, 8)}
             {c.nodeName && (
-              <span className="text-gray-500 ml-1">@{c.nodeName}</span>
+              <span className="text-muted-foreground ml-1">@{c.nodeName}</span>
             )}
           </span>
         ))}
@@ -131,20 +137,20 @@ export default function ServiceLogViewer({ service }: Props) {
         className="flex-1 overflow-y-auto p-2 font-mono text-xs"
       >
         {logs.length === 0 ? (
-          <p className="text-gray-600 p-2">Waiting for logs from {containerIds.length} replicas...</p>
+          <p className="text-muted-foreground p-2">Waiting for logs from {containerIds.length} replicas...</p>
         ) : (
           logs.map((log, i) => (
             <div
               key={i}
-              className={`flex gap-2 py-0.5 px-2 hover:bg-gray-800/50 ${
+              className={`flex gap-2 py-0.5 px-2 hover:bg-secondary/50 ${
                 log.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'
               }`}
             >
-              <span className="text-gray-600 shrink-0">{formatTime(log.timestamp)}</span>
-              <span className={`shrink-0 truncate ${containerColorMap.get(log.containerId) ?? 'text-gray-500'}`}>
+              <span className="text-muted-foreground shrink-0">{formatTime(log.timestamp)}</span>
+              <span className={`shrink-0 truncate ${containerColorMap.get(log.containerId) ?? 'text-muted-foreground'}`}>
                 {log.containerId.slice(0, 8)}
                 {containerNodeMap.get(log.containerId) && (
-                  <span className="text-gray-600">@{containerNodeMap.get(log.containerId)}</span>
+                  <span className="text-muted-foreground">@{containerNodeMap.get(log.containerId)}</span>
                 )}
               </span>
               <span
