@@ -80,14 +80,14 @@ export default function ContainerList({
             >
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-sm bg-purple-500" />
-                <span className="text-sm font-medium text-gray-200 truncate">
+                <span className="text-sm font-medium text-gray-200 truncate" title={svc.serviceName}>
                   {svc.serviceName}
                 </span>
                 <span className="text-xs text-purple-400 ml-auto shrink-0">
                   {svc.containers.length} replicas
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-1 truncate">{svc.containers[0].image}</p>
+              <p className="text-xs text-gray-500 mt-1 truncate" title={svc.containers[0].image}>{svc.containers[0].image}</p>
               <div className="flex gap-1 mt-1 flex-wrap">
                 {svc.containers.map((c) => (
                   <span
@@ -116,9 +116,9 @@ export default function ContainerList({
                     c.state === 'running' ? 'bg-green-500' : 'bg-gray-500'
                   }`}
                 />
-                <span className="text-sm font-medium text-gray-200 truncate">{c.name}</span>
+                <span className="text-sm font-medium text-gray-200 truncate" title={c.name}>{c.name}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1 truncate">{c.image}</p>
+              <p className="text-xs text-gray-500 mt-1 truncate" title={c.image}>{c.image}</p>
               <p className="text-xs text-gray-600 mt-0.5">{c.status}</p>
             </button>
           </li>
