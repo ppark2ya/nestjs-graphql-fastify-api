@@ -22,7 +22,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../../dist/apps/log-viewer',
+    outDir: '../../dist/apps/ui',
     emptyOutDir: true,
   },
 });

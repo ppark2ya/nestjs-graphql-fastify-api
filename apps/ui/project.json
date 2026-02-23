@@ -1,24 +1,24 @@
 {
-  "name": "log-viewer",
+  "name": "ui",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "apps/log-viewer/src",
+  "sourceRoot": "apps/ui/src",
   "projectType": "application",
-  "tags": ["scope:log-viewer", "type:app", "lang:ts"],
+  "tags": ["scope:ui", "type:app", "lang:ts"],
   "targets": {
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx vite --config apps/log-viewer/vite.config.ts apps/log-viewer",
+        "command": "npx vite --config apps/ui/vite.config.ts apps/ui",
         "cwd": "{workspaceRoot}"
       }
     },
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx vite build --config apps/log-viewer/vite.config.ts apps/log-viewer",
+        "command": "npx vite build --config apps/ui/vite.config.ts apps/ui",
         "cwd": "{workspaceRoot}"
       },
-      "outputs": ["{workspaceRoot}/dist/apps/log-viewer"]
+      "outputs": ["{workspaceRoot}/dist/apps/ui"]
     }
   }
 }
