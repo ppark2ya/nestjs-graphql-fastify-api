@@ -1,6 +1,6 @@
 module github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer
 
-go 1.18
+go 1.24
 
 require (
 	github.com/docker/docker v23.0.0+incompatible

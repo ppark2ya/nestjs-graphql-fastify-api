@@ -1,13 +1,17 @@
 # Build stage
-FROM golang:1.19-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Copy source code + vendor (no network required)
+# Copy go.mod and go.sum first for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
 COPY . .
 
-# Build with vendor mode
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -ldflags='-s -w' -o /log-streamer ./cmd/server
+# Build
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o /log-streamer ./cmd/server
 
 # Production stage
 FROM alpine:3.19
