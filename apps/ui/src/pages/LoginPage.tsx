@@ -77,7 +77,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-950 px-4">
       <div className="w-full max-w-sm">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 sm:p-8 shadow-2xl">
-          <div className="relative overflow-hidden">
+          <div className="relative overflow-hidden px-1 -mx-1">
             {/* Step 1: Credentials */}
             <div
               className={`transition-all duration-300 ${
