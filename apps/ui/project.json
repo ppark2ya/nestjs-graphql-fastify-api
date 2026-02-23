@@ -19,6 +19,13 @@
         "cwd": "{workspaceRoot}"
       },
       "outputs": ["{workspaceRoot}/dist/apps/ui"]
+    },
+    "e2e": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx playwright test --config apps/ui/playwright.config.ts",
+        "cwd": "{workspaceRoot}"
+      }
     }
   }
 }
