@@ -3,9 +3,13 @@ package handler
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"encoding/json"
+	"errors"
+	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -127,6 +131,8 @@ func (h *LogsHandler) streamLogs(conn *websocket.Conn, writeMu *sync.Mutex, cont
 		ctxCancel()
 	}()
 
+	isTTY := h.dockerClient.IsContainerTTY(ctx, containerID)
+
 	reader, err := h.dockerClient.GetContainerLogs(ctx, containerID)
 	if err != nil {
 		h.writeJSON(conn, writeMu, WSMessage{Type: "error", Message: "failed to get logs: " + err.Error()})
@@ -134,7 +140,68 @@ func (h *LogsHandler) streamLogs(conn *websocket.Conn, writeMu *sync.Mutex, cont
 	}
 	defer reader.Close()
 
+	if isTTY {
+		h.streamTTYLogs(conn, writeMu, containerID, reader, cancel)
+	} else {
+		h.streamMuxLogs(conn, writeMu, containerID, reader, cancel)
+	}
+}
+
+// streamMuxLogs reads Docker multiplexed stream (non-TTY containers).
+// Frame format: [stream_type:1][padding:3][size:4 BE][payload:size bytes]
+func (h *LogsHandler) streamMuxLogs(conn *websocket.Conn, writeMu *sync.Mutex, containerID string, reader io.ReadCloser, cancel chan struct{}) {
+	header := make([]byte, 8)
+
+	for {
+		select {
+		case <-cancel:
+			return
+		default:
+		}
+
+		// Read 8-byte frame header
+		if _, err := io.ReadFull(reader, header); err != nil {
+			if err != io.EOF && !errors.Is(err, context.Canceled) {
+				log.Printf("Docker log header read error for %s: %v", containerID, err)
+			}
+			return
+		}
+
+		streamType := "stdout"
+		if header[0] == 2 {
+			streamType = "stderr"
+		}
+
+		payloadSize := binary.BigEndian.Uint32(header[4:8])
+		if payloadSize == 0 {
+			continue
+		}
+
+		payload := make([]byte, payloadSize)
+		if _, err := io.ReadFull(reader, payload); err != nil {
+			if err != io.EOF && !errors.Is(err, context.Canceled) {
+				log.Printf("Docker log payload read error for %s: %v", containerID, err)
+			}
+			return
+		}
+
+		// Payload may contain multiple lines (e.g., stack traces)
+		content := strings.TrimRight(string(payload), "\n")
+		lines := strings.Split(content, "\n")
+
+		for _, line := range lines {
+			if line == "" {
+				continue
+			}
+			h.sendLogLine(conn, writeMu, containerID, streamType, line)
+		}
+	}
+}
+
+// streamTTYLogs reads raw stream from TTY containers (no multiplexed header).
+func (h *LogsHandler) streamTTYLogs(conn *websocket.Conn, writeMu *sync.Mutex, containerID string, reader io.ReadCloser, cancel chan struct{}) {
 	scanner := bufio.NewScanner(reader)
+
 	for scanner.Scan() {
 		select {
 		case <-cancel:
@@ -142,52 +209,37 @@ func (h *LogsHandler) streamLogs(conn *websocket.Conn, writeMu *sync.Mutex, cont
 		default:
 		}
 
-		line := scanner.Bytes()
-		if len(line) < 8 {
+		line := scanner.Text()
+		if line == "" {
 			continue
 		}
+		h.sendLogLine(conn, writeMu, containerID, "stdout", line)
+	}
+}
 
-		// Docker log format: first 8 bytes are header
-		// Byte 0: stream type (1=stdout, 2=stderr)
-		streamType := "stdout"
-		if line[0] == 2 {
-			streamType = "stderr"
+// sendLogLine parses a single log line (with optional Docker timestamp) and sends it via WebSocket.
+func (h *LogsHandler) sendLogLine(conn *websocket.Conn, writeMu *sync.Mutex, containerID, streamType, line string) {
+	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
+	message := line
+
+	// Parse Docker timestamp if present (format: 2006-01-02T15:04:05.000000000Z message)
+	if len(line) > 30 && line[4] == '-' && line[10] == 'T' {
+		if spaceIdx := strings.IndexByte(line, ' '); spaceIdx > 0 {
+			timestamp = line[:spaceIdx]
+			message = line[spaceIdx+1:]
 		}
+	}
 
-		// Skip the 8-byte header
-		logContent := string(line[8:])
+	msg := WSMessage{
+		Type:        "log",
+		ContainerID: containerID,
+		Timestamp:   timestamp,
+		Message:     message,
+		Stream:      streamType,
+	}
 
-		// Parse timestamp if present (format: 2006-01-02T15:04:05.000000000Z message)
-		timestamp := time.Now().UTC().Format(time.RFC3339Nano)
-		message := logContent
-
-		if len(logContent) > 30 && logContent[4] == '-' && logContent[10] == 'T' {
-			// Has timestamp prefix
-			spaceIdx := -1
-			for i, c := range logContent {
-				if c == ' ' {
-					spaceIdx = i
-					break
-				}
-			}
-			if spaceIdx > 0 {
-				timestamp = logContent[:spaceIdx]
-				message = logContent[spaceIdx+1:]
-			}
-		}
-
-		msg := WSMessage{
-			Type:        "log",
-			ContainerID: containerID,
-			Timestamp:   timestamp,
-			Message:     message,
-			Stream:      streamType,
-		}
-
-		if err := h.writeJSON(conn, writeMu, msg); err != nil {
-			log.Printf("WebSocket write error: %v", err)
-			return
-		}
+	if err := h.writeJSON(conn, writeMu, msg); err != nil {
+		log.Printf("WebSocket write error: %v", err)
 	}
 }
 

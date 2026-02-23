@@ -163,6 +163,18 @@ func (c *Client) ContainerExists(ctx context.Context, containerID string) bool {
 	return err == nil
 }
 
+// IsContainerTTY - 컨테이너가 TTY 모드로 실행 중인지 확인
+func (c *Client) IsContainerTTY(ctx context.Context, containerID string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	inspect, err := c.cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return false
+	}
+	return inspect.Config.Tty
+}
+
 func (c *Client) Ping(ctx context.Context) (types.Ping, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
