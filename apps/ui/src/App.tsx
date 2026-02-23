@@ -1,21 +1,57 @@
 import { ApolloProvider } from '@apollo/client/react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { client } from './apollo';
+import { AuthProvider, useAuth } from './auth/AuthContext';
+import AuthGuard from './auth/AuthGuard';
 import Navigation from './components/Navigation';
+import LoginPage from './pages/LoginPage';
 import LiveStreamPage from './pages/LiveStreamPage';
 import HistoryPage from './pages/HistoryPage';
+
+function AppRoutes() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          !isLoading && isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
+        }
+      />
+      <Route
+        path="/"
+        element={
+          <AuthGuard>
+            <div className="h-screen flex flex-col bg-gray-900 text-gray-100">
+              <Navigation />
+              <LiveStreamPage />
+            </div>
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/history"
+        element={
+          <AuthGuard>
+            <div className="h-screen flex flex-col bg-gray-900 text-gray-100">
+              <Navigation />
+              <HistoryPage />
+            </div>
+          </AuthGuard>
+        }
+      />
+    </Routes>
+  );
+}
 
 export default function App() {
   return (
     <ApolloProvider client={client}>
       <BrowserRouter>
-        <div className="h-screen flex flex-col bg-gray-900 text-gray-100">
-          <Navigation />
-          <Routes>
-            <Route path="/" element={<LiveStreamPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-          </Routes>
-        </div>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
       </BrowserRouter>
     </ApolloProvider>
   );
