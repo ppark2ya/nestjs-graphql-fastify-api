@@ -1,6 +1,7 @@
 import { useSubscription } from '@apollo/client/react';
 import { useEffect, useRef, useState } from 'react';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry } from './graphql';
+import { AnsiText } from './components/AnsiText';
 import { formatTime } from './utils';
 
 interface Props {
@@ -104,7 +105,7 @@ export default function LogViewer({ containerId, containerName }: Props) {
               >
                 {log.stream}
               </span>
-              <span className="whitespace-pre-wrap break-all">{log.message}</span>
+              <AnsiText text={log.message} className="whitespace-pre-wrap break-all" />
             </div>
           ))
         )}

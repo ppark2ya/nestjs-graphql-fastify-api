@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useLazyQuery } from '@apollo/client/react';
+import { AnsiText } from '../components/AnsiText';
 import { cn } from '../lib/utils';
 import {
   LOG_APPS_QUERY,
@@ -298,7 +299,7 @@ function LogRow({ line }: { line: HistoryLogLine }) {
         {line.source ?? ''}
       </td>
       <td className="px-3 py-1 text-gray-200 font-mono break-all">
-        {line.message}
+        <AnsiText text={line.message} />
       </td>
       <td className="px-2 py-1 text-purple-400 text-[10px] whitespace-nowrap">
         {line.node}
