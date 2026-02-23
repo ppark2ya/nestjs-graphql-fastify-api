@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { useNavigate } from 'react-router-dom';
 import { client } from '../apollo';
@@ -45,16 +45,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleLogout = useCallback(async () => {
     const rt = getRefreshToken();
+    if (rt) {
+      try { await logoutMutation({ variables: { refreshToken: rt } }); } catch { /* ignore */ }
+    }
     clearTokens();
     stopRefreshTimer();
     setIsAuthenticated(false);
     setUser(null);
-    if (rt) {
-      try { await logoutMutation({ variables: { refreshToken: rt } }); } catch { /* ignore */ }
-    }
     await client.clearStore();
     navigate('/login', { replace: true });
   }, [logoutMutation, navigate]);
+
+  const doRefreshRef = useRef<() => Promise<void>>();
 
   const doRefresh = useCallback(async () => {
     const rt = getRefreshToken();
@@ -64,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data?.refreshToken) {
         const { accessToken, refreshToken, expiresIn } = data.refreshToken;
         saveTokens(accessToken, refreshToken, expiresIn);
-        startRefreshTimer(doRefresh);
+        startRefreshTimer(() => doRefreshRef.current!());
       } else {
         handleLogout();
       }
@@ -73,13 +75,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshMutation, handleLogout]);
 
+  doRefreshRef.current = doRefresh;
+
   const handleLogin = useCallback((tokens: AuthTokenResponse) => {
     saveTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
     const payload = parseJwtPayload(tokens.accessToken);
     setUser(payload ? { username: payload.username, roles: payload.roles } : null);
     setIsAuthenticated(true);
-    startRefreshTimer(doRefresh);
-  }, [doRefresh]);
+    startRefreshTimer(() => doRefreshRef.current!());
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -97,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const payload = parseJwtPayload(accessToken);
             setUser(payload ? { username: payload.username, roles: payload.roles } : null);
             setIsAuthenticated(true);
-            startRefreshTimer(doRefresh);
+            startRefreshTimer(() => doRefreshRef.current!());
           } else {
             clearTokens();
           }
