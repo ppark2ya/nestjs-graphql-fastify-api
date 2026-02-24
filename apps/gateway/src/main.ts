@@ -26,8 +26,7 @@ async function bootstrap() {
 
   await fastifyInstance.register(fastifyStatic as any, {
     root: staticRoot,
-    decorateReply: false,
-    wildcard: false,
+    wildcard: true,
   });
 
   // SPA fallback: 404 응답 중 클라이언트 라우트 요청이면 index.html 반환

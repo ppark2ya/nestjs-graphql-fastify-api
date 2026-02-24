@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { promises as dns } from 'dns';
 import { CircuitBreakerService } from '../circuit-breaker/circuit-breaker.service';
+import { Env } from '../env.schema';
 import { LogSearchInput } from './dto/log-search.input';
 import { LogSearchResult } from './models/log-search-result.model';
 import { LogApp } from './models/log-app.model';
@@ -18,13 +20,14 @@ export class LogHistoryService {
   constructor(
     private readonly httpService: HttpService,
     private readonly circuitBreaker: CircuitBreakerService,
+    private readonly configService: ConfigService<Env>,
   ) {
-    this.logStreamerPort = parseInt(
-      process.env.LOG_STREAMER_PORT ?? '4003',
-      10,
-    );
-    this.logStreamerBaseUrl =
-      process.env.LOG_STREAMER_URL ?? 'http://localhost:4003';
+    this.logStreamerPort = this.configService.getOrThrow('LOG_STREAMER_PORT', {
+      infer: true,
+    });
+    this.logStreamerBaseUrl = this.configService.getOrThrow('LOG_STREAMER_URL', {
+      infer: true,
+    });
   }
 
   async listApps(): Promise<LogApp[]> {

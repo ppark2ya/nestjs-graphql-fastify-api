@@ -3,19 +3,25 @@ import {
   CanActivate,
   ExecutionContext,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { GraphQLError } from 'graphql';
+import { Env } from '../env.schema';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
-  // 허용된 API 키 목록 (실제 운영에서는 DB나 환경변수에서 관리)
-  private readonly validApiKeys: Set<string> = new Set(
-    (process.env.API_KEYS || 'test-api-key-1,test-api-key-2').split(','),
-  );
+  private readonly validApiKeys: Set<string>;
 
-  constructor(private reflector: Reflector) { }
+  constructor(
+    private reflector: Reflector,
+    private configService: ConfigService<Env>,
+  ) {
+    this.validApiKeys = new Set(
+      this.configService.getOrThrow('API_KEYS', { infer: true }).split(','),
+    );
+  }
 
   canActivate(context: ExecutionContext): boolean {
     // @Public() 데코레이터가 붙은 엔드포인트는 검증 건너뜀
