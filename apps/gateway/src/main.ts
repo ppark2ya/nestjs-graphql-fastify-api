@@ -26,6 +26,11 @@ async function bootstrap() {
     wildcard: false,
   });
 
+  // SPA fallback: 정적 파일/API에 매칭되지 않는 경로는 index.html 반환
+  fastifyInstance.setNotFoundHandler((_req, reply) => {
+    reply.sendFile('index.html', staticRoot);
+  });
+
   await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
   console.log(`🚀 Application is running on: ${await app.getUrl()}`);
   console.log(`📊 GraphQL endpoint: ${await app.getUrl()}/graphql`);
