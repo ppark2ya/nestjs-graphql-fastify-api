@@ -45,6 +45,18 @@ export const pubSubProvider = {
       logger.error(`Redis subscriber 에러: ${err.message}`),
     );
 
+    // lazyConnect 모드에서는 명시적으로 연결 시작해야 함
+    publisher
+      .connect()
+      .catch((err: Error) =>
+        logger.error(`Redis publisher 연결 실패: ${err.message}`),
+      );
+    subscriber
+      .connect()
+      .catch((err: Error) =>
+        logger.error(`Redis subscriber 연결 실패: ${err.message}`),
+      );
+
     return new RedisPubSub({ publisher, subscriber });
   },
 };
