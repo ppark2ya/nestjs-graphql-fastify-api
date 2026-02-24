@@ -29,6 +29,8 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private ws: WebSocket | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isShuttingDown = false;
+  private reconnectAttempts = 0;
+  private static readonly MAX_RECONNECT_ATTEMPTS = 5;
 
   constructor(
     private readonly httpService: HttpService,
@@ -62,6 +64,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.on('open', () => {
+        this.reconnectAttempts = 0;
         this.logger.log('Connected to log-streamer WebSocket');
       });
 
@@ -100,8 +103,18 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private scheduleReconnect() {
     if (this.isShuttingDown) return;
 
+    this.reconnectAttempts++;
+    if (this.reconnectAttempts > LogStreamerProxyService.MAX_RECONNECT_ATTEMPTS) {
+      this.logger.warn(
+        `Gave up reconnecting to log-streamer after ${LogStreamerProxyService.MAX_RECONNECT_ATTEMPTS} attempts. Log streaming is unavailable.`,
+      );
+      return;
+    }
+
     this.reconnectTimeout = setTimeout(() => {
-      this.logger.log('Attempting to reconnect to log-streamer...');
+      this.logger.log(
+        `Attempting to reconnect to log-streamer (${this.reconnectAttempts}/${LogStreamerProxyService.MAX_RECONNECT_ATTEMPTS})...`,
+      );
       this.connectWebSocket();
     }, 5000);
   }

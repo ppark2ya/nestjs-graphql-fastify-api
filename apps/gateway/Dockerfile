@@ -30,7 +30,7 @@ RUN pnpm install --frozen-lockfile
 # 소스 코드 및 설정 파일 복사
 COPY tsconfig.base.json nest-cli.json nx.json ./
 COPY apps/gateway ./apps/gateway
-COPY apps/log-viewer ./apps/log-viewer
+COPY apps/ui ./apps/ui
 COPY libs ./libs
 
 # Shared 라이브러리 → Log-viewer → Gateway 순서로 빌드
