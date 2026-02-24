@@ -11,18 +11,24 @@ export class LoggerMiddleware implements NestMiddleware {
     const url = req.originalUrl || req.url;
     const userAgent = req.headers['user-agent'] || '';
     const correlationId = req.headers[CORRELATION_HEADER] || '';
+    const ip =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.ip ||
+      req.socket?.remoteAddress ||
+      '';
     const start = Date.now();
 
     res.on('finish', () => {
       const { statusCode } = res;
       const duration = Date.now() - start;
 
-      const logMessage = `${method} ${url} ${statusCode} - ${userAgent} +${duration}ms`;
+      const logMessage = `${method} ${url} ${statusCode} - ${ip} ${userAgent} +${duration}ms`;
       const meta = {
         correlationId,
         method,
         url,
         statusCode,
+        ip,
         userAgent,
         duration,
       };

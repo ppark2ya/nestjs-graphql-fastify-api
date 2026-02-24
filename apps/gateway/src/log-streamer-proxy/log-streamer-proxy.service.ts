@@ -14,6 +14,8 @@ import WebSocket from 'ws';
 import { Container } from './models/container.model';
 
 const LOG_STREAM_TOPIC = 'CONTAINER_LOG';
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_INTERVAL_MS = 5_000;
 
 interface WSLogMessage {
   type: string;
@@ -29,6 +31,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private ws: WebSocket | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isShuttingDown = false;
+  private reconnectAttempts = 0;
 
   constructor(
     private readonly httpService: HttpService,
@@ -62,6 +65,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.on('open', () => {
+        this.reconnectAttempts = 0;
         this.logger.log('Connected to log-streamer WebSocket');
       });
 
@@ -77,6 +81,10 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
                 stream: message.stream,
               },
             });
+          } else if (message.type === 'error') {
+            this.logger.warn(
+              `Log-streamer error${message.containerId ? ` [container=${message.containerId}]` : ''}: ${message.message}`,
+            );
           }
         } catch (error) {
           this.logger.error('Failed to parse WebSocket message', error);
@@ -100,10 +108,21 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private scheduleReconnect() {
     if (this.isShuttingDown) return;
 
+    this.reconnectAttempts++;
+
+    if (this.reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+      this.logger.error(
+        `Gave up reconnecting to log-streamer after ${MAX_RECONNECT_ATTEMPTS} attempts. Log streaming is unavailable.`,
+      );
+      return;
+    }
+
     this.reconnectTimeout = setTimeout(() => {
-      this.logger.log('Attempting to reconnect to log-streamer...');
+      this.logger.log(
+        `Attempting to reconnect to log-streamer (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`,
+      );
       this.connectWebSocket();
-    }, 5000);
+    }, RECONNECT_INTERVAL_MS);
   }
 
   subscribeToLogs(containerId: string) {

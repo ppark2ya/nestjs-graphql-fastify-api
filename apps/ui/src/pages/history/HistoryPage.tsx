@@ -1,13 +1,34 @@
 import { useState } from 'react';
 import { useQuery, useLazyQuery } from '@apollo/client/react';
-import { cn } from '../lib/utils';
+import { AnsiText } from '@/components/AnsiText';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Search } from 'lucide-react';
 import {
   LOG_APPS_QUERY,
   LOG_SEARCH_QUERY,
   LogApp,
   HistoryLogLine,
   LogSearchResult,
-} from '../history-graphql';
+} from './graphql';
 
 const LEVELS = ['ERROR', 'WARN', 'INFO', 'DEBUG'] as const;
 
@@ -15,7 +36,7 @@ const LEVEL_COLORS: Record<string, string> = {
   ERROR: 'bg-red-900/50 text-red-300 border-red-700',
   WARN: 'bg-yellow-900/50 text-yellow-300 border-yellow-700',
   INFO: 'bg-green-900/50 text-green-300 border-green-700',
-  DEBUG: 'bg-gray-800 text-gray-400 border-gray-600',
+  DEBUG: 'bg-secondary text-muted-foreground border-border',
 };
 
 function today(): string {
@@ -77,122 +98,128 @@ export default function HistoryPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Filter Bar */}
-      <div className="px-4 py-3 border-b border-gray-700 flex flex-wrap items-end gap-3">
+      <div className="px-4 py-3 border-b border-border flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">App</label>
-          <select
-            value={app}
-            onChange={(e) => setApp(e.target.value)}
-            className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200 min-w-[160px]"
+          <Label className="text-xs text-muted-foreground">App</Label>
+          <Select
+            value={app || undefined}
+            onValueChange={setApp}
           >
-            <option value="">Select app...</option>
-            {apps.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="bg-secondary h-8 text-sm min-w-[160px]">
+              <SelectValue placeholder="Select app..." />
+            </SelectTrigger>
+            <SelectContent>
+              {apps.map((a) => (
+                <SelectItem key={a} value={a}>
+                  {a}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">From</label>
-          <input
+          <Label className="text-xs text-muted-foreground">From</Label>
+          <Input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
+            className="bg-secondary h-8 text-sm"
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">To</label>
-          <input
+          <Label className="text-xs text-muted-foreground">To</Label>
+          <Input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
+            className="bg-secondary h-8 text-sm"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">Level</label>
+          <Label className="text-xs text-muted-foreground">Level</Label>
           <div className="flex gap-1">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setLevel('')}
               className={cn(
-                'px-2 py-1.5 rounded text-xs border transition-colors',
+                'px-2 transition-colors',
                 !level
                   ? 'bg-gray-600 text-white border-gray-500'
-                  : 'bg-gray-800 text-gray-400 border-gray-600 hover:bg-gray-700',
+                  : 'bg-secondary text-muted-foreground border-border hover:bg-gray-700',
               )}
             >
               ALL
-            </button>
+            </Button>
             {LEVELS.map((l) => (
-              <button
+              <Button
                 key={l}
+                variant="outline"
+                size="sm"
                 onClick={() => setLevel(level === l ? '' : l)}
                 className={cn(
-                  'px-2 py-1.5 rounded text-xs border transition-colors',
+                  'px-2 transition-colors',
                   level === l
                     ? LEVEL_COLORS[l]
-                    : 'bg-gray-800 text-gray-400 border-gray-600 hover:bg-gray-700',
+                    : 'bg-secondary text-muted-foreground border-border hover:bg-gray-700',
                 )}
               >
                 {l}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">Keyword</label>
-          <input
-            type="text"
+          <Label className="text-xs text-muted-foreground">Keyword</Label>
+          <Input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             placeholder="Search..."
-            className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200 w-48"
+            className="bg-secondary h-8 w-48"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">Node</label>
-          <select
-            value={node}
-            onChange={(e) => setNode(e.target.value)}
-            className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
+          <Label className="text-xs text-muted-foreground">Node</Label>
+          <Select
+            value={node || undefined}
+            onValueChange={(val) => setNode(val === '__all__' ? '' : val)}
           >
-            <option value="">All nodes</option>
-            {nodes.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="bg-secondary h-8 text-sm">
+              <SelectValue placeholder="All nodes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All nodes</SelectItem>
+              {nodes.map((n) => (
+                <SelectItem key={n} value={n}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <button
+        <Button
+          size="sm"
           onClick={() => handleSearch()}
           disabled={!app || loading}
-          className={cn(
-            'px-4 py-1.5 rounded text-sm font-medium transition-colors',
-            app && !loading
-              ? 'bg-blue-600 text-white hover:bg-blue-500'
-              : 'bg-gray-700 text-gray-500 cursor-not-allowed',
-          )}
         >
+          <Search className="h-4 w-4" />
           {loading ? 'Searching...' : 'Search'}
-        </button>
+        </Button>
       </div>
 
       {/* Summary Bar */}
       {result && (
-        <div className="px-4 py-2 border-b border-gray-700 flex gap-4 text-xs">
-          <span className="text-gray-400">
+        <div className="px-4 py-2 border-b border-border flex gap-4 text-xs">
+          <span className="text-muted-foreground">
             {result.summary.fileCount} files
           </span>
-          <span className="text-gray-400">
+          <span className="text-muted-foreground">
             {result.summary.totalLines.toLocaleString()} total lines
           </span>
           <span className="text-red-400">
@@ -204,7 +231,7 @@ export default function HistoryPage() {
           <span className="text-green-400">
             {result.summary.infoCount.toLocaleString()} info
           </span>
-          <span className="ml-auto text-gray-500">
+          <span className="ml-auto text-muted-foreground">
             Showing {result.lines.length} lines
             {afterCursor && ' (paginated)'}
           </span>
@@ -214,60 +241,61 @@ export default function HistoryPage() {
       {/* Log Table */}
       <div className="flex-1 overflow-y-auto">
         {!result && !loading && (
-          <div className="flex items-center justify-center h-full text-gray-600">
+          <div className="flex items-center justify-center h-full text-muted-foreground">
             <p>Select an app and date range to search logs</p>
           </div>
         )}
 
         {result && result.lines.length === 0 && (
-          <div className="flex items-center justify-center h-full text-gray-600">
+          <div className="flex items-center justify-center h-full text-muted-foreground">
             <p>No matching logs found</p>
           </div>
         )}
 
         {result && result.lines.length > 0 && (
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-gray-800 border-b border-gray-700">
-              <tr>
-                <th className="px-3 py-2 text-left text-gray-400 font-medium w-44">
+          <Table className="text-xs">
+            <TableHeader className="sticky top-0 bg-secondary">
+              <TableRow>
+                <TableHead className="px-3 py-2 w-44">
                   Timestamp
-                </th>
-                <th className="px-2 py-2 text-left text-gray-400 font-medium w-16">
+                </TableHead>
+                <TableHead className="px-2 py-2 w-16">
                   Level
-                </th>
-                <th className="px-2 py-2 text-left text-gray-400 font-medium w-40">
+                </TableHead>
+                <TableHead className="px-2 py-2 w-40">
                   Source
-                </th>
-                <th className="px-3 py-2 text-left text-gray-400 font-medium">
+                </TableHead>
+                <TableHead className="px-3 py-2">
                   Message
-                </th>
-                <th className="px-2 py-2 text-left text-gray-400 font-medium w-28">
+                </TableHead>
+                <TableHead className="px-2 py-2 w-28">
                   Node
-                </th>
-                <th className="px-2 py-2 text-left text-gray-400 font-medium w-36">
+                </TableHead>
+                <TableHead className="px-2 py-2 w-36">
                   File
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {result.lines.map((line, i) => (
                 <LogRow key={`${line.file}:${line.lineNo}:${i}`} line={line} />
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </div>
 
       {/* Pagination */}
       {result?.hasMore && (
-        <div className="px-4 py-2 border-t border-gray-700 flex justify-center">
-          <button
+        <div className="px-4 py-2 border-t border-border flex justify-center">
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleNextPage}
             disabled={loading}
-            className="px-4 py-1.5 rounded text-sm bg-gray-700 text-gray-200 hover:bg-gray-600 transition-colors"
           >
             {loading ? 'Loading...' : 'Load more'}
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -278,34 +306,32 @@ function LogRow({ line }: { line: HistoryLogLine }) {
   const levelColor = line.level ? LEVEL_COLORS[line.level] : '';
 
   return (
-    <tr className="border-b border-gray-800 hover:bg-gray-800/50">
-      <td className="px-3 py-1 text-gray-400 font-mono whitespace-nowrap">
+    <TableRow>
+      <TableCell className="px-3 py-1 text-muted-foreground font-mono whitespace-nowrap">
         {line.timestamp ?? '-'}
-      </td>
-      <td className="px-2 py-1">
+      </TableCell>
+      <TableCell className="px-2 py-1">
         {line.level && (
-          <span
-            className={cn(
-              'inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border',
-              levelColor,
-            )}
+          <Badge
+            variant="outline"
+            className={cn('px-1.5 py-0 text-[10px]', levelColor)}
           >
             {line.level}
-          </span>
+          </Badge>
         )}
-      </td>
-      <td className="px-2 py-1 text-gray-500 font-mono truncate max-w-[160px]">
+      </TableCell>
+      <TableCell className="px-2 py-1 text-muted-foreground font-mono truncate max-w-[160px]">
         {line.source ?? ''}
-      </td>
-      <td className="px-3 py-1 text-gray-200 font-mono break-all">
-        {line.message}
-      </td>
-      <td className="px-2 py-1 text-purple-400 text-[10px] whitespace-nowrap">
+      </TableCell>
+      <TableCell className="px-3 py-1 text-secondary-foreground font-mono break-all">
+        <AnsiText text={line.message} />
+      </TableCell>
+      <TableCell className="px-2 py-1 text-purple-400 text-[10px] whitespace-nowrap">
         {line.node}
-      </td>
-      <td className="px-2 py-1 text-gray-500 text-[10px] truncate max-w-[140px]">
+      </TableCell>
+      <TableCell className="px-2 py-1 text-muted-foreground text-[10px] truncate max-w-[140px]">
         {line.file}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
