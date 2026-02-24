@@ -14,7 +14,7 @@ import WebSocket from 'ws';
 import { Container } from './models/container.model';
 
 const LOG_STREAM_TOPIC = 'CONTAINER_LOG';
-const MAX_RECONNECT_ATTEMPTS = 10;
+const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_INTERVAL_MS = 5_000;
 
 interface WSLogMessage {

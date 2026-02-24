@@ -1,0 +1,31 @@
+{
+  "name": "ui",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/ui/src",
+  "projectType": "application",
+  "tags": ["scope:ui", "type:app", "lang:ts"],
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx vite --config apps/ui/vite.config.ts apps/ui",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx vite build --config apps/ui/vite.config.ts apps/ui",
+        "cwd": "{workspaceRoot}"
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/ui"]
+    },
+    "e2e": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx playwright test --config apps/ui/playwright.config.ts",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}
