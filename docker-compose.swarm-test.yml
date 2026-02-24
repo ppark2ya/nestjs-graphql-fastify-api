@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    deploy:
+      replicas: 1
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    networks:
+      - app-network
+
+  log-streamer:
+    image: log-streamer:test
+    user: root
+    environment:
+      - LOG_STREAMER_PORT=4003
+    ports:
+      - "4003:4003"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      replicas: 1
+    networks:
+      - app-network
+
+  relay:
+    image: relay:test
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_PATH=/data/relay.db
+      - PORT=8080
+    deploy:
+      replicas: 2
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: overlay
+    attachable: true

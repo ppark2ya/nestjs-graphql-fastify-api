@@ -27,6 +27,9 @@ import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
 import { LoggingInterceptor } from '@monorepo/shared/common/interceptor/logging.interceptor';
 import { WinstonLoggerModule, WinstonLoggerService } from '@monorepo/shared';
 import { envSchema } from './env.schema';
+import { PubSubModule } from './pubsub/pubsub.module';
+import { LogStreamerProxyModule } from './log-streamer-proxy/log-streamer-proxy.module';
+import { LogHistoryModule } from './log-history/log-history.module';
 
 @Module({
   imports: [
@@ -47,11 +50,20 @@ import { envSchema } from './env.schema';
         includeStacktraceInErrorResponses:
           process.env.NODE_ENV !== 'production',
         validationRules: [depthLimit(5)],
-        context: ({ request, reply }: { request: any; reply: any }) => ({
-          req: request,
-          reply: reply,
-          loaders: dataLoaderService.createLoaders(),
-        }),
+        subscriptions: {
+          'graphql-ws': true,
+          'subscriptions-transport-ws': false,
+        },
+        context: ({ request, reply, connection }: { request: any; reply: any; connection?: any }) => {
+          if (connection) {
+            return { req: connection.context, loaders: dataLoaderService.createLoaders() };
+          }
+          return {
+            req: request,
+            reply: reply,
+            loaders: dataLoaderService.createLoaders(),
+          };
+        },
       }),
     }),
     ThrottlerModule.forRoot([
@@ -66,6 +78,9 @@ import { envSchema } from './env.schema';
     CircuitBreakerModule,
     AuthProxyModule,
     WinstonLoggerModule,
+    PubSubModule,
+    LogStreamerProxyModule,
+    LogHistoryModule,
   ],
   providers: [
     AppService,

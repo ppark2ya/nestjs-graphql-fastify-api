@@ -1,0 +1,41 @@
+{
+  "name": "log-streamer",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/log-streamer",
+  "projectType": "application",
+  "tags": ["scope:log-streamer", "type:app", "lang:go"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cd apps/log-streamer && go build -ldflags='-s -w' -o ../../dist/apps/log-streamer/log-streamer ./cmd/server"
+        ],
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": ["{projectRoot}/**/*.go", "{projectRoot}/go.mod", "{projectRoot}/go.sum"],
+      "outputs": ["{workspaceRoot}/dist/apps/log-streamer"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/log-streamer && go run ./cmd/server",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/log-streamer && go test -v ./...",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/log-streamer && golangci-lint run",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}
