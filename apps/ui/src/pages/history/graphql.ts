@@ -61,3 +61,10 @@ export interface LogSearchResult {
   hasMore: boolean;
   summary: LogSummary;
 }
+
+export const MAX_SEARCH_TABS = 10;
+
+export interface SearchTab {
+  id: string;
+  label: string;
+}
