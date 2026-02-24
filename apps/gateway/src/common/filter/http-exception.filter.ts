@@ -14,7 +14,7 @@ export class HttpExceptionFilter implements GqlExceptionFilter {
     const message =
       typeof response === 'string'
         ? response
-        : (response as any).message ?? exception.message;
+        : ((response as any).message ?? exception.message);
 
     this.logger.error(`HttpException [${status}]: ${message}`);
 

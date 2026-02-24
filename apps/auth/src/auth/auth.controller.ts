@@ -51,7 +51,10 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @UsePipes(new ZodValidationPipe(TotpSetupSchema))
   async setupTwoFactor(@Body() body: TotpSetupDto, @Req() req: any) {
-    return this.authService.setupTwoFactor(Number(req.user.userId), body.totpCode);
+    return this.authService.setupTwoFactor(
+      Number(req.user.userId),
+      body.totpCode,
+    );
   }
 
   @Post('refresh')
@@ -81,7 +84,9 @@ export class AuthController {
   }
 
   @MessagePattern('auth.2fa.setup')
-  async tcpSetupTwoFactor(@Payload() data: { userId: number; totpCode: string }) {
+  async tcpSetupTwoFactor(
+    @Payload() data: { userId: number; totpCode: string },
+  ) {
     return this.authService.setupTwoFactor(data.userId, data.totpCode);
   }
 
@@ -96,4 +101,3 @@ export class AuthController {
     return { success: true };
   }
 }
-

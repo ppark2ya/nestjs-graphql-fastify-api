@@ -20,9 +20,16 @@ export class LogSearchInput {
   @Field(() => String, { nullable: true, description: '노드 필터' })
   node?: string;
 
-  @Field(() => String, { nullable: true, description: '타임스탬프 커서 (페이지네이션)' })
+  @Field(() => String, {
+    nullable: true,
+    description: '타임스탬프 커서 (페이지네이션)',
+  })
   after?: string;
 
-  @Field(() => Int, { nullable: true, defaultValue: 100, description: '결과 수 제한' })
+  @Field(() => Int, {
+    nullable: true,
+    defaultValue: 100,
+    description: '결과 수 제한',
+  })
   limit?: number;
 }

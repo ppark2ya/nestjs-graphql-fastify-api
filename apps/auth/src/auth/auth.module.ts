@@ -12,7 +12,9 @@ import { TokenModule } from '../token/token.module';
 const useMockAuth = process.env.USE_MOCK_AUTH === 'true';
 
 @Module({
-  imports: useMockAuth ? [PassportModule] : [PassportModule, UserModule, TokenModule],
+  imports: useMockAuth
+    ? [PassportModule]
+    : [PassportModule, UserModule, TokenModule],
   controllers: [AuthController],
   providers: [
     {
@@ -25,4 +27,3 @@ const useMockAuth = process.env.USE_MOCK_AUTH === 'true';
   exports: useMockAuth ? [] : [JwtTokenService],
 })
 export class AuthModule {}
-

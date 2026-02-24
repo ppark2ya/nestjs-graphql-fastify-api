@@ -20,4 +20,3 @@ import { AuthProxyResolver } from './auth-proxy.resolver';
   exports: [AuthProxyService],
 })
 export class AuthProxyModule {}
-

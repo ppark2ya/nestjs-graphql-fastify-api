@@ -1,7 +1,13 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFile } from 'fs/promises';
-import { importPKCS8, importSPKI, SignJWT, jwtVerify, type KeyLike } from 'jose';
+import {
+  importPKCS8,
+  importSPKI,
+  SignJWT,
+  jwtVerify,
+  type KeyLike,
+} from 'jose';
 import { randomUUID } from 'crypto';
 import { AUTH_CONSTANTS } from '@monorepo/shared';
 import type { JwtPayload } from '@monorepo/shared';
@@ -28,11 +34,16 @@ export class JwtTokenService implements OnModuleInit {
       readFile(publicKeyPath, 'utf8'),
     ]);
 
-    this.privateKey = await importPKCS8(privatePem, AUTH_CONSTANTS.JWT_ALGORITHM);
+    this.privateKey = await importPKCS8(
+      privatePem,
+      AUTH_CONSTANTS.JWT_ALGORITHM,
+    );
     this.publicKey = await importSPKI(publicPem, AUTH_CONSTANTS.JWT_ALGORITHM);
   }
 
-  async signAccessToken(payload: Omit<JwtPayload, 'iat' | 'exp' | 'jti'>): Promise<{ token: string; jti: string }> {
+  async signAccessToken(
+    payload: Omit<JwtPayload, 'iat' | 'exp' | 'jti'>,
+  ): Promise<{ token: string; jti: string }> {
     const jti = randomUUID();
     const token = await new SignJWT({ ...payload, jti })
       .setProtectedHeader({ alg: AUTH_CONSTANTS.JWT_ALGORITHM })

@@ -49,10 +49,7 @@ export class AuthProxyResolver {
   }
 
   @Mutation(() => Boolean, { description: '로그아웃' })
-  async logout(
-    @Args('refreshToken') refreshToken: string,
-  ): Promise<boolean> {
+  async logout(@Args('refreshToken') refreshToken: string): Promise<boolean> {
     return this.authProxyService.logout(refreshToken);
   }
 }
-

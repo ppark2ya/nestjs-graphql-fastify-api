@@ -29,12 +29,21 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
   protected async handleRequest(
     requestProps: ThrottlerRequest,
   ): Promise<boolean> {
-    const { context, limit, ttl, throttler, blockDuration, getTracker, generateKey } =
-      requestProps;
+    const {
+      context,
+      limit,
+      ttl,
+      throttler,
+      blockDuration,
+      getTracker,
+      generateKey,
+    } = requestProps;
     const { req, res } = this.getRequestResponse(context);
 
     // User-Agent 무시 패턴 체크
-    const ignoreUserAgents = (throttler as any).ignoreUserAgents ?? (this as any).commonOptions?.ignoreUserAgents;
+    const ignoreUserAgents =
+      (throttler as any).ignoreUserAgents ??
+      (this as any).commonOptions?.ignoreUserAgents;
     if (Array.isArray(ignoreUserAgents)) {
       for (const pattern of ignoreUserAgents) {
         if (pattern.test(req.headers['user-agent'])) {
@@ -58,7 +67,9 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
     const getThrottlerSuffix = (name: string) =>
       name === 'default' ? '' : `-${name}`;
     const setHeaders =
-      (throttler as any).setHeaders ?? (this as any).commonOptions?.setHeaders ?? true;
+      (throttler as any).setHeaders ??
+      (this as any).commonOptions?.setHeaders ??
+      true;
 
     // Fastify reply.header() 사용
     if (isBlocked) {
@@ -105,5 +116,3 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
     return req.ip ?? req.ips?.[0] ?? 'unknown';
   }
 }
-
-

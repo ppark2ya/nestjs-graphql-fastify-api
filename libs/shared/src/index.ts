@@ -11,7 +11,10 @@ export { requestContext } from './common/context/request-context';
 export type { RequestStore } from './common/context/request-context';
 
 // Common - Middleware
-export { CorrelationIdMiddleware, CORRELATION_HEADER } from './common/middleware/correlation-id.middleware';
+export {
+  CorrelationIdMiddleware,
+  CORRELATION_HEADER,
+} from './common/middleware/correlation-id.middleware';
 export { RequestContextMiddleware } from './common/middleware/request-context.middleware';
 export { LoggerMiddleware } from './common/middleware/logger.middleware';
 
@@ -24,4 +27,3 @@ export { LoggingInterceptor } from './common/interceptor/logging.interceptor';
 // Common - Logger
 export { WinstonLoggerModule } from './common/logger/logger.module';
 export { WinstonLoggerService } from './common/logger/winston-logger.service';
-

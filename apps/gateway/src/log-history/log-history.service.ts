@@ -25,9 +25,12 @@ export class LogHistoryService {
     this.logStreamerPort = this.configService.getOrThrow('LOG_STREAMER_PORT', {
       infer: true,
     });
-    this.logStreamerBaseUrl = this.configService.getOrThrow('LOG_STREAMER_URL', {
-      infer: true,
-    });
+    this.logStreamerBaseUrl = this.configService.getOrThrow(
+      'LOG_STREAMER_URL',
+      {
+        infer: true,
+      },
+    );
   }
 
   async listApps(): Promise<LogApp[]> {
@@ -151,9 +154,7 @@ export class LogHistoryService {
       this.logger.debug(
         `Discovered ${addresses.length} log-streamer instances`,
       );
-      return addresses.map(
-        (ip) => `http://${ip}:${this.logStreamerPort}`,
-      );
+      return addresses.map((ip) => `http://${ip}:${this.logStreamerPort}`);
     } catch {
       return [this.logStreamerBaseUrl];
     }

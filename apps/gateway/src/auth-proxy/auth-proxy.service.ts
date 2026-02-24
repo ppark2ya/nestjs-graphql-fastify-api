@@ -16,7 +16,9 @@ export class AuthProxyService implements OnModuleInit {
     try {
       await this.authClient.connect();
     } catch (error) {
-      console.warn('⚠️ Auth service not available yet. Will retry on first request.');
+      console.warn(
+        '⚠️ Auth service not available yet. Will retry on first request.',
+      );
     }
   }
 
@@ -65,4 +67,3 @@ export class AuthProxyService implements OnModuleInit {
     );
   }
 }
-

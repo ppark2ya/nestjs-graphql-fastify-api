@@ -35,8 +35,11 @@ const dbModules = useMockAuth ? [] : [DatabaseModule, UserModule, TokenModule];
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(CorrelationIdMiddleware, RequestContextMiddleware, LoggerMiddleware)
+      .apply(
+        CorrelationIdMiddleware,
+        RequestContextMiddleware,
+        LoggerMiddleware,
+      )
       .forRoutes('*');
   }
 }
-

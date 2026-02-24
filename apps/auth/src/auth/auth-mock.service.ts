@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import type { AuthResponse, AuthTokens } from '@monorepo/shared';
 
 /**
@@ -36,21 +40,26 @@ const MOCK_USERS = [
 
 // Mock 토큰 생성 (간단한 Base64)
 const generateMockToken = (payload: object, prefix: string): string => {
-  const data = Buffer.from(JSON.stringify({ ...payload, iat: Date.now() })).toString('base64');
+  const data = Buffer.from(
+    JSON.stringify({ ...payload, iat: Date.now() }),
+  ).toString('base64');
   return `${prefix}.${data}.mock`;
 };
 
 @Injectable()
 export class MockAuthService {
   async login(username: string, password: string): Promise<AuthResponse> {
-    const user = MOCK_USERS.find(u => u.username === username);
-    
+    const user = MOCK_USERS.find((u) => u.username === username);
+
     if (!user || user.password !== password) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
     if (user.twoFactorEnabled) {
-      const twoFactorToken = generateMockToken({ sub: user.id, type: '2fa' }, 'mock2fa');
+      const twoFactorToken = generateMockToken(
+        { sub: user.id, type: '2fa' },
+        'mock2fa',
+      );
       return {
         requiresTwoFactor: true,
         twoFactorToken,
@@ -64,7 +73,10 @@ export class MockAuthService {
     };
   }
 
-  async verifyTwoFactor(twoFactorToken: string, totpCode: string): Promise<AuthTokens> {
+  async verifyTwoFactor(
+    twoFactorToken: string,
+    totpCode: string,
+  ): Promise<AuthTokens> {
     // Mock: 토큰에서 사용자 ID 추출 (실제로는 JWT 검증 필요)
     if (!twoFactorToken.startsWith('mock2fa.')) {
       throw new UnauthorizedException('Invalid or expired 2FA token');
@@ -76,7 +88,7 @@ export class MockAuthService {
     }
 
     // 2FA 활성화된 사용자 찾기
-    const user = MOCK_USERS.find(u => u.twoFactorEnabled);
+    const user = MOCK_USERS.find((u) => u.twoFactorEnabled);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
@@ -85,7 +97,7 @@ export class MockAuthService {
   }
 
   async setupTwoFactor(userId: number, totpCode: string) {
-    const user = MOCK_USERS.find(u => u.id === userId);
+    const user = MOCK_USERS.find((u) => u.id === userId);
     if (!user) {
       throw new BadRequestException('User not found');
     }
@@ -130,11 +142,11 @@ export class MockAuthService {
     // 실제로는 토큰 무효화 처리
   }
 
-  private generateTokens(user: typeof MOCK_USERS[0]): AuthTokens {
+  private generateTokens(user: (typeof MOCK_USERS)[0]): AuthTokens {
     return {
       accessToken: generateMockToken(
         { sub: user.id, username: user.username, roles: user.roles.split(',') },
-        'mockAccess'
+        'mockAccess',
       ),
       refreshToken: generateMockToken({ sub: user.id }, 'mockRefresh'),
       expiresIn: 3600,

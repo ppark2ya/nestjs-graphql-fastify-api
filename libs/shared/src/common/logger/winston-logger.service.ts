@@ -6,10 +6,10 @@ import DailyRotateFile = require('winston-daily-rotate-file');
 
 // 레벨별 컬러 매핑
 const levelColors: Record<string, string> = {
-  error: '\x1b[31m',   // red
-  warn: '\x1b[33m',    // yellow
-  info: '\x1b[32m',    // green
-  debug: '\x1b[34m',   // blue
+  error: '\x1b[31m', // red
+  warn: '\x1b[33m', // yellow
+  info: '\x1b[32m', // green
+  debug: '\x1b[34m', // blue
   verbose: '\x1b[36m', // cyan
 };
 const resetColor = '\x1b[0m';
@@ -44,10 +44,7 @@ export class WinstonLoggerService implements LoggerService {
       transports: [
         // 콘솔: NestJS 스타일 포맷
         new winston.transports.Console({
-          format: winston.format.combine(
-            koreaTimestamp,
-            nestLikeConsoleFormat,
-          ),
+          format: winston.format.combine(koreaTimestamp, nestLikeConsoleFormat),
         }),
         // 파일: JSON 포맷
         this.createFileTransport(),
