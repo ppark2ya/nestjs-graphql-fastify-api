@@ -1,0 +1,250 @@
+version: "3.8"
+
+# Docker Swarm 통합 테스트 환경
+# 사용법:
+#   1. bash scripts/swarm-test-up.sh (빌드 + 배포 자동화)
+#   2. 또는 수동: docker stack deploy -c docker-stack.test.yml test-app
+
+services:
+  # --- 인프라 ---
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - test-overlay
+
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: auth
+      MYSQL_USER: authuser
+      MYSQL_PASSWORD: authpassword
+    volumes:
+      - mysql-data:/var/lib/mysql
+    configs:
+      - source: init-auth-db
+        target: /docker-entrypoint-initdb.d/init-auth-db.sql
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - test-overlay
+
+  # --- 애플리케이션 ---
+  auth:
+    image: auth:test
+    environment:
+      - NODE_ENV=production
+      - AUTH_PORT=4001
+      - AUTH_HTTP_PORT=4001
+      - AUTH_TCP_PORT=4002
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USERNAME=authuser
+      - DB_PASSWORD=authpassword
+      - DB_DATABASE=auth
+      - JWT_PUBLIC_KEY_PATH=/run/secrets/jwt_public_key
+      - JWT_PRIVATE_KEY_PATH=/run/secrets/jwt_private_key
+    secrets:
+      - jwt_public_key
+      - jwt_private_key
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 10
+        window: 120s
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    networks:
+      - test-overlay
+
+  log-streamer:
+    image: log-streamer:test
+    user: root
+    environment:
+      - LOG_STREAMER_PORT=4003
+      - LOG_DIR=/opt/logs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - log-data:/opt/logs
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:4003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - test-overlay
+
+  gateway:
+    image: gateway:test
+    ports:
+      - target: 4000
+        published: 4000
+        protocol: tcp
+        mode: ingress
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - AUTH_SERVICE_HOST=auth
+      - AUTH_TCP_PORT=4002
+      - LOG_STREAMER_URL=http://log-streamer:4003
+      - LOG_STREAMER_WS_URL=ws://log-streamer:4003/ws/logs
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - API_KEYS=test-api-key
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      restart_policy:
+        condition: any
+        delay: 10s
+        max_attempts: 10
+        window: 120s
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --header='Content-Type: application/json' --post-data='{\"query\":\"{ health }\"}' -O - http://127.0.0.1:4000/graphql | grep -q '\"health\"' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - gateway-logs:/app/logs
+    networks:
+      - test-overlay
+
+  relay:
+    image: relay:test
+    ports:
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: ingress
+    volumes:
+      - relay-data:/data
+    environment:
+      - DB_PATH=/data/relay.db
+      - PORT=8080
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - test-overlay
+
+networks:
+  test-overlay:
+    driver: overlay
+    attachable: true
+
+volumes:
+  redis-data:
+  mysql-data:
+  relay-data:
+  log-data:
+  gateway-logs:
+
+secrets:
+  jwt_public_key:
+    file: ./keys/public.pem
+  jwt_private_key:
+    file: ./keys/private.pem
+
+configs:
+  init-auth-db:
+    file: ./scripts/docker/init-auth-db.sql
