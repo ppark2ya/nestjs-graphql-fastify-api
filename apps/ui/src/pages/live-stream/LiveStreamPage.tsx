@@ -23,8 +23,7 @@ export default function LiveStreamPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const containerListProps = {
-    selectedId:
-      selection?.type === 'container' ? selection.container.id : null,
+    selectedId: selection?.type === 'container' ? selection.container.id : null,
     selectedServiceName:
       selection?.type === 'service' ? selection.service.serviceName : null,
   };

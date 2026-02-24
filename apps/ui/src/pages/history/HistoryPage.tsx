@@ -101,10 +101,7 @@ export default function HistoryPage() {
       <div className="px-4 py-3 border-b border-border flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <Label className="text-xs text-muted-foreground">App</Label>
-          <Select
-            value={app || undefined}
-            onValueChange={setApp}
-          >
+          <Select value={app || undefined} onValueChange={setApp}>
             <SelectTrigger className="bg-secondary h-8 text-sm min-w-[160px]">
               <SelectValue placeholder="Select app..." />
             </SelectTrigger>
@@ -256,24 +253,12 @@ export default function HistoryPage() {
           <Table className="text-xs">
             <TableHeader className="sticky top-0 bg-secondary">
               <TableRow>
-                <TableHead className="px-3 py-2 w-44">
-                  Timestamp
-                </TableHead>
-                <TableHead className="px-2 py-2 w-16">
-                  Level
-                </TableHead>
-                <TableHead className="px-2 py-2 w-40">
-                  Source
-                </TableHead>
-                <TableHead className="px-3 py-2">
-                  Message
-                </TableHead>
-                <TableHead className="px-2 py-2 w-28">
-                  Node
-                </TableHead>
-                <TableHead className="px-2 py-2 w-36">
-                  File
-                </TableHead>
+                <TableHead className="px-3 py-2 w-44">Timestamp</TableHead>
+                <TableHead className="px-2 py-2 w-16">Level</TableHead>
+                <TableHead className="px-2 py-2 w-40">Source</TableHead>
+                <TableHead className="px-3 py-2">Message</TableHead>
+                <TableHead className="px-2 py-2 w-28">Node</TableHead>
+                <TableHead className="px-2 py-2 w-36">File</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

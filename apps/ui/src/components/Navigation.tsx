@@ -9,7 +9,9 @@ export default function Navigation() {
 
   return (
     <header className="flex items-center px-2 md:px-4 py-3 border-b border-border bg-card gap-1 md:gap-0">
-      <h1 className="text-sm md:text-base font-semibold mr-2 md:mr-8 shrink-0">Dashboard</h1>
+      <h1 className="text-sm md:text-base font-semibold mr-2 md:mr-8 shrink-0">
+        Dashboard
+      </h1>
       <nav className="flex gap-1">
         <NavLink
           to="/"
@@ -42,7 +44,9 @@ export default function Navigation() {
 
       <div className="ml-auto flex items-center gap-1 md:gap-3">
         {user && (
-          <span className="hidden md:inline text-sm text-muted-foreground">{user.username}</span>
+          <span className="hidden md:inline text-sm text-muted-foreground">
+            {user.username}
+          </span>
         )}
         <Button variant="ghost" size="sm" onClick={logout}>
           <LogOut className="h-4 w-4" />

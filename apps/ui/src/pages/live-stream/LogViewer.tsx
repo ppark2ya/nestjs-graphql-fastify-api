@@ -50,11 +50,17 @@ export default function LogViewer({ containerId, containerName }: Props) {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-medium text-secondary-foreground">{containerName}</h2>
-          <span className="text-xs text-muted-foreground">{containerId.slice(0, 12)}</span>
+          <h2 className="text-sm font-medium text-secondary-foreground">
+            {containerName}
+          </h2>
+          <span className="text-xs text-muted-foreground">
+            {containerId.slice(0, 12)}
+          </span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">{logs.length} lines</span>
+          <span className="text-xs text-muted-foreground">
+            {logs.length} lines
+          </span>
           {!autoScroll && (
             <Button
               variant="link"
@@ -110,7 +116,10 @@ export default function LogViewer({ containerId, containerName }: Props) {
               >
                 {log.stream}
               </span>
-              <AnsiText text={log.message} className="whitespace-pre-wrap break-all" />
+              <AnsiText
+                text={log.message}
+                className="whitespace-pre-wrap break-all"
+              />
             </div>
           ))
         )}

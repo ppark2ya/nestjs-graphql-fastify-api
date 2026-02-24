@@ -12,7 +12,11 @@ export function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
-export function saveTokens(accessToken: string, refreshToken: string, expiresIn: number): void {
+export function saveTokens(
+  accessToken: string,
+  refreshToken: string,
+  expiresIn: number,
+): void {
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   localStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + expiresIn * 1000));
@@ -57,10 +61,16 @@ export function stopRefreshTimer(): void {
   }
 }
 
-export function parseJwtPayload(token: string): { sub: string; username: string; roles: string[] } | null {
+export function parseJwtPayload(
+  token: string,
+): { sub: string; username: string; roles: string[] } | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
-    return { sub: payload.sub, username: payload.username, roles: payload.roles ?? [] };
+    return {
+      sub: payload.sub,
+      username: payload.username,
+      roles: payload.roles ?? [],
+    };
   } catch {
     return null;
   }

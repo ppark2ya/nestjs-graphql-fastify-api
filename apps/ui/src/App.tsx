@@ -16,7 +16,11 @@ function AppRoutes() {
       <Route
         path="/login"
         element={
-          !isLoading && isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
+          !isLoading && isAuthenticated ? (
+            <Navigate to="/" replace />
+          ) : (
+            <LoginPage />
+          )
         }
       />
       <Route

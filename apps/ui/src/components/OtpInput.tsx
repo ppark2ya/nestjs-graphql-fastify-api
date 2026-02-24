@@ -1,4 +1,9 @@
-import { useRef, useCallback, type KeyboardEvent, type ClipboardEvent } from 'react';
+import {
+  useRef,
+  useCallback,
+  type KeyboardEvent,
+  type ClipboardEvent,
+} from 'react';
 
 interface OtpInputProps {
   length?: number;
@@ -7,7 +12,12 @@ interface OtpInputProps {
   disabled?: boolean;
 }
 
-export default function OtpInput({ length = 6, value, onChange, disabled }: OtpInputProps) {
+export default function OtpInput({
+  length = 6,
+  value,
+  onChange,
+  disabled,
+}: OtpInputProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = value.padEnd(length, '').split('').slice(0, length);
 
@@ -33,7 +43,9 @@ export default function OtpInput({ length = 6, value, onChange, disabled }: OtpI
           const next = digits.map((d, i) => (i === index ? '' : d)).join('');
           onChange(next);
         } else if (index > 0) {
-          const next = digits.map((d, i) => (i === index - 1 ? '' : d)).join('');
+          const next = digits
+            .map((d, i) => (i === index - 1 ? '' : d))
+            .join('');
           onChange(next);
           focusInput(index - 1);
         }
@@ -49,7 +61,10 @@ export default function OtpInput({ length = 6, value, onChange, disabled }: OtpI
   const handlePaste = useCallback(
     (e: ClipboardEvent<HTMLInputElement>) => {
       e.preventDefault();
-      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
+      const pasted = e.clipboardData
+        .getData('text')
+        .replace(/\D/g, '')
+        .slice(0, length);
       if (pasted) {
         onChange(pasted);
         focusInput(Math.min(pasted.length, length - 1));
@@ -63,7 +78,9 @@ export default function OtpInput({ length = 6, value, onChange, disabled }: OtpI
       {digits.map((digit, i) => (
         <input
           key={i}
-          ref={(el) => { inputRefs.current[i] = el; }}
+          ref={(el) => {
+            inputRefs.current[i] = el;
+          }}
           type="text"
           inputMode="numeric"
           maxLength={1}

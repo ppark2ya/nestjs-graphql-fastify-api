@@ -29,10 +29,13 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
+  const from =
+    (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
 
-  const [loginMutation, { loading: loginLoading }] = useMutation<LoginResponse>(LOGIN_MUTATION);
-  const [verifyMutation, { loading: verifyLoading }] = useMutation<VerifyTwoFactorResponse>(VERIFY_TWO_FACTOR_MUTATION);
+  const [loginMutation, { loading: loginLoading }] =
+    useMutation<LoginResponse>(LOGIN_MUTATION);
+  const [verifyMutation, { loading: verifyLoading }] =
+    useMutation<VerifyTwoFactorResponse>(VERIFY_TWO_FACTOR_MUTATION);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -41,7 +44,10 @@ export default function LoginPage() {
       const { data } = await loginMutation({
         variables: { input: { username, password } },
       });
-      if (!data?.login) { setError('로그인에 실패했습니다.'); return; }
+      if (!data?.login) {
+        setError('로그인에 실패했습니다.');
+        return;
+      }
 
       if (data.login.requiresTwoFactor) {
         setTwoFactorToken(data.login.twoFactorToken!);
@@ -62,7 +68,10 @@ export default function LoginPage() {
       const { data } = await verifyMutation({
         variables: { input: { twoFactorToken, totpCode: otpCode } },
       });
-      if (!data?.verifyTwoFactor) { setError('인증에 실패했습니다.'); return; }
+      if (!data?.verifyTwoFactor) {
+        setError('인증에 실패했습니다.');
+        return;
+      }
       login(data.verifyTwoFactor);
       navigate(from, { replace: true });
     } catch (err: any) {
@@ -96,12 +105,19 @@ export default function LoginPage() {
                   <div className="mx-auto w-12 h-12 rounded-full bg-secondary flex items-center justify-center mb-4">
                     <Lock className="h-6 w-6 text-primary" />
                   </div>
-                  <h2 className="text-lg font-semibold text-foreground">시스템 로그인</h2>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    시스템 로그인
+                  </h2>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div>
-                    <Label htmlFor="username" className="text-muted-foreground mb-1 block">Username</Label>
+                    <Label
+                      htmlFor="username"
+                      className="text-muted-foreground mb-1 block"
+                    >
+                      Username
+                    </Label>
                     <Input
                       id="username"
                       type="text"
@@ -116,7 +132,12 @@ export default function LoginPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="password" className="text-muted-foreground mb-1 block">Password</Label>
+                    <Label
+                      htmlFor="password"
+                      className="text-muted-foreground mb-1 block"
+                    >
+                      Password
+                    </Label>
                     <div className="relative">
                       <Input
                         id="password"
@@ -133,7 +154,9 @@ export default function LoginPage() {
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
                         tabIndex={-1}
-                        aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시'}
+                        aria-label={
+                          showPassword ? '비밀번호 숨기기' : '비밀번호 표시'
+                        }
                       >
                         {showPassword ? (
                           <EyeOff className="w-5 h-5" />
@@ -169,16 +192,26 @@ export default function LoginPage() {
                   <div className="mx-auto w-12 h-12 rounded-full bg-secondary flex items-center justify-center mb-4">
                     <ShieldCheck className="h-6 w-6 text-primary" />
                   </div>
-                  <h2 className="text-lg font-semibold text-foreground">2단계 인증</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Google OTP 앱의 6자리 코드를 입력하세요</p>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    2단계 인증
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Google OTP 앱의 6자리 코드를 입력하세요
+                  </p>
                 </div>
 
                 <form onSubmit={handleVerifyOtp} className="space-y-6">
-                  <OtpInput value={otpCode} onChange={setOtpCode} disabled={verifyLoading} />
+                  <OtpInput
+                    value={otpCode}
+                    onChange={setOtpCode}
+                    disabled={verifyLoading}
+                  />
 
                   <Button
                     type="submit"
-                    disabled={verifyLoading || otpCode.replace(/\s/g, '').length < 6}
+                    disabled={
+                      verifyLoading || otpCode.replace(/\s/g, '').length < 6
+                    }
                     className="w-full"
                   >
                     {verifyLoading && (
@@ -200,7 +233,9 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="mt-4 text-sm text-destructive text-center">{error}</p>
+              <p className="mt-4 text-sm text-destructive text-center">
+                {error}
+              </p>
             )}
           </CardContent>
         </Card>

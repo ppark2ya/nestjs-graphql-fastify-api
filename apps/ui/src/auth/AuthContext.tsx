@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from 'react';
 import { useMutation } from '@apollo/client/react';
 import { useNavigate } from 'react-router-dom';
 import { client } from '@/lib/apollo';
@@ -40,13 +48,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const navigate = useNavigate();
 
-  const [refreshMutation] = useMutation<RefreshTokenResponse>(REFRESH_TOKEN_MUTATION);
+  const [refreshMutation] = useMutation<RefreshTokenResponse>(
+    REFRESH_TOKEN_MUTATION,
+  );
   const [logoutMutation] = useMutation(LOGOUT_MUTATION);
 
   const handleLogout = useCallback(async () => {
     const rt = getRefreshToken();
     if (rt) {
-      try { await logoutMutation({ variables: { refreshToken: rt } }); } catch { /* ignore */ }
+      try {
+        await logoutMutation({ variables: { refreshToken: rt } });
+      } catch {
+        /* ignore */
+      }
     }
     clearTokens();
     stopRefreshTimer();
@@ -60,13 +74,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const doRefresh = useCallback(async () => {
     const rt = getRefreshToken();
-    if (!rt) { handleLogout(); return; }
+    if (!rt) {
+      handleLogout();
+      return;
+    }
     try {
-      const { data } = await refreshMutation({ variables: { input: { refreshToken: rt } } });
+      const { data } = await refreshMutation({
+        variables: { input: { refreshToken: rt } },
+      });
       if (data?.refreshToken) {
         const { accessToken, refreshToken, expiresIn } = data.refreshToken;
         saveTokens(accessToken, refreshToken, expiresIn);
-        startRefreshTimer(() => doRefreshRef.current!());
+        startRefreshTimer(() => doRefreshRef.current());
       } else {
         handleLogout();
       }
@@ -80,28 +99,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleLogin = useCallback((tokens: AuthTokenResponse) => {
     saveTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
     const payload = parseJwtPayload(tokens.accessToken);
-    setUser(payload ? { username: payload.username, roles: payload.roles } : null);
+    setUser(
+      payload ? { username: payload.username, roles: payload.roles } : null,
+    );
     setIsAuthenticated(true);
-    startRefreshTimer(() => doRefreshRef.current!());
+    startRefreshTimer(() => doRefreshRef.current());
   }, []);
 
   useEffect(() => {
     const init = async () => {
       const at = getAccessToken();
-      if (!at) { setIsLoading(false); return; }
+      if (!at) {
+        setIsLoading(false);
+        return;
+      }
 
       if (isAccessTokenExpired()) {
         const rt = getRefreshToken();
-        if (!rt) { clearTokens(); setIsLoading(false); return; }
+        if (!rt) {
+          clearTokens();
+          setIsLoading(false);
+          return;
+        }
         try {
-          const { data } = await refreshMutation({ variables: { input: { refreshToken: rt } } });
+          const { data } = await refreshMutation({
+            variables: { input: { refreshToken: rt } },
+          });
           if (data?.refreshToken) {
             const { accessToken, refreshToken, expiresIn } = data.refreshToken;
             saveTokens(accessToken, refreshToken, expiresIn);
             const payload = parseJwtPayload(accessToken);
-            setUser(payload ? { username: payload.username, roles: payload.roles } : null);
+            setUser(
+              payload
+                ? { username: payload.username, roles: payload.roles }
+                : null,
+            );
             setIsAuthenticated(true);
-            startRefreshTimer(() => doRefreshRef.current!());
+            startRefreshTimer(() => doRefreshRef.current());
           } else {
             clearTokens();
           }
@@ -110,7 +144,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         const payload = parseJwtPayload(at);
-        setUser(payload ? { username: payload.username, roles: payload.roles } : null);
+        setUser(
+          payload ? { username: payload.username, roles: payload.roles } : null,
+        );
         setIsAuthenticated(true);
         startRefreshTimer(doRefresh);
       }
@@ -121,7 +157,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login: handleLogin, logout: handleLogout }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        isLoading,
+        user,
+        login: handleLogin,
+        logout: handleLogout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

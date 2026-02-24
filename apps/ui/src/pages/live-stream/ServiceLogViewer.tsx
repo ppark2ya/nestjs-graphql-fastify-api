@@ -46,10 +46,14 @@ export default function ServiceLogViewer({ service }: Props) {
 
   const containerIds = service.containers.map((c) => c.id);
   const containerColorMap = new Map(
-    service.containers.map((c, i) => [c.id, REPLICA_COLORS[i % REPLICA_COLORS.length]]),
+    service.containers.map((c, i) => [
+      c.id,
+      REPLICA_COLORS[i % REPLICA_COLORS.length],
+    ]),
   );
-  const containerNameMap = new Map(service.containers.map((c) => [c.id, c.name]));
-  const containerNodeMap = new Map(service.containers.map((c) => [c.id, c.nodeName ?? '']));
+  const containerNodeMap = new Map(
+    service.containers.map((c) => [c.id, c.nodeName ?? '']),
+  );
 
   // Reset logs when service changes
   useEffect(() => {
@@ -86,11 +90,17 @@ export default function ServiceLogViewer({ service }: Props) {
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-sm bg-purple-500" />
-          <h2 className="text-sm font-medium text-secondary-foreground">{service.serviceName}</h2>
-          <Badge variant="secondary" className="text-purple-400">{containerIds.length} replicas</Badge>
+          <h2 className="text-sm font-medium text-secondary-foreground">
+            {service.serviceName}
+          </h2>
+          <Badge variant="secondary" className="text-purple-400">
+            {containerIds.length} replicas
+          </Badge>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">{logs.length} lines</span>
+          <span className="text-xs text-muted-foreground">
+            {logs.length} lines
+          </span>
           {!autoScroll && (
             <Button
               variant="link"
@@ -138,7 +148,9 @@ export default function ServiceLogViewer({ service }: Props) {
         className="flex-1 overflow-y-auto p-2 font-mono text-xs"
       >
         {logs.length === 0 ? (
-          <p className="text-muted-foreground p-2">Waiting for logs from {containerIds.length} replicas...</p>
+          <p className="text-muted-foreground p-2">
+            Waiting for logs from {containerIds.length} replicas...
+          </p>
         ) : (
           logs.map((log, i) => (
             <div
@@ -147,11 +159,17 @@ export default function ServiceLogViewer({ service }: Props) {
                 log.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'
               }`}
             >
-              <span className="text-muted-foreground shrink-0">{formatTime(log.timestamp)}</span>
-              <span className={`shrink-0 truncate ${containerColorMap.get(log.containerId) ?? 'text-muted-foreground'}`}>
+              <span className="text-muted-foreground shrink-0">
+                {formatTime(log.timestamp)}
+              </span>
+              <span
+                className={`shrink-0 truncate ${containerColorMap.get(log.containerId) ?? 'text-muted-foreground'}`}
+              >
                 {log.containerId.slice(0, 8)}
                 {containerNodeMap.get(log.containerId) && (
-                  <span className="text-muted-foreground">@{containerNodeMap.get(log.containerId)}</span>
+                  <span className="text-muted-foreground">
+                    @{containerNodeMap.get(log.containerId)}
+                  </span>
                 )}
               </span>
               <span
@@ -161,7 +179,10 @@ export default function ServiceLogViewer({ service }: Props) {
               >
                 {log.stream}
               </span>
-              <AnsiText text={log.message} className="whitespace-pre-wrap break-all" />
+              <AnsiText
+                text={log.message}
+                className="whitespace-pre-wrap break-all"
+              />
             </div>
           ))
         )}

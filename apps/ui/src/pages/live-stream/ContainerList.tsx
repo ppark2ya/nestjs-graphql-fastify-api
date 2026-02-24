@@ -11,7 +11,10 @@ interface Props {
   onSelectService: (service: ServiceGroup) => void;
 }
 
-function groupByService(containers: Container[]): { services: ServiceGroup[]; standalone: Container[] } {
+function groupByService(containers: Container[]): {
+  services: ServiceGroup[];
+  standalone: Container[];
+} {
   const serviceMap = new Map<string, Container[]>();
   const standalone: Container[] = [];
 
@@ -39,16 +42,22 @@ export default function ContainerList({
   onSelectContainer,
   onSelectService,
 }: Props) {
-  const { data, loading, error, refetch } = useQuery<{ containers: Container[] }>(CONTAINERS_QUERY);
+  const { data, loading, error, refetch } = useQuery<{
+    containers: Container[];
+  }>(CONTAINERS_QUERY);
 
   if (loading) {
-    return <div className="p-4 text-muted-foreground">Loading containers...</div>;
+    return (
+      <div className="p-4 text-muted-foreground">Loading containers...</div>
+    );
   }
 
   if (error) {
     return (
       <div className="p-4">
-        <p className="text-destructive text-sm mb-2">Failed to load containers</p>
+        <p className="text-destructive text-sm mb-2">
+          Failed to load containers
+        </p>
         <p className="text-muted-foreground text-xs mb-3">{error.message}</p>
         <Button variant="link" size="sm" onClick={() => refetch()}>
           Retry
@@ -59,7 +68,11 @@ export default function ContainerList({
 
   const containers = data?.containers ?? [];
   if (containers.length === 0) {
-    return <div className="p-4 text-muted-foreground text-sm">No containers found</div>;
+    return (
+      <div className="p-4 text-muted-foreground text-sm">
+        No containers found
+      </div>
+    );
   }
 
   const { services, standalone } = groupByService(containers);
@@ -67,7 +80,9 @@ export default function ContainerList({
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <span className="text-xs text-muted-foreground">{containers.length} containers</span>
+        <span className="text-xs text-muted-foreground">
+          {containers.length} containers
+        </span>
         <Button variant="ghost" size="sm" onClick={() => refetch()}>
           <RefreshCw className="h-3 w-3" />
           Refresh
@@ -79,19 +94,32 @@ export default function ContainerList({
             <button
               onClick={() => onSelectService(svc)}
               className={`w-full text-left px-4 py-3 border-b border-border hover:bg-secondary transition-colors ${
-                selectedServiceName === svc.serviceName ? 'bg-secondary border-l-2 border-l-purple-500' : ''
+                selectedServiceName === svc.serviceName
+                  ? 'bg-secondary border-l-2 border-l-purple-500'
+                  : ''
               }`}
             >
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-sm bg-purple-500" />
-                <span className="text-sm font-medium text-secondary-foreground truncate" title={svc.serviceName}>
+                <span
+                  className="text-sm font-medium text-secondary-foreground truncate"
+                  title={svc.serviceName}
+                >
                   {svc.serviceName}
                 </span>
-                <Badge variant="secondary" className="text-purple-400 ml-auto shrink-0">
+                <Badge
+                  variant="secondary"
+                  className="text-purple-400 ml-auto shrink-0"
+                >
                   {svc.containers.length} replicas
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-1 truncate" title={svc.containers[0].image}>{svc.containers[0].image}</p>
+              <p
+                className="text-xs text-muted-foreground mt-1 truncate"
+                title={svc.containers[0].image}
+              >
+                {svc.containers[0].image}
+              </p>
               <div className="flex gap-1 mt-1 flex-wrap">
                 {svc.containers.map((c) => (
                   <span
@@ -111,7 +139,9 @@ export default function ContainerList({
             <button
               onClick={() => onSelectContainer(c)}
               className={`w-full text-left px-4 py-3 border-b border-border hover:bg-secondary transition-colors ${
-                selectedId === c.id ? 'bg-secondary border-l-2 border-l-blue-500' : ''
+                selectedId === c.id
+                  ? 'bg-secondary border-l-2 border-l-blue-500'
+                  : ''
               }`}
             >
               <div className="flex items-center gap-2">
@@ -120,9 +150,19 @@ export default function ContainerList({
                     c.state === 'running' ? 'bg-green-500' : 'bg-gray-500'
                   }`}
                 />
-                <span className="text-sm font-medium text-secondary-foreground truncate" title={c.name}>{c.name}</span>
+                <span
+                  className="text-sm font-medium text-secondary-foreground truncate"
+                  title={c.name}
+                >
+                  {c.name}
+                </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1 truncate" title={c.image}>{c.image}</p>
+              <p
+                className="text-xs text-muted-foreground mt-1 truncate"
+                title={c.image}
+              >
+                {c.image}
+              </p>
               <p className="text-xs text-muted-foreground mt-0.5">{c.status}</p>
             </button>
           </li>
