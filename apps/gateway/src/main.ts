@@ -17,7 +17,7 @@ async function bootstrap() {
   app.enableCors();
 
   // 정적 파일 서빙 (log-viewer SPA)
-  const staticRoot = join(process.cwd(), 'dist', 'apps', 'log-viewer');
+  const staticRoot = join(process.cwd(), 'dist', 'apps', 'ui');
   const fastifyInstance = app.getHttpAdapter().getInstance();
 
   await fastifyInstance.register(fastifyStatic as any, {

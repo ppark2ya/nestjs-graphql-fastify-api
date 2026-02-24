@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '@/auth/AuthContext';
 import {
   LOGIN_MUTATION,
   VERIFY_TWO_FACTOR_MUTATION,
   type LoginResponse,
   type VerifyTwoFactorResponse,
-} from '../auth/graphql';
-import OtpInput from '../components/OtpInput';
+} from '@/auth/graphql';
+import OtpInput from '@/components/OtpInput';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import ContainerList from '../ContainerList';
-import LogViewer from '../LogViewer';
-import ServiceLogViewer from '../ServiceLogViewer';
-import { Container, ServiceGroup } from '../graphql';
+import ContainerList from './ContainerList';
+import LogViewer from './LogViewer';
+import ServiceLogViewer from './ServiceLogViewer';
+import { Container, ServiceGroup } from './graphql';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,

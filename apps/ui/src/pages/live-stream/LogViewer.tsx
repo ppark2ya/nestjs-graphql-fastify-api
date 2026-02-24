@@ -1,7 +1,7 @@
 import { useSubscription } from '@apollo/client/react';
 import { useEffect, useRef, useState } from 'react';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry } from './graphql';
-import { formatTime } from './utils';
+import { formatTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 interface Props {

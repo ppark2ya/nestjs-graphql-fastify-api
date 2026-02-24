@@ -1,12 +1,12 @@
 import { ApolloProvider } from '@apollo/client/react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { client } from './apollo';
+import { client } from './lib/apollo';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import AuthGuard from './auth/AuthGuard';
 import Navigation from './components/Navigation';
 import LoginPage from './pages/LoginPage';
-import LiveStreamPage from './pages/LiveStreamPage';
-import HistoryPage from './pages/HistoryPage';
+import LiveStreamPage from './pages/live-stream/LiveStreamPage';
+import HistoryPage from './pages/history/HistoryPage';
 
 function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth();

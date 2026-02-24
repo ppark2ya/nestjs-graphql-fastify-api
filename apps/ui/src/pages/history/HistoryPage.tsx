@@ -27,7 +27,7 @@ import {
   LogApp,
   HistoryLogLine,
   LogSearchResult,
-} from '../history-graphql';
+} from './graphql';
 
 const LEVELS = ['ERROR', 'WARN', 'INFO', 'DEBUG'] as const;
 

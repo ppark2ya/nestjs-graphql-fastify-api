@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { useNavigate } from 'react-router-dom';
-import { client } from '../apollo';
+import { client } from '@/lib/apollo';
 import {
   REFRESH_TOKEN_MUTATION,
   LOGOUT_MUTATION,
