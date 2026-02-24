@@ -7,13 +7,16 @@ import fastifyStatic from '@fastify/static';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { WinstonLoggerService } from '@monorepo/shared';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
+    { bufferLogs: true },
   );
 
+  app.useLogger(app.get(WinstonLoggerService));
   app.enableShutdownHooks();
   app.enableCors();
 
