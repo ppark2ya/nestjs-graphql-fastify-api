@@ -5,9 +5,11 @@ import {
   Inject,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { CircuitBreakerService } from '../circuit-breaker/circuit-breaker.service';
+import { Env } from '../env.schema';
 import { PUB_SUB } from '../pubsub/pubsub.provider';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
 import WebSocket from 'ws';
@@ -28,6 +30,8 @@ interface WSLogMessage {
 @Injectable()
 export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(LogStreamerProxyService.name);
+  private readonly logStreamerWsUrl: string;
+  private readonly logStreamerUrl: string;
   private ws: WebSocket | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isShuttingDown = false;
@@ -37,7 +41,15 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     private readonly httpService: HttpService,
     private readonly circuitBreaker: CircuitBreakerService,
     @Inject(PUB_SUB) private readonly pubSub: RedisPubSub,
-  ) {}
+    private readonly configService: ConfigService<Env>,
+  ) {
+    this.logStreamerWsUrl = this.configService.getOrThrow('LOG_STREAMER_WS_URL', {
+      infer: true,
+    });
+    this.logStreamerUrl = this.configService.getOrThrow('LOG_STREAMER_URL', {
+      infer: true,
+    });
+  }
 
   onModuleInit() {
     this.connectWebSocket();
@@ -56,8 +68,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private connectWebSocket() {
     if (this.isShuttingDown) return;
 
-    const wsUrl =
-      process.env.LOG_STREAMER_WS_URL ?? 'ws://localhost:4003/ws/logs';
+    const wsUrl = this.logStreamerWsUrl;
 
     this.logger.log(`Connecting to log-streamer WebSocket at ${wsUrl}`);
 
@@ -149,8 +160,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
 
   async listContainers(): Promise<Container[]> {
     return this.circuitBreaker.fire('log-streamer', async () => {
-      const baseUrl =
-        process.env.LOG_STREAMER_URL ?? 'http://localhost:4003';
+      const baseUrl = this.logStreamerUrl;
       const response = await firstValueFrom(
         this.httpService.get<Container[]>(`${baseUrl}/api/containers`),
       );

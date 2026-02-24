@@ -7,7 +7,7 @@
     "build": {
       "dependsOn": [
         {
-          "projects": ["log-viewer"],
+          "projects": ["ui"],
           "target": "build"
         }
       ],
