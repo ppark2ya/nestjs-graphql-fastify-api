@@ -13,8 +13,12 @@ export const envSchema = z.object({
   DB_DATABASE: z.string({ required_error: 'DB_DATABASE is required' }),
 
   // JWT
-  JWT_PUBLIC_KEY_PATH: z.string({ required_error: 'JWT_PUBLIC_KEY_PATH is required' }),
-  JWT_PRIVATE_KEY_PATH: z.string({ required_error: 'JWT_PRIVATE_KEY_PATH is required' }),
+  JWT_PUBLIC_KEY_PATH: z.string({
+    required_error: 'JWT_PUBLIC_KEY_PATH is required',
+  }),
+  JWT_PRIVATE_KEY_PATH: z.string({
+    required_error: 'JWT_PRIVATE_KEY_PATH is required',
+  }),
 });
 
 export type Env = z.infer<typeof envSchema>;

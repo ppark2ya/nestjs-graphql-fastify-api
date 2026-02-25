@@ -1,6 +1,6 @@
 import { useSubscription } from '@apollo/client/react';
 import { useEffect, useRef, useState } from 'react';
-import { CONTAINER_LOG_SUBSCRIPTION, LogEntry } from './graphql';
+import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, MAX_LOG_LINES } from './graphql';
 import { AnsiText } from '@/components/AnsiText';
 import { formatTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,16 +22,16 @@ export default function LogViewer({ containerId, containerName }: Props) {
       variables: { containerId },
       onData: ({ data }) => {
         if (data.data?.containerLog) {
-          setLogs((prev) => [...prev, data.data!.containerLog]);
+          setLogs((prev) => {
+            const next = [...prev, data.data!.containerLog];
+            return next.length > MAX_LOG_LINES
+              ? next.slice(-MAX_LOG_LINES)
+              : next;
+          });
         }
       },
     },
   );
-
-  useEffect(() => {
-    setLogs([]);
-    setAutoScroll(true);
-  }, [containerId]);
 
   useEffect(() => {
     if (autoScroll) {

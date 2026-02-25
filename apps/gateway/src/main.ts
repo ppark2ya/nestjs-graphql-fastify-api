@@ -24,26 +24,26 @@ async function bootstrap() {
   const staticRoot = join(process.cwd(), 'dist', 'apps', 'ui');
   const fastifyInstance = app.getHttpAdapter().getInstance();
 
+  // wildcard: false → 개별 파일 라우트만 등록 (GET /assets/..., GET / 등)
+  // wildcard: true 사용 시 파일 미존재 → reply.callNotFound() → NestJS의
+  // GqlExceptionFilter가 HTTP 응답을 보내지 않아 커넥션이 hang되는 문제 방지
   await fastifyInstance.register(fastifyStatic as any, {
     root: staticRoot,
-    wildcard: true,
+    wildcard: false,
   });
 
-  // SPA fallback: 404 응답 중 클라이언트 라우트 요청이면 index.html 반환
+  // SPA fallback: 파일이 아닌 GET 요청은 index.html 반환 (클라이언트 라우팅)
   const indexPath = join(staticRoot, 'index.html');
   if (existsSync(indexPath)) {
     const indexHtml = readFileSync(indexPath, 'utf-8');
-    fastifyInstance.addHook('onSend', async (request, reply, payload) => {
-      if (
-        reply.statusCode === 404 &&
-        request.method === 'GET' &&
-        !request.url.startsWith('/graphql') &&
-        !/\.\w+$/.test(request.url.split('?')[0])
-      ) {
-        reply.code(200).header('content-type', 'text/html; charset=utf-8');
-        return indexHtml;
+    fastifyInstance.get('/*', async (request, reply) => {
+      const urlPath = request.url.split('?')[0];
+      // GraphQL, API 경로 또는 파일 확장자가 있는 요청은 404 반환
+      if (urlPath.startsWith('/graphql') || /\.\w+$/.test(urlPath)) {
+        reply.code(404).send('Not found');
+        return;
       }
-      return payload;
+      reply.code(200).type('text/html').send(indexHtml);
     });
   }
 

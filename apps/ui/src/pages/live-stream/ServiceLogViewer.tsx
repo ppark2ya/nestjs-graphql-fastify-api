@@ -1,6 +1,11 @@
 import { useSubscription } from '@apollo/client/react';
 import { useEffect, useRef, useState } from 'react';
-import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, ServiceGroup } from './graphql';
+import {
+  CONTAINER_LOG_SUBSCRIPTION,
+  LogEntry,
+  MAX_LOG_LINES,
+  ServiceGroup,
+} from './graphql';
 import { AnsiText } from '@/components/AnsiText';
 import { formatTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -55,12 +60,6 @@ export default function ServiceLogViewer({ service }: Props) {
     service.containers.map((c) => [c.id, c.nodeName ?? '']),
   );
 
-  // Reset logs when service changes
-  useEffect(() => {
-    setLogs([]);
-    setAutoScroll(true);
-  }, [service.serviceName]);
-
   useEffect(() => {
     if (autoScroll) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,7 +80,7 @@ export default function ServiceLogViewer({ service }: Props) {
       if (len > 1 && next[len - 1].timestamp < next[len - 2].timestamp) {
         next.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
       }
-      return next;
+      return next.length > MAX_LOG_LINES ? next.slice(-MAX_LOG_LINES) : next;
     });
   };
 

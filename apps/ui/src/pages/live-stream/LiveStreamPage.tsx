@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import ContainerList from './ContainerList';
 import LogViewer from './LogViewer';
 import ServiceLogViewer from './ServiceLogViewer';
-import { Container, ServiceGroup } from './graphql';
+import TabBar from './TabBar';
+import { Container, MAX_TABS, ServiceGroup, Tab } from './graphql';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -13,29 +14,80 @@ import {
 } from '@/components/ui/sheet';
 import { PanelLeft } from 'lucide-react';
 
-type Selection =
-  | { type: 'container'; container: Container }
-  | { type: 'service'; service: ServiceGroup }
-  | null;
+function makeTabId(type: 'container' | 'service', key: string): string {
+  return `${type}-${key}`;
+}
 
 export default function LiveStreamPage() {
-  const [selection, setSelection] = useState<Selection>(null);
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const containerListProps = {
-    selectedId: selection?.type === 'container' ? selection.container.id : null,
-    selectedServiceName:
-      selection?.type === 'service' ? selection.service.serviceName : null,
-  };
+  const openTab = useCallback(
+    (tab: Tab) => {
+      setTabs((prev) => {
+        const existing = prev.find((t) => t.id === tab.id);
+        if (existing) {
+          setActiveTabId(tab.id);
+          return prev;
+        }
+        let next = [...prev, tab];
+        if (next.length > MAX_TABS) {
+          const oldestInactive = next.find((t) => t.id !== activeTabId);
+          if (oldestInactive) {
+            next = next.filter((t) => t.id !== oldestInactive.id);
+          }
+        }
+        setActiveTabId(tab.id);
+        return next;
+      });
+    },
+    [activeTabId],
+  );
+
+  const closeTab = useCallback(
+    (tabId: string) => {
+      setTabs((prev) => {
+        const idx = prev.findIndex((t) => t.id === tabId);
+        const next = prev.filter((t) => t.id !== tabId);
+        if (tabId === activeTabId && next.length > 0) {
+          const newIdx = Math.min(idx, next.length - 1);
+          setActiveTabId(next[newIdx].id);
+        } else if (next.length === 0) {
+          setActiveTabId(null);
+        }
+        return next;
+      });
+    },
+    [activeTabId],
+  );
 
   const handleSelectContainer = (c: Container, closeSheet?: boolean) => {
-    setSelection({ type: 'container', container: c });
+    openTab({
+      id: makeTabId('container', c.id),
+      type: 'container',
+      container: c,
+      label: c.name,
+    });
     if (closeSheet) setSheetOpen(false);
   };
 
   const handleSelectService = (s: ServiceGroup, closeSheet?: boolean) => {
-    setSelection({ type: 'service', service: s });
+    openTab({
+      id: makeTabId('service', s.serviceName),
+      type: 'service',
+      service: s,
+      label: s.serviceName,
+    });
     if (closeSheet) setSheetOpen(false);
+  };
+
+  // Derive selected IDs from active tab for sidebar highlighting
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+  const containerListProps = {
+    selectedId: activeTab?.type === 'container' ? activeTab.container.id : null,
+    selectedServiceName:
+      activeTab?.type === 'service' ? activeTab.service.serviceName : null,
   };
 
   return (
@@ -84,14 +136,13 @@ export default function LiveStreamPage() {
       </Sheet>
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        {selection?.type === 'service' ? (
-          <ServiceLogViewer service={selection.service} />
-        ) : selection?.type === 'container' ? (
-          <LogViewer
-            containerId={selection.container.id}
-            containerName={selection.container.name}
-          />
-        ) : (
+        <TabBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onSelectTab={setActiveTabId}
+          onCloseTab={closeTab}
+        />
+        {tabs.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground text-center px-4">
             <div>
               <p>Select a container or service to view logs</p>
@@ -100,6 +151,27 @@ export default function LiveStreamPage() {
                 browse containers
               </p>
             </div>
+          </div>
+        ) : (
+          <div className="flex-1 relative overflow-hidden">
+            {tabs.map((tab) => (
+              <div
+                key={tab.id}
+                className="absolute inset-0 flex-col"
+                style={{
+                  display: tab.id === activeTabId ? 'flex' : 'none',
+                }}
+              >
+                {tab.type === 'service' ? (
+                  <ServiceLogViewer service={tab.service} />
+                ) : (
+                  <LogViewer
+                    containerId={tab.container.id}
+                    containerName={tab.container.name}
+                  />
+                )}
+              </div>
+            ))}
           </div>
         )}
       </main>

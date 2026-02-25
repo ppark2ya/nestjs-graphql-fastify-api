@@ -41,7 +41,11 @@ export class AuthService {
       };
     }
 
-    const tokens = await this.issueTokens(user.id, user.username, user.roles.split(','));
+    const tokens = await this.issueTokens(
+      user.id,
+      user.username,
+      user.roles.split(','),
+    );
     return {
       requiresTwoFactor: false,
       tokens,

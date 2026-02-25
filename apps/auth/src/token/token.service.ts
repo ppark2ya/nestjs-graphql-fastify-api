@@ -30,9 +30,7 @@ export class TokenService {
     const [token] = await this.db
       .select()
       .from(refreshTokens)
-      .where(
-        and(eq(refreshTokens.jti, jti), isNull(refreshTokens.revokedAt)),
-      )
+      .where(and(eq(refreshTokens.jti, jti), isNull(refreshTokens.revokedAt)))
       .limit(1);
     return token ?? null;
   }
@@ -49,10 +47,7 @@ export class TokenService {
       .update(refreshTokens)
       .set({ revokedAt: new Date() })
       .where(
-        and(
-          eq(refreshTokens.userId, userId),
-          isNull(refreshTokens.revokedAt),
-        ),
+        and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)),
       );
   }
 }

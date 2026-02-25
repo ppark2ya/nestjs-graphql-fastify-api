@@ -16,13 +16,10 @@ export class CircuitBreakerService {
   private getBreaker(domain: string): CircuitBreaker {
     let breaker = this.breakers.get(domain);
     if (!breaker) {
-      breaker = new CircuitBreaker(
-        (fn: () => Promise<unknown>) => fn(),
-        {
-          ...DEFAULT_OPTIONS,
-          name: domain,
-        },
-      );
+      breaker = new CircuitBreaker((fn: () => Promise<unknown>) => fn(), {
+        ...DEFAULT_OPTIONS,
+        name: domain,
+      });
       this.breakers.set(domain, breaker);
     }
     return breaker;
@@ -33,10 +30,7 @@ export class CircuitBreakerService {
     try {
       return (await breaker.fire(action)) as T;
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === 'Breaker is open'
-      ) {
+      if (error instanceof Error && error.message === 'Breaker is open') {
         throw new ServiceUnavailableException(
           `Circuit breaker is open for domain: ${domain}`,
         );

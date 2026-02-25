@@ -1,4 +1,9 @@
-import { Module, NestModule, MiddlewareConsumer, OnModuleInit } from '@nestjs/common';
+import {
+  Module,
+  NestModule,
+  MiddlewareConsumer,
+  OnModuleInit,
+} from '@nestjs/common';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
@@ -13,7 +18,10 @@ import { ApiKeyGuard } from './auth/api-key.guard';
 import { GqlThrottlerGuard } from './auth/gql-throttler.guard';
 import { HttpService } from '@nestjs/axios';
 import { LoggerMiddleware } from '@monorepo/shared/common/middleware/logger.middleware';
-import { CORRELATION_HEADER, CorrelationIdMiddleware } from '@monorepo/shared/common/middleware/correlation-id.middleware';
+import {
+  CORRELATION_HEADER,
+  CorrelationIdMiddleware,
+} from '@monorepo/shared/common/middleware/correlation-id.middleware';
 import { RequestContextMiddleware } from '@monorepo/shared/common/middleware/request-context.middleware';
 import { requestContext } from '@monorepo/shared/common/context/request-context';
 import { DataLoaderModule } from './dataloader/dataloader.module';
@@ -54,9 +62,20 @@ import { LogHistoryModule } from './log-history/log-history.module';
           'graphql-ws': true,
           'subscriptions-transport-ws': false,
         },
-        context: ({ request, reply, connection }: { request: any; reply: any; connection?: any }) => {
+        context: ({
+          request,
+          reply,
+          connection,
+        }: {
+          request: any;
+          reply: any;
+          connection?: any;
+        }) => {
           if (connection) {
-            return { req: connection.context, loaders: dataLoaderService.createLoaders() };
+            return {
+              req: connection.context,
+              loaders: dataLoaderService.createLoaders(),
+            };
           }
           return {
             req: request,
@@ -147,7 +166,11 @@ export class AppModule implements NestModule, OnModuleInit {
 
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(CorrelationIdMiddleware, RequestContextMiddleware, LoggerMiddleware)
+      .apply(
+        CorrelationIdMiddleware,
+        RequestContextMiddleware,
+        LoggerMiddleware,
+      )
       .forRoutes('*');
   }
 }

@@ -7,9 +7,11 @@ import type { IDataLoaders } from './dataloader/dataloader.interface';
 
 @Resolver()
 export class AppResolver {
-  constructor(private readonly appService: AppService) { }
+  constructor(private readonly appService: AppService) {}
 
-  @Query(() => [Post], { description: 'Get posts from JSONPlaceholder REST API' })
+  @Query(() => [Post], {
+    description: 'Get posts from JSONPlaceholder REST API',
+  })
   async posts(): Promise<Post[]> {
     return this.appService.getPosts();
   }
@@ -35,7 +37,9 @@ export class AppResolver {
     return input.a + input.b;
   }
 
-  @Query(() => [Post], { description: 'Get posts by user ID (uses DataLoader)' })
+  @Query(() => [Post], {
+    description: 'Get posts by user ID (uses DataLoader)',
+  })
   async postsByUser(
     @Args('userId', { type: () => Int }) userId: number,
     @Context('loaders') loaders: IDataLoaders,

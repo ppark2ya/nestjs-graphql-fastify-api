@@ -56,9 +56,7 @@ export class LoggingInterceptor implements NestInterceptor {
       }),
       catchError((error) => {
         const duration = Date.now() - now;
-        this.logger.error(
-          `✕ ${logPrefix} | ${duration}ms | ${error.message}`,
-        );
+        this.logger.error(`✕ ${logPrefix} | ${duration}ms | ${error.message}`);
         throw error;
       }),
     );
@@ -72,7 +70,13 @@ export class LoggingInterceptor implements NestInterceptor {
       return data;
     }
 
-    const sensitiveFields = ['password', 'accessToken', 'refreshToken', 'twoFactorToken', 'totpCode'];
+    const sensitiveFields = [
+      'password',
+      'accessToken',
+      'refreshToken',
+      'twoFactorToken',
+      'totpCode',
+    ];
     const sanitized = { ...data };
 
     for (const field of sensitiveFields) {

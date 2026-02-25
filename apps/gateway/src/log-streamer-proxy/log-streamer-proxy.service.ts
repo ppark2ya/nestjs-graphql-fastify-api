@@ -43,9 +43,12 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     @Inject(PUB_SUB) private readonly pubSub: RedisPubSub,
     private readonly configService: ConfigService<Env>,
   ) {
-    this.logStreamerWsUrl = this.configService.getOrThrow('LOG_STREAMER_WS_URL', {
-      infer: true,
-    });
+    this.logStreamerWsUrl = this.configService.getOrThrow(
+      'LOG_STREAMER_WS_URL',
+      {
+        infer: true,
+      },
+    );
     this.logStreamerUrl = this.configService.getOrThrow('LOG_STREAMER_URL', {
       infer: true,
     });
@@ -137,15 +140,10 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   }
 
   subscribeToLogs(containerId: string) {
-    if (
-      this.ws &&
-      this.ws.readyState === WebSocket.OPEN
-    ) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'subscribe', containerId }));
     } else {
-      this.logger.warn(
-        'WebSocket not connected, subscription may be delayed',
-      );
+      this.logger.warn('WebSocket not connected, subscription may be delayed');
     }
     return this.pubSub.asyncIterableIterator(
       `${LOG_STREAM_TOPIC}.${containerId}`,
