@@ -71,8 +71,7 @@ services:
         mode: host
     environment:
       - NODE_ENV=production
-      - AUTH_TCP_PORT=4002
-      - AUTH_SERVICE_HOST=auth
+      - AUTH_SERVICE_URL=http://auth:4001
       - LOG_STREAMER_URL=http://log-streamer:4003
       - LOG_STREAMER_WS_URL=ws://log-streamer:4003/ws/logs
       - REDIS_HOST=redis
@@ -117,7 +116,6 @@ services:
     environment:
       - NODE_ENV=production
       - AUTH_HTTP_PORT=4001
-      - AUTH_TCP_PORT=4002
       - DATABASE_HOST=${DB_HOST}
       - DATABASE_PORT=${DB_PORT:-3306}
       - DATABASE_USER=${DB_USER}

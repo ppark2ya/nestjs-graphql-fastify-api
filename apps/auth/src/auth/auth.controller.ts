@@ -9,7 +9,6 @@ import {
   Inject,
   UseFilters,
 } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AuthService } from './auth.service';
 import { MockAuthService } from './auth-mock.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -67,39 +66,6 @@ export class AuthController {
       Number(req.user.userId),
       body.currentPassword,
       body.newPassword,
-    );
-  }
-
-  @MessagePattern('auth.login')
-  async tcpLogin(@Payload() data: LoginDto & { userType: string }) {
-    return this.authService.login(data.loginId, data.password, data.userType);
-  }
-
-  @MessagePattern('auth.2fa.verify')
-  async tcpVerifyTwoFactor(
-    @Payload() data: { twoFactorToken: string; totpCode: string },
-  ) {
-    return this.authService.verifyTwoFactor(data.twoFactorToken, data.totpCode);
-  }
-
-  @MessagePattern('auth.refresh')
-  async tcpRefresh(@Payload() data: RefreshTokenDto) {
-    return this.authService.refreshTokens(data.refreshToken);
-  }
-
-  @MessagePattern('auth.password')
-  async tcpChangePassword(
-    @Payload()
-    data: {
-      userId: number;
-      currentPassword: string;
-      newPassword: string;
-    },
-  ) {
-    return this.authService.changePassword(
-      data.userId,
-      data.currentPassword,
-      data.newPassword,
     );
   }
 }

@@ -1,24 +1,23 @@
-import { Injectable, Inject, OnModuleInit } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom, timeout, catchError } from 'rxjs';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
+import { CircuitBreakerService } from '../circuit-breaker/circuit-breaker.service';
+import { Env } from '../env.schema';
 import type { AuthResponse, AuthTokens } from '@monorepo/shared';
 
-const TCP_TIMEOUT = 5000;
-
 @Injectable()
-export class AuthProxyService implements OnModuleInit {
-  constructor(
-    @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
-  ) {}
+export class AuthProxyService {
+  private readonly authBaseUrl: string;
 
-  async onModuleInit() {
-    try {
-      await this.authClient.connect();
-    } catch (error) {
-      console.warn(
-        '⚠️ Auth service not available yet. Will retry on first request.',
-      );
-    }
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly circuitBreaker: CircuitBreakerService,
+    private readonly configService: ConfigService<Env>,
+  ) {
+    this.authBaseUrl = this.configService.getOrThrow('AUTH_SERVICE_URL', {
+      infer: true,
+    });
   }
 
   async login(
@@ -26,25 +25,26 @@ export class AuthProxyService implements OnModuleInit {
     password: string,
     userType: string,
   ): Promise<AuthResponse> {
-    return this.sendMessage<AuthResponse>('auth.login', {
-      loginId,
-      password,
-      userType,
-    });
+    return this.post<AuthResponse>(
+      '/auth/login',
+      { loginId, password },
+      { 'X-User-Type': userType },
+    );
   }
 
   async verifyTwoFactor(
     twoFactorToken: string,
     totpCode: string,
   ): Promise<AuthTokens> {
-    return this.sendMessage<AuthTokens>('auth.2fa.verify', {
-      twoFactorToken,
-      totpCode,
-    });
+    return this.post<AuthTokens>(
+      '/auth/2fa/verify',
+      { totpCode },
+      { 'X-2FA-Token': twoFactorToken },
+    );
   }
 
   async refreshToken(refreshToken: string): Promise<AuthTokens> {
-    return this.sendMessage<AuthTokens>('auth.refresh', { refreshToken });
+    return this.post<AuthTokens>('/auth/refresh', { refreshToken });
   }
 
   async changePassword(
@@ -52,21 +52,24 @@ export class AuthProxyService implements OnModuleInit {
     currentPassword: string,
     newPassword: string,
   ): Promise<{ success: boolean }> {
-    return this.sendMessage('auth.password', {
-      userId,
+    return this.post<{ success: boolean }>('/auth/password', {
       currentPassword,
       newPassword,
     });
   }
 
-  private async sendMessage<T>(pattern: string, data: any): Promise<T> {
-    return firstValueFrom(
-      this.authClient.send<T>(pattern, data).pipe(
-        timeout(TCP_TIMEOUT),
-        catchError((error) => {
-          throw error;
+  private async post<T>(
+    path: string,
+    data: any,
+    headers?: Record<string, string>,
+  ): Promise<T> {
+    return this.circuitBreaker.fire('auth-server', async () => {
+      const res = await firstValueFrom(
+        this.httpService.post<T>(`${this.authBaseUrl}${path}`, data, {
+          headers,
         }),
-      ),
-    );
+      );
+      return res.data;
+    });
   }
 }
