@@ -6,22 +6,18 @@ import { AuthController } from './auth.controller';
 import { JwtTokenService } from './jwt.service';
 import { TotpService } from './totp.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { UserModule } from '../user/user.module';
-import { TokenModule } from '../token/token.module';
+import { AccountModule } from '../account/account.module';
 
 const useMockAuth = process.env.USE_MOCK_AUTH === 'true';
 
 @Module({
-  imports: useMockAuth
-    ? [PassportModule]
-    : [PassportModule, UserModule, TokenModule],
+  imports: useMockAuth ? [PassportModule] : [PassportModule, AccountModule],
   controllers: [AuthController],
   providers: [
     {
       provide: 'AUTH_SERVICE',
       useClass: useMockAuth ? MockAuthService : AuthService,
     },
-    // Mock 모드가 아닐 때만 실제 서비스 의존성 주입
     ...(useMockAuth ? [] : [JwtTokenService, TotpService, JwtStrategy]),
   ],
   exports: useMockAuth ? [] : [JwtTokenService],

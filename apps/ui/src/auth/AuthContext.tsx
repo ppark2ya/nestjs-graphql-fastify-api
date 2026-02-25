@@ -12,7 +12,6 @@ import { useNavigate } from 'react-router-dom';
 import { client } from '@/lib/apollo';
 import {
   REFRESH_TOKEN_MUTATION,
-  LOGOUT_MUTATION,
   type AuthTokenResponse,
   type RefreshTokenResponse,
 } from './graphql';
@@ -28,8 +27,10 @@ import {
 } from './token';
 
 interface User {
-  username: string;
-  roles: string[];
+  loginId: string;
+  name: string;
+  userType: string;
+  roleType: string;
 }
 
 interface AuthContextValue {
@@ -51,24 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [refreshMutation] = useMutation<RefreshTokenResponse>(
     REFRESH_TOKEN_MUTATION,
   );
-  const [logoutMutation] = useMutation(LOGOUT_MUTATION);
 
   const handleLogout = useCallback(async () => {
-    const rt = getRefreshToken();
-    if (rt) {
-      try {
-        await logoutMutation({ variables: { refreshToken: rt } });
-      } catch {
-        /* ignore */
-      }
-    }
     clearTokens();
     stopRefreshTimer();
     setIsAuthenticated(false);
     setUser(null);
     await client.clearStore();
     navigate('/login', { replace: true });
-  }, [logoutMutation, navigate]);
+  }, [navigate]);
 
   const doRefreshRef = useRef<() => Promise<void>>();
 
@@ -100,7 +92,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
     const payload = parseJwtPayload(tokens.accessToken);
     setUser(
-      payload ? { username: payload.username, roles: payload.roles } : null,
+      payload
+        ? {
+            loginId: payload.loginId,
+            name: payload.name,
+            userType: payload.userType,
+            roleType: payload.roleType,
+          }
+        : null,
     );
     setIsAuthenticated(true);
     startRefreshTimer(() => doRefreshRef.current());
@@ -131,7 +130,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const payload = parseJwtPayload(accessToken);
             setUser(
               payload
-                ? { username: payload.username, roles: payload.roles }
+                ? {
+                    loginId: payload.loginId,
+                    name: payload.name,
+                    userType: payload.userType,
+                    roleType: payload.roleType,
+                  }
                 : null,
             );
             setIsAuthenticated(true);
@@ -145,7 +149,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         const payload = parseJwtPayload(at);
         setUser(
-          payload ? { username: payload.username, roles: payload.roles } : null,
+          payload
+            ? {
+                loginId: payload.loginId,
+                name: payload.name,
+                userType: payload.userType,
+                roleType: payload.roleType,
+              }
+            : null,
         );
         setIsAuthenticated(true);
         startRefreshTimer(doRefresh);

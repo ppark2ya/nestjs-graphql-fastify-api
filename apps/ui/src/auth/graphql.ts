@@ -34,9 +34,12 @@ export const REFRESH_TOKEN_MUTATION = gql`
   }
 `;
 
-export const LOGOUT_MUTATION = gql`
-  mutation Logout($refreshToken: String!) {
-    logout(refreshToken: $refreshToken)
+export const CHANGE_PASSWORD_MUTATION = gql`
+  mutation ChangePassword($input: ChangePasswordInput!) {
+    changePassword(input: $input) {
+      success
+      message
+    }
   }
 `;
 
@@ -54,10 +57,30 @@ export interface LoginResponse {
   };
 }
 
+export interface LoginVariables {
+  input: {
+    loginId: string;
+    password: string;
+  };
+}
+
+export interface VerifyTwoFactorVariables {
+  input: {
+    totpCode: string;
+  };
+}
+
 export interface VerifyTwoFactorResponse {
   verifyTwoFactor: AuthTokenResponse;
 }
 
 export interface RefreshTokenResponse {
   refreshToken: AuthTokenResponse;
+}
+
+export interface ChangePasswordResponse {
+  changePassword: {
+    success: boolean;
+    message: string;
+  };
 }

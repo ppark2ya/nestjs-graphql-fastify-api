@@ -56,9 +56,12 @@ export class JwtTokenService implements OnModuleInit {
     return { token, jti };
   }
 
-  async signRefreshToken(sub: string): Promise<{ token: string; jti: string }> {
+  async signRefreshToken(
+    sub: string,
+    userType: string,
+  ): Promise<{ token: string; jti: string }> {
     const jti = randomUUID();
-    const token = await new SignJWT({ sub, jti })
+    const token = await new SignJWT({ sub, userType, jti })
       .setProtectedHeader({ alg: AUTH_CONSTANTS.JWT_ALGORITHM })
       .setIssuedAt()
       .setExpirationTime(AUTH_CONSTANTS.REFRESH_TOKEN_EXPIRY)
@@ -69,8 +72,8 @@ export class JwtTokenService implements OnModuleInit {
     return { token, jti };
   }
 
-  async signTwoFactorToken(sub: string): Promise<string> {
-    return new SignJWT({ sub, type: '2fa' })
+  async signTwoFactorToken(sub: string, userType: string): Promise<string> {
+    return new SignJWT({ sub, type: '2fa', userType })
       .setProtectedHeader({ alg: AUTH_CONSTANTS.JWT_ALGORITHM })
       .setIssuedAt()
       .setExpirationTime(AUTH_CONSTANTS.TWO_FACTOR_TOKEN_EXPIRY)
@@ -87,7 +90,9 @@ export class JwtTokenService implements OnModuleInit {
     return payload as unknown as JwtPayload;
   }
 
-  async verifyTwoFactorToken(token: string): Promise<{ sub: string }> {
+  async verifyTwoFactorToken(
+    token: string,
+  ): Promise<{ sub: string; userType: string }> {
     const { payload } = await jwtVerify(token, this.publicKey, {
       issuer: AUTH_CONSTANTS.JWT_ISSUER,
       algorithms: [AUTH_CONSTANTS.JWT_ALGORITHM],
@@ -95,6 +100,9 @@ export class JwtTokenService implements OnModuleInit {
     if ((payload as any).type !== '2fa') {
       throw new Error('Invalid 2FA token type');
     }
-    return { sub: payload.sub as string };
+    return {
+      sub: payload.sub as string,
+      userType: (payload as any).userType as string,
+    };
   }
 }

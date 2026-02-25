@@ -3,8 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
-import { UserModule } from './user/user.module';
-import { TokenModule } from './token/token.module';
+import { AccountModule } from './account/account.module';
 import { LoggerMiddleware } from '@monorepo/shared/common/middleware/logger.middleware';
 import { CorrelationIdMiddleware } from '@monorepo/shared/common/middleware/correlation-id.middleware';
 import { RequestContextMiddleware } from '@monorepo/shared/common/middleware/request-context.middleware';
@@ -13,8 +12,7 @@ import { envSchema } from './env.schema';
 
 const useMockAuth = process.env.USE_MOCK_AUTH === 'true';
 
-// Mock 모드에서는 DB 관련 모듈 제외
-const dbModules = useMockAuth ? [] : [DatabaseModule, UserModule, TokenModule];
+const dbModules = useMockAuth ? [] : [DatabaseModule, AccountModule];
 
 @Module({
   imports: [
