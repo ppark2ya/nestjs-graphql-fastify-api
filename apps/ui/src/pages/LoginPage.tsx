@@ -19,7 +19,7 @@ type Step = 'credentials' | 'otp';
 
 export default function LoginPage() {
   const [step, setStep] = useState<Step>('credentials');
-  const [username, setUsername] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -42,7 +42,7 @@ export default function LoginPage() {
     setError('');
     try {
       const { data } = await loginMutation({
-        variables: { input: { username, password } },
+        variables: { input: { loginId, password } },
       });
       if (!data?.login) {
         setError('로그인에 실패했습니다.');
@@ -50,7 +50,9 @@ export default function LoginPage() {
       }
 
       if (data.login.requiresTwoFactor) {
-        setTwoFactorToken(data.login.twoFactorToken!);
+        const token2fa = data.login.twoFactorToken!;
+        setTwoFactorToken(token2fa);
+        localStorage.setItem('twoFactorToken', token2fa);
         setStep('otp');
       } else {
         login(data.login.tokens!);
@@ -66,12 +68,13 @@ export default function LoginPage() {
     setError('');
     try {
       const { data } = await verifyMutation({
-        variables: { input: { twoFactorToken, totpCode: otpCode } },
+        variables: { input: { totpCode: otpCode } },
       });
       if (!data?.verifyTwoFactor) {
         setError('인증에 실패했습니다.');
         return;
       }
+      localStorage.removeItem('twoFactorToken');
       login(data.verifyTwoFactor);
       navigate(from, { replace: true });
     } catch (err: any) {
@@ -84,6 +87,7 @@ export default function LoginPage() {
     setStep('credentials');
     setOtpCode('');
     setTwoFactorToken('');
+    localStorage.removeItem('twoFactorToken');
     setError('');
   };
 
@@ -113,21 +117,21 @@ export default function LoginPage() {
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div>
                     <Label
-                      htmlFor="username"
+                      htmlFor="loginId"
                       className="text-muted-foreground mb-1 block"
                     >
-                      Username
+                      사용자 ID
                     </Label>
                     <Input
-                      id="username"
+                      id="loginId"
                       type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
+                      value={loginId}
+                      onChange={(e) => setLoginId(e.target.value)}
                       required
                       autoComplete="username"
                       autoFocus
                       className="bg-secondary py-2.5 h-auto"
-                      placeholder="사용자명 입력"
+                      placeholder="사용자 ID 입력"
                     />
                   </div>
 
@@ -169,7 +173,7 @@ export default function LoginPage() {
 
                   <Button
                     type="submit"
-                    disabled={loginLoading || !username || !password}
+                    disabled={loginLoading || !loginId || !password}
                     className="w-full"
                   >
                     {loginLoading && (

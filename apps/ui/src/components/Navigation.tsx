@@ -45,7 +45,7 @@ export default function Navigation() {
       <div className="ml-auto flex items-center gap-1 md:gap-3">
         {user && (
           <span className="hidden md:inline text-sm text-muted-foreground">
-            {user.username}
+            {user.name}
           </span>
         )}
         <Button variant="ghost" size="sm" onClick={logout}>

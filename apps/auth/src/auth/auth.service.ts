@@ -1,55 +1,61 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  BadRequestException,
-} from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
-import { UserService } from '../user/user.service';
-import { TokenService } from '../token/token.service';
+import { Injectable } from '@nestjs/common';
+import * as bcryptjs from 'bcryptjs';
+import { AccountService } from '../account/account.service';
 import { JwtTokenService } from './jwt.service';
 import { TotpService } from './totp.service';
 import { AUTH_CONSTANTS } from '@monorepo/shared';
 import type { AuthResponse, AuthTokens } from '@monorepo/shared';
+import { AccountStatus } from './enums';
+import { TWO_FACTOR_REQUIRED_TYPES } from './enums/user-type.enum';
+import { AUTH_ERROR } from './constants/auth-error';
+import { AuthErrorException } from './filters/auth-error.filter';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userService: UserService,
-    private readonly tokenService: TokenService,
+    private readonly accountService: AccountService,
     private readonly jwtTokenService: JwtTokenService,
     private readonly totpService: TotpService,
   ) {}
 
-  async login(username: string, password: string): Promise<AuthResponse> {
-    const user = await this.userService.findByUsername(username);
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    if (user.twoFactorEnabled) {
-      const twoFactorToken = await this.jwtTokenService.signTwoFactorToken(
-        String(user.id),
-      );
-      return {
-        requiresTwoFactor: true,
-        twoFactorToken,
-      };
-    }
-
-    const tokens = await this.issueTokens(
-      user.id,
-      user.username,
-      user.roles.split(','),
+  async login(
+    loginId: string,
+    password: string,
+    userType: string,
+  ): Promise<AuthResponse> {
+    const account = await this.accountService.findByLoginIdAndUserType(
+      loginId,
+      userType,
     );
-    return {
-      requiresTwoFactor: false,
-      tokens,
-    };
+    if (!account) {
+      this.throwAuthError('INVALID_CREDENTIALS');
+    }
+
+    this.validateAccountStatus(account.status);
+
+    const isPasswordValid = await this.verifyPassword(
+      password,
+      account.password,
+    );
+    if (!isPasswordValid) {
+      await this.handleFailedLogin(account.id, (account.failCount ?? 0) + 1);
+      this.throwAuthError('INVALID_CREDENTIALS');
+    }
+
+    await this.accountService.resetFailCountAndUpdateLoginAt(account.id);
+
+    this.validatePasswordExpiry(account.lastPasswordChangedAt);
+
+    if (TWO_FACTOR_REQUIRED_TYPES.has(userType)) {
+      const twoFactorToken = await this.jwtTokenService.signTwoFactorToken(
+        String(account.id),
+        userType,
+      );
+      return { requiresTwoFactor: true, twoFactorToken };
+    }
+
+    const tokens = await this.issueTokens(account);
+    return { requiresTwoFactor: false, tokens };
   }
 
   async verifyTwoFactor(
@@ -59,110 +65,147 @@ export class AuthService {
     const { sub } = await this.jwtTokenService
       .verifyTwoFactorToken(twoFactorToken)
       .catch(() => {
-        throw new UnauthorizedException('Invalid or expired 2FA token');
+        this.throwAuthError('TOKEN_EXPIRED');
       });
 
-    const user = await this.userService.findById(Number(sub));
-    if (!user || !user.twoFactorSecret) {
-      throw new UnauthorizedException('Invalid 2FA token');
+    const account = await this.accountService.findById(Number(sub));
+    if (!account || !account.otpSecretKey) {
+      this.throwAuthError('INVALID_CREDENTIALS');
     }
 
-    const isValid = this.totpService.verify(totpCode, user.twoFactorSecret);
+    const isValid = this.totpService.verify(totpCode, account.otpSecretKey);
     if (!isValid) {
-      throw new UnauthorizedException('Invalid TOTP code');
+      this.throwAuthError('INVALID_OTP');
     }
 
-    return this.issueTokens(user.id, user.username, user.roles.split(','));
-  }
-
-  async setupTwoFactor(userId: number, totpCode: string) {
-    const user = await this.userService.findById(userId);
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
-
-    if (user.twoFactorEnabled) {
-      throw new BadRequestException('2FA is already enabled');
-    }
-
-    if (!user.twoFactorSecret) {
-      const secret = this.totpService.generateSecret();
-      await this.userService.updateTwoFactorSecret(userId, secret);
-      const keyUri = this.totpService.generateKeyUri(user.username, secret);
-      return { secret, keyUri };
-    }
-
-    const isValid = this.totpService.verify(totpCode, user.twoFactorSecret);
-    if (!isValid) {
-      throw new BadRequestException('Invalid TOTP code');
-    }
-
-    await this.userService.enableTwoFactor(userId);
-    return { enabled: true };
+    return this.issueTokens(account);
   }
 
   async refreshTokens(refreshToken: string): Promise<AuthTokens> {
     const payload = await this.jwtTokenService
       .verifyToken(refreshToken)
       .catch(() => {
-        throw new UnauthorizedException('Invalid or expired refresh token');
+        this.throwAuthError('TOKEN_EXPIRED');
       });
 
-    const storedToken = await this.tokenService.findValidRefreshToken(
-      payload.jti,
-    );
-    if (!storedToken) {
-      throw new UnauthorizedException('Refresh token has been revoked');
+    const account = await this.accountService.findById(Number(payload.sub));
+    if (!account) {
+      this.throwAuthError('INVALID_CREDENTIALS');
     }
 
-    await this.tokenService.revokeRefreshToken(payload.jti);
-
-    const user = await this.userService.findById(Number(payload.sub));
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    return this.issueTokens(user.id, user.username, user.roles.split(','));
+    return this.issueTokens(account);
   }
 
-  async logout(refreshToken: string): Promise<void> {
-    const payload = await this.jwtTokenService
-      .verifyToken(refreshToken)
-      .catch(() => {
-        throw new UnauthorizedException('Invalid refresh token');
-      });
-
-    await this.tokenService.revokeRefreshToken(payload.jti);
-  }
-
-  private async issueTokens(
+  async changePassword(
     userId: number,
-    username: string,
-    roles: string[],
-  ): Promise<AuthTokens> {
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ success: boolean }> {
+    const account = await this.accountService.findById(userId);
+    if (!account) {
+      this.throwAuthError('INVALID_CREDENTIALS');
+    }
+
+    const isCurrentValid = await this.verifyPassword(
+      currentPassword,
+      account.password,
+    );
+    if (!isCurrentValid) {
+      this.throwAuthError('INVALID_CREDENTIALS');
+    }
+
+    const hashedPassword = this.hashPassword(newPassword);
+    await this.accountService.updatePassword(account.id, hashedPassword);
+
+    return { success: true };
+  }
+
+  private validateAccountStatus(status: string | null): void {
+    if (!status || status === AccountStatus.ACTIVE) return;
+
+    const statusErrorMap: Record<string, keyof typeof AUTH_ERROR> = {
+      [AccountStatus.PENDING]: 'ACCOUNT_PENDING',
+      [AccountStatus.IN_ACTIVE]: 'ACCOUNT_INACTIVE',
+      [AccountStatus.DELETE]: 'ACCOUNT_DELETED',
+      [AccountStatus.LOCKED]: 'ACCOUNT_LOCKED',
+    };
+
+    const errorKey = statusErrorMap[status];
+    if (errorKey) {
+      this.throwAuthError(errorKey);
+    }
+  }
+
+  private validatePasswordExpiry(lastChanged: Date | null): void {
+    if (!lastChanged) return;
+
+    const daysSinceChange = Math.floor(
+      (Date.now() - new Date(lastChanged).getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (daysSinceChange >= AUTH_CONSTANTS.PASSWORD_EXPIRY_DAYS) {
+      this.throwAuthError('PASSWORD_EXPIRED');
+    }
+  }
+
+  private async handleFailedLogin(
+    accountId: number,
+    newFailCount: number,
+  ): Promise<void> {
+    await this.accountService.incrementFailCount(accountId);
+    if (newFailCount >= AUTH_CONSTANTS.MAX_FAIL_COUNT) {
+      await this.accountService.lockAccount(accountId);
+    }
+  }
+
+  private async verifyPassword(
+    plain: string,
+    stored: string | null,
+  ): Promise<boolean> {
+    if (!stored) return false;
+    const hash = stored.replace(/^\{bcrypt\}/, '');
+    return bcryptjs.compare(plain, hash);
+  }
+
+  private hashPassword(plain: string): string {
+    const hash = bcryptjs.hashSync(plain, 10);
+    return `{bcrypt}${hash}`;
+  }
+
+  private async issueTokens(account: {
+    id: number;
+    loginId: Buffer | string;
+    name: string | null;
+    userType: string;
+    roleType: string | null;
+    customerNo: string | null;
+  }): Promise<AuthTokens> {
+    const sub = String(account.id);
+    const loginId =
+      account.loginId instanceof Buffer
+        ? account.loginId.toString('utf8')
+        : String(account.loginId);
+
     const [accessResult, refreshResult] = await Promise.all([
       this.jwtTokenService.signAccessToken({
-        sub: String(userId),
-        username,
-        roles,
+        sub,
+        loginId,
+        name: account.name ?? '',
+        userType: account.userType,
+        roleType: account.roleType ?? '',
+        customerNo: account.customerNo ?? '',
       }),
-      this.jwtTokenService.signRefreshToken(String(userId)),
+      this.jwtTokenService.signRefreshToken(sub, account.userType),
     ]);
-
-    const expiresAt = new Date(
-      Date.now() + AUTH_CONSTANTS.REFRESH_TOKEN_EXPIRY_SECONDS * 1000,
-    );
-    await this.tokenService.saveRefreshToken(
-      userId,
-      refreshResult.token,
-      refreshResult.jti,
-      expiresAt,
-    );
 
     return {
       accessToken: accessResult.token,
       refreshToken: refreshResult.token,
       expiresIn: AUTH_CONSTANTS.ACCESS_TOKEN_EXPIRY_SECONDS,
     };
+  }
+
+  private throwAuthError(key: keyof typeof AUTH_ERROR): never {
+    const error = AUTH_ERROR[key];
+    throw new AuthErrorException(error.code, error.message, error.status);
   }
 }

@@ -2,59 +2,55 @@ import {
   Controller,
   Post,
   Body,
+  Headers,
   UseGuards,
   Req,
   UsePipes,
   Inject,
+  UseFilters,
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AuthService } from './auth.service';
 import { MockAuthService } from './auth-mock.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ZodValidationPipe } from './zod-validation.pipe';
+import { AuthErrorFilter } from './filters/auth-error.filter';
 import {
   LoginSchema,
   TotpVerifySchema,
-  TotpSetupSchema,
   RefreshTokenSchema,
-  LogoutSchema,
+  ChangePasswordSchema,
   type LoginDto,
   type TotpVerifyDto,
-  type TotpSetupDto,
   type RefreshTokenDto,
-  type LogoutDto,
+  type ChangePasswordDto,
 } from './dto/auth.dto';
 
 type AuthServiceType = AuthService | MockAuthService;
 
 @Controller('auth')
+@UseFilters(AuthErrorFilter)
 export class AuthController {
   constructor(
     @Inject('AUTH_SERVICE') private readonly authService: AuthServiceType,
   ) {}
 
-  // ========== HTTP Endpoints ==========
-
   @Post('login')
   @UsePipes(new ZodValidationPipe(LoginSchema))
-  async login(@Body() body: LoginDto) {
-    return this.authService.login(body.username, body.password);
+  async login(
+    @Body() body: LoginDto,
+    @Headers('x-user-type') userType: string,
+  ) {
+    return this.authService.login(body.loginId, body.password, userType);
   }
 
   @Post('2fa/verify')
   @UsePipes(new ZodValidationPipe(TotpVerifySchema))
-  async verifyTwoFactor(@Body() body: TotpVerifyDto) {
-    return this.authService.verifyTwoFactor(body.twoFactorToken, body.totpCode);
-  }
-
-  @Post('2fa/setup')
-  @UseGuards(JwtAuthGuard)
-  @UsePipes(new ZodValidationPipe(TotpSetupSchema))
-  async setupTwoFactor(@Body() body: TotpSetupDto, @Req() req: any) {
-    return this.authService.setupTwoFactor(
-      Number(req.user.userId),
-      body.totpCode,
-    );
+  async verifyTwoFactor(
+    @Body() body: TotpVerifyDto,
+    @Headers('x-2fa-token') twoFactorToken: string,
+  ) {
+    return this.authService.verifyTwoFactor(twoFactorToken, body.totpCode);
   }
 
   @Post('refresh')
@@ -63,31 +59,27 @@ export class AuthController {
     return this.authService.refreshTokens(body.refreshToken);
   }
 
-  @Post('logout')
+  @Post('password')
   @UseGuards(JwtAuthGuard)
-  @UsePipes(new ZodValidationPipe(LogoutSchema))
-  async logout(@Body() body: LogoutDto) {
-    await this.authService.logout(body.refreshToken);
-    return { success: true };
+  @UsePipes(new ZodValidationPipe(ChangePasswordSchema))
+  async changePassword(@Body() body: ChangePasswordDto, @Req() req: any) {
+    return this.authService.changePassword(
+      Number(req.user.userId),
+      body.currentPassword,
+      body.newPassword,
+    );
   }
 
-  // ========== TCP MessagePattern Handlers ==========
-
   @MessagePattern('auth.login')
-  async tcpLogin(@Payload() data: LoginDto) {
-    return this.authService.login(data.username, data.password);
+  async tcpLogin(@Payload() data: LoginDto & { userType: string }) {
+    return this.authService.login(data.loginId, data.password, data.userType);
   }
 
   @MessagePattern('auth.2fa.verify')
-  async tcpVerifyTwoFactor(@Payload() data: TotpVerifyDto) {
-    return this.authService.verifyTwoFactor(data.twoFactorToken, data.totpCode);
-  }
-
-  @MessagePattern('auth.2fa.setup')
-  async tcpSetupTwoFactor(
-    @Payload() data: { userId: number; totpCode: string },
+  async tcpVerifyTwoFactor(
+    @Payload() data: { twoFactorToken: string; totpCode: string },
   ) {
-    return this.authService.setupTwoFactor(data.userId, data.totpCode);
+    return this.authService.verifyTwoFactor(data.twoFactorToken, data.totpCode);
   }
 
   @MessagePattern('auth.refresh')
@@ -95,9 +87,19 @@ export class AuthController {
     return this.authService.refreshTokens(data.refreshToken);
   }
 
-  @MessagePattern('auth.logout')
-  async tcpLogout(@Payload() data: LogoutDto) {
-    await this.authService.logout(data.refreshToken);
-    return { success: true };
+  @MessagePattern('auth.password')
+  async tcpChangePassword(
+    @Payload()
+    data: {
+      userId: number;
+      currentPassword: string;
+      newPassword: string;
+    },
+  ) {
+    return this.authService.changePassword(
+      data.userId,
+      data.currentPassword,
+      data.newPassword,
+    );
   }
 }

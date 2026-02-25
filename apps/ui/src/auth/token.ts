@@ -63,13 +63,23 @@ export function stopRefreshTimer(): void {
 
 export function parseJwtPayload(
   token: string,
-): { sub: string; username: string; roles: string[] } | null {
+): {
+  sub: string;
+  loginId: string;
+  name: string;
+  userType: string;
+  roleType: string;
+  customerNo: string;
+} | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     return {
       sub: payload.sub,
-      username: payload.username,
-      roles: payload.roles ?? [],
+      loginId: payload.loginId,
+      name: payload.name,
+      userType: payload.userType,
+      roleType: payload.roleType,
+      customerNo: payload.customerNo,
     };
   } catch {
     return null;

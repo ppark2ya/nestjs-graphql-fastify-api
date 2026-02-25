@@ -7,4 +7,6 @@ export const AUTH_CONSTANTS = {
   TWO_FACTOR_TOKEN_EXPIRY_SECONDS: 300,
   JWT_ALGORITHM: 'RS256' as const,
   JWT_ISSUER: 'auth-server',
+  PASSWORD_EXPIRY_DAYS: 90,
+  MAX_FAIL_COUNT: 5,
 } as const;

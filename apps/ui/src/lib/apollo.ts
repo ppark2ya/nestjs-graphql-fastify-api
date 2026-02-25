@@ -13,11 +13,14 @@ const httpLink = new HttpLink({
 
 const authLink = setContext((_, { headers }) => {
   const token = getAccessToken();
+  const twoFactorToken = localStorage.getItem('twoFactorToken');
   return {
     headers: {
       ...headers,
       'X-API-Key': API_KEY,
+      'X-User-Type': 'ADMIN_BO',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(twoFactorToken ? { 'X-2FA-Token': twoFactorToken } : {}),
     },
   };
 });
