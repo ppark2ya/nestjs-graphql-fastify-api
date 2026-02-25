@@ -17,6 +17,10 @@
 # Runner 설정:
 #   Docker socket 마운트 필요
 #   DRONE_RUNNER_VOLUMES=/var/run/docker.sock:/var/run/docker.sock
+#
+# 파이프라인 실행 순서:
+#   dev-gateway → dev-auth (depends_on으로 순차 실행, 빌드 서버 부하 방지)
+#   release-gateway → release-auth (동일)
 # ================================================================
 
 # ================== Dev: Gateway ==================
@@ -96,6 +100,9 @@ steps:
 kind: pipeline
 type: docker
 name: dev-auth
+
+depends_on:
+  - dev-gateway
 
 trigger:
   branch:
@@ -196,6 +203,9 @@ steps:
 kind: pipeline
 type: docker
 name: release-auth
+
+depends_on:
+  - release-gateway
 
 trigger:
   event:
