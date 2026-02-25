@@ -72,7 +72,10 @@ export function parseJwtPayload(
   customerNo: string;
 } | null {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes));
     return {
       sub: payload.sub,
       loginId: payload.loginId,
