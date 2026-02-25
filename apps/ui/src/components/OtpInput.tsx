@@ -19,7 +19,7 @@ export default function OtpInput({
   disabled,
 }: OtpInputProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const digits = value.padEnd(length, '').split('').slice(0, length);
+  const digits = value.padEnd(length).split('').slice(0, length);
 
   const focusInput = useCallback((index: number) => {
     inputRefs.current[index]?.focus();
