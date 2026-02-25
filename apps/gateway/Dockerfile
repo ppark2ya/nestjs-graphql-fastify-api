@@ -14,7 +14,8 @@ RUN corepack enable && corepack prepare pnpm@8.10.5 --activate
 
 # 의존성 파일 복사 및 설치 (production only)
 COPY pnpm-lock.yaml package.json ./
-RUN pnpm install --frozen-lockfile --prod
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod
 
 # ---- Stage 2: Build ----
 FROM node:24-alpine AS build
@@ -25,7 +26,8 @@ RUN corepack enable && corepack prepare pnpm@8.10.5 --activate
 
 # 전체 의존성 설치 (devDependencies 포함)
 COPY pnpm-lock.yaml package.json ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # 소스 코드 및 설정 파일 복사
 COPY tsconfig.base.json nest-cli.json nx.json ./
