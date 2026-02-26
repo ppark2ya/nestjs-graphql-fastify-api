@@ -73,16 +73,21 @@ func (r *Reader) ListFiles(app, from, to string) ([]LogFile, error) {
 func (r *Reader) scanDir(dir, prefix, from, to string) []LogFile {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Warn("scan dir failed", "dir", dir, "error", err)
+		}
 		return nil
 	}
 
 	var files []LogFile
+	var skipped []string
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
 
 		if !isLogFile(e.Name()) {
+			skipped = append(skipped, e.Name())
 			continue
 		}
 
@@ -101,6 +106,7 @@ func (r *Reader) scanDir(dir, prefix, from, to string) []LogFile {
 
 		info, err := e.Info()
 		if err != nil {
+			slog.Warn("scan dir: file info error", "file", e.Name(), "error", err)
 			continue
 		}
 
@@ -115,6 +121,14 @@ func (r *Reader) scanDir(dir, prefix, from, to string) []LogFile {
 			Size:       info.Size(),
 			Compressed: strings.HasSuffix(e.Name(), ".gz"),
 		})
+	}
+
+	if len(skipped) > 0 {
+		slog.Info("scan dir: files skipped (no date or .log in name)",
+			"dir", dir,
+			"skippedCount", len(skipped),
+			"skippedFiles", skipped,
+		)
 	}
 
 	return files
@@ -205,11 +219,17 @@ func (r *Reader) Search(params SearchParams, nodeName string) (*SearchResult, er
 		return nil, err
 	}
 
-	slog.Debug("search: files discovered",
+	// 파일 발견 결과를 Info 레벨로 출력 (프로덕션 진단 필수)
+	fileNames := make([]string, len(files))
+	for i, f := range files {
+		fileNames[i] = f.Name
+	}
+	slog.Info("search: files discovered",
 		"app", params.App,
 		"from", params.From,
 		"to", params.To,
 		"fileCount", len(files),
+		"files", fileNames,
 	)
 
 	result := &SearchResult{
@@ -230,7 +250,7 @@ func (r *Reader) Search(params SearchParams, nodeName string) (*SearchResult, er
 			continue
 		}
 
-		slog.Debug("search: file scanned",
+		slog.Debug("search: file result appended",
 			"file", f.Name,
 			"matchedLines", len(lines),
 			"hasMore", hasMore,
@@ -250,6 +270,7 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 	path := filepath.Join(r.baseDir, params.App, f.Name)
 	reader, err := r.openFile(path)
 	if err != nil {
+		slog.Error("search file: open failed", "path", path, "error", err)
 		return nil, false, err
 	}
 	defer reader.Close()
@@ -261,6 +282,9 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 	var parser Parser
 	var current *LogLine // 진행 중인 multi-line 엔트리
 	lineNo := 0
+	structuredCount := 0 // 구조화된 엔트리 수
+	continuationCount := 0
+	rawCount := 0
 
 	// flush - 진행 중인 엔트리를 필터 적용 후 결과에 추가
 	flush := func() {
@@ -282,6 +306,17 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 
 		if parser == nil {
 			parser = DetectParser(line)
+			// 파서 감지 결과 + 첫 줄 로깅 (진단 핵심)
+			parserName := parserTypeName(parser)
+			firstLine := line
+			if len(firstLine) > 200 {
+				firstLine = firstLine[:200] + "..."
+			}
+			slog.Info("search file: parser detected",
+				"file", f.Name,
+				"parser", parserName,
+				"firstLine", firstLine,
+			)
 		}
 
 		parsed := parser.Parse(line)
@@ -289,6 +324,7 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 		parsed.LineNo = lineNo
 
 		if parsed.Timestamp != "" {
+			structuredCount++
 			// 새로운 구조화된 로그 엔트리 → 이전 엔트리 flush
 			flush()
 			if len(lines) >= limit {
@@ -297,9 +333,11 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 			entry := parsed
 			current = &entry
 		} else if current != nil {
+			continuationCount++
 			// Continuation line → 현재 엔트리의 Message에 병합
 			current.Message += "\n" + parsed.Message
 		} else {
+			rawCount++
 			// 독립 raw line (앞선 구조화 엔트리 없음)
 			if matchFilters(parsed, params) {
 				lines = append(lines, parsed)
@@ -312,11 +350,35 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 
 	// 파일 끝: 남은 엔트리 flush
 	flush()
+
+	slog.Info("search file: scan completed",
+		"file", f.Name,
+		"totalLines", lineNo,
+		"structuredEntries", structuredCount,
+		"continuationLines", continuationCount,
+		"rawLines", rawCount,
+		"matchedEntries", len(lines),
+	)
+
 	if len(lines) >= limit {
 		return lines[:limit], true, scanner.Err()
 	}
 
 	return lines, false, scanner.Err()
+}
+
+// parserTypeName - 파서 타입 이름 반환
+func parserTypeName(p Parser) string {
+	switch p.(type) {
+	case *Log4j2Parser:
+		return "Log4j2Parser"
+	case *JSONParser:
+		return "JSONParser"
+	case *RawParser:
+		return "RawParser"
+	default:
+		return "Unknown"
+	}
 }
 
 // Stats - 로그 통계 (파일별 레벨 카운트)
