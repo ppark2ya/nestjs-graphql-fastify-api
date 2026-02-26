@@ -11,6 +11,7 @@ type LogFile struct {
 	Date       string `json:"date"`       // YYYY-MM-DD (파일명에서 추출)
 	Size       int64  `json:"size"`
 	Compressed bool   `json:"compressed"` // .gz 여부
+	fullPath   string // 실제 파일 경로 (unexported → JSON 미포함)
 }
 
 // LogLine - 파싱된 로그 라인

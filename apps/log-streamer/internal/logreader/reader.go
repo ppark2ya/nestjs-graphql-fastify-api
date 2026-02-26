@@ -39,7 +39,7 @@ func (r *Reader) ListApps() ([]LogApp, error) {
 
 	var apps []LogApp
 	for _, e := range entries {
-		if e.IsDir() {
+		if e.IsDir() && e.Name() != "archive" {
 			apps = append(apps, LogApp{Name: e.Name()})
 		}
 	}
@@ -48,15 +48,32 @@ func (r *Reader) ListApps() ([]LogApp, error) {
 }
 
 // ListFiles - 특정 앱의 로그 파일 목록 (날짜 범위 필터)
-// 앱 루트 + archive/ 두 디렉토리 모두 스캔
+// 앱 루트 + archive/ (앱 내부 + 최상위) 디렉토리 모두 스캔
 func (r *Reader) ListFiles(app, from, to string) ([]LogFile, error) {
 	appDir := filepath.Join(r.baseDir, app)
 
 	var files []LogFile
 	// 1) 앱 루트 디렉토리 스캔 (활성 로그)
 	files = append(files, r.scanDir(appDir, "", from, to)...)
-	// 2) archive 서브디렉토리 스캔 (로테이션 파일)
-	files = append(files, r.scanDir(filepath.Join(appDir, "archive"), "archive", from, to)...)
+	// 2) 앱 내 archive 서브디렉토리 스캔 (로테이션 파일)
+	appArchiveDir := filepath.Join(appDir, "archive")
+	files = append(files, r.scanDir(appArchiveDir, "archive", from, to)...)
+	// 3) 최상위 archive 디렉토리 스캔 (운영 환경 구조)
+	topArchiveDir := filepath.Join(r.baseDir, "archive", app)
+	if topArchiveDir != appArchiveDir {
+		files = append(files, r.scanDir(topArchiveDir, "archive", from, to)...)
+	}
+
+	// 중복 제거 (동일 파일명이 양쪽 archive에 있을 경우)
+	seen := make(map[string]bool, len(files))
+	unique := files[:0]
+	for _, f := range files {
+		if !seen[f.Name] {
+			seen[f.Name] = true
+			unique = append(unique, f)
+		}
+	}
+	files = unique
 
 	// 정렬: 날짜 오름차순 → 로테이션 번호 오름차순
 	sort.SliceStable(files, func(i, j int) bool {
@@ -86,14 +103,26 @@ func (r *Reader) scanDir(dir, prefix, from, to string) []LogFile {
 			continue
 		}
 
-		if !isLogFile(e.Name()) {
-			skipped = append(skipped, e.Name())
+		name := e.Name()
+		if !strings.Contains(name, ".log") {
+			skipped = append(skipped, name)
 			continue
 		}
 
-		date := extractDate(e.Name())
+		date := extractDate(name)
 		if date == "" {
-			continue
+			// 날짜 없는 활성 로그 → 파일 수정일 사용
+			if prefix != "" {
+				// archive 파일은 날짜 필수
+				skipped = append(skipped, name)
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				slog.Warn("scan dir: file info error", "file", name, "error", err)
+				continue
+			}
+			date = info.ModTime().Format("2006-01-02")
 		}
 
 		// 날짜 범위 필터
@@ -106,20 +135,21 @@ func (r *Reader) scanDir(dir, prefix, from, to string) []LogFile {
 
 		info, err := e.Info()
 		if err != nil {
-			slog.Warn("scan dir: file info error", "file", e.Name(), "error", err)
+			slog.Warn("scan dir: file info error", "file", name, "error", err)
 			continue
 		}
 
-		name := e.Name()
+		displayName := name
 		if prefix != "" {
-			name = prefix + "/" + e.Name()
+			displayName = prefix + "/" + name
 		}
 
 		files = append(files, LogFile{
-			Name:       name,
+			Name:       displayName,
 			Date:       date,
 			Size:       info.Size(),
-			Compressed: strings.HasSuffix(e.Name(), ".gz"),
+			Compressed: strings.HasSuffix(name, ".gz"),
+			fullPath:   filepath.Join(dir, name),
 		})
 	}
 
@@ -132,17 +162,6 @@ func (r *Reader) scanDir(dir, prefix, from, to string) []LogFile {
 	}
 
 	return files
-}
-
-// isLogFile - 로그 파일 여부 판별 (날짜 패턴 + .log 포함)
-// 매칭 패턴:
-//   - app-2026-02-22.log (활성)
-//   - app-2026-02-22.log.1 (winston 사이즈 로테이션)
-//   - app-2026-02-22.log.gz (winston 압축)
-//   - app-2026-02-22.log.1.gz (winston 사이즈 + 압축)
-//   - app-2026-02-22.1.log (log4j2 사이즈 로테이션)
-func isLogFile(name string) bool {
-	return dateInFilename.MatchString(name) && strings.Contains(name, ".log")
 }
 
 // extractDate - 파일명에서 날짜 추출
@@ -267,7 +286,7 @@ func (r *Reader) Search(params SearchParams, nodeName string) (*SearchResult, er
 
 // searchFile - 단일 파일 검색 (multi-line 로그 그룹핑 지원)
 func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLine, bool, error) {
-	path := filepath.Join(r.baseDir, params.App, f.Name)
+	path := f.fullPath
 	reader, err := r.openFile(path)
 	if err != nil {
 		slog.Error("search file: open failed", "path", path, "error", err)
@@ -395,7 +414,7 @@ func (r *Reader) Stats(app, from, to, nodeName string) (*LogStats, error) {
 	}
 
 	for _, f := range files {
-		if err := r.countFile(filepath.Join(r.baseDir, app, f.Name), stats); err != nil {
+		if err := r.countFile(f.fullPath, stats); err != nil {
 			slog.Warn("stats: file count error", "file", f.Name, "error", err)
 			continue
 		}

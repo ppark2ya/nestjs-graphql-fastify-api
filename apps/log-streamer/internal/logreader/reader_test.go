@@ -677,3 +677,190 @@ func TestStatsIncludesArchive(t *testing.T) {
 		t.Errorf("debugCount = %d, want 1", stats.DebugCount)
 	}
 }
+
+// --- 최상위 archive + 날짜 없는 활성 로그 테스트 ---
+
+func TestListFilesTopLevelArchive(t *testing.T) {
+	dir := t.TempDir()
+
+	// 앱 디렉토리 (활성 로그 - 날짜 없음)
+	appDir := filepath.Join(dir, "my-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "app.log"), []byte("some log\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 최상위 archive 디렉토리
+	topArchive := filepath.Join(dir, "archive", "my-app")
+	if err := os.MkdirAll(topArchive, 0755); err != nil {
+		t.Fatal(err)
+	}
+	createGzFile(t, filepath.Join(topArchive, "app.2024-01-14_1.log.gz"),
+		"2024-01-14 10:00:00.000 INFO c.e.App - old log\n")
+	createGzFile(t, filepath.Join(topArchive, "app.2024-01-15_1.log.gz"),
+		"2024-01-15 10:00:00.000 ERROR c.e.App - archived error\n")
+
+	r := NewReader(dir)
+	files, err := r.ListFiles("my-app", "2024-01-01", "2024-12-31")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 최상위 archive에서 2개 파일 발견 (활성 로그는 mtime 날짜이므로 범위 밖일 수 있음)
+	archiveCount := 0
+	for _, f := range files {
+		if strings.HasPrefix(f.Name, "archive/") {
+			archiveCount++
+		}
+	}
+	if archiveCount != 2 {
+		t.Errorf("got %d archive files, want 2", archiveCount)
+	}
+}
+
+func TestSearchTopLevelArchive(t *testing.T) {
+	dir := t.TempDir()
+
+	appDir := filepath.Join(dir, "my-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// 최상위 archive에 로그 파일
+	topArchive := filepath.Join(dir, "archive", "my-app")
+	if err := os.MkdirAll(topArchive, 0755); err != nil {
+		t.Fatal(err)
+	}
+	archiveContent := `2024-01-15 10:00:00.000 ERROR c.e.App - Archived error from top
+2024-01-15 10:00:01.000 INFO  c.e.App - Archived info from top
+`
+	if err := os.WriteFile(filepath.Join(topArchive, "app.2024-01-15_1.log"), []byte(archiveContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	result, err := r.Search(SearchParams{
+		App:   "my-app",
+		From:  "2024-01-01",
+		To:    "2024-12-31",
+		Level: "ERROR",
+		Limit: 100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Lines) != 1 {
+		t.Errorf("got %d error lines, want 1", len(result.Lines))
+	}
+	if len(result.Lines) > 0 && !strings.Contains(result.Lines[0].Message, "Archived error from top") {
+		t.Errorf("unexpected message: %q", result.Lines[0].Message)
+	}
+}
+
+func TestListFilesUndatedActiveLog(t *testing.T) {
+	dir := t.TempDir()
+
+	appDir := filepath.Join(dir, "my-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// 날짜 없는 활성 로그
+	if err := os.WriteFile(filepath.Join(appDir, "app.log"), []byte("log content\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	// 넓은 날짜 범위로 검색 (mtime 기반 날짜가 포함되도록)
+	files, err := r.ListFiles("my-app", "2020-01-01", "2030-12-31")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(files) != 1 {
+		t.Fatalf("got %d files, want 1", len(files))
+	}
+	if files[0].Name != "app.log" {
+		t.Errorf("Name = %q, want %q", files[0].Name, "app.log")
+	}
+	// mtime 기반 날짜가 설정되어야 함
+	if files[0].Date == "" {
+		t.Error("Date should not be empty for undated active log")
+	}
+}
+
+func TestListAppsExcludesArchive(t *testing.T) {
+	dir := t.TempDir()
+
+	// 앱 디렉토리들
+	os.MkdirAll(filepath.Join(dir, "app-a"), 0755)
+	os.MkdirAll(filepath.Join(dir, "app-b"), 0755)
+	// 최상위 archive 디렉토리 (앱 목록에서 제외되어야 함)
+	os.MkdirAll(filepath.Join(dir, "archive", "app-a"), 0755)
+
+	r := NewReader(dir)
+	apps, err := r.ListApps()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, app := range apps {
+		if app.Name == "archive" {
+			t.Error("archive directory should be excluded from app list")
+		}
+	}
+	if len(apps) != 2 {
+		t.Errorf("got %d apps, want 2", len(apps))
+	}
+}
+
+func TestListFilesBothArchivePaths(t *testing.T) {
+	dir := t.TempDir()
+
+	appDir := filepath.Join(dir, "my-app")
+	// 앱 내 archive
+	appArchive := filepath.Join(appDir, "archive")
+	if err := os.MkdirAll(appArchive, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// 최상위 archive
+	topArchive := filepath.Join(dir, "archive", "my-app")
+	if err := os.MkdirAll(topArchive, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	logContent := "2024-01-15 10:00:00.000 INFO c.e.App - test\n"
+
+	// 앱 내 archive 파일
+	os.WriteFile(filepath.Join(appArchive, "app.2024-01-15_1.log"), []byte(logContent), 0644)
+	// 최상위 archive 파일 (다른 이름)
+	os.WriteFile(filepath.Join(topArchive, "app.2024-01-14_1.log"), []byte(logContent), 0644)
+	// 최상위 archive 파일 (동일 이름 - 중복 제거 대상)
+	os.WriteFile(filepath.Join(topArchive, "app.2024-01-15_1.log"), []byte(logContent), 0644)
+
+	r := NewReader(dir)
+	files, err := r.ListFiles("my-app", "2024-01-01", "2024-12-31")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 앱 내 archive 1개 + 최상위 archive 1개 (중복 1개 제거) = 2개
+	if len(files) != 2 {
+		names := make([]string, len(files))
+		for i, f := range files {
+			names[i] = f.Name
+		}
+		t.Errorf("got %d files %v, want 2 (deduped)", len(files), names)
+	}
+
+	// 양쪽 날짜 모두 존재 확인
+	dates := map[string]bool{}
+	for _, f := range files {
+		dates[f.Date] = true
+	}
+	if !dates["2024-01-14"] || !dates["2024-01-15"] {
+		t.Errorf("expected both dates, got %v", dates)
+	}
+}
