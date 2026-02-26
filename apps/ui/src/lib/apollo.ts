@@ -5,7 +5,7 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 import { getAccessToken } from '@/auth/token';
 
-const API_KEY = 'test-api-key';
+const API_KEY = import.meta.env.VITE_API_KEY ?? 'test-api-key';
 
 const httpLink = new HttpLink({
   uri: '/graphql',

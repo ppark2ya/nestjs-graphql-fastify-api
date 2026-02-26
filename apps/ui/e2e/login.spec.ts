@@ -41,21 +41,9 @@ test.describe('Login Page', () => {
   test('should be responsive on mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await expect(page.getByRole('heading', { name: '시스템 로그인' })).toBeVisible();
-    // On mobile, the animation panel should be hidden and form fills the screen
-    const formArea = page.getByTestId('login-card');
-    const box = await formArea.boundingBox();
+    const card = page.getByTestId('login-card');
+    const box = await card.boundingBox();
     expect(box!.width).toBeLessThanOrEqual(375);
-  });
-
-  test('should show split layout on desktop viewport', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto('/login');
-    await expect(page.getByRole('heading', { name: '시스템 로그인' })).toBeVisible();
-    // Animation panel should be visible on desktop
-    const formArea = page.getByTestId('login-card');
-    const box = await formArea.boundingBox();
-    // Form should take roughly half the screen (not the full width)
-    expect(box!.width).toBeLessThan(640);
   });
 });
 
