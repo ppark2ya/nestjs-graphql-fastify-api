@@ -62,8 +62,9 @@ func (m *subscriptionManager) CloseAll() {
 	m.subsMu.Lock()
 	defer m.subsMu.Unlock()
 
-	for _, cancel := range m.subs {
+	for id, cancel := range m.subs {
 		close(cancel)
+		delete(m.subs, id)
 	}
 }
 
