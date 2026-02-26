@@ -14,6 +14,8 @@ import (
 )
 
 func main() {
+	log.SetOutput(os.Stdout)
+
 	cfg := config.Load()
 
 	srv, err := server.New(cfg)
