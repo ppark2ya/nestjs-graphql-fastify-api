@@ -6,8 +6,8 @@ test.describe('Auth Guard', () => {
     await page.evaluate(() => localStorage.clear());
   });
 
-  test('should redirect to /login when accessing / without auth', async ({ page }) => {
-    await page.goto('/');
+  test('should redirect to /login when accessing /live-stream without auth', async ({ page }) => {
+    await page.goto('/live-stream');
     await expect(page).toHaveURL(/\/login/);
   });
 
