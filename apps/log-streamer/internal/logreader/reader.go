@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -32,6 +33,7 @@ func NewReader(baseDir string) *Reader {
 func (r *Reader) ListApps() ([]LogApp, error) {
 	entries, err := os.ReadDir(r.baseDir)
 	if err != nil {
+		slog.Error("failed to read log base directory", "baseDir", r.baseDir, "error", err)
 		return nil, err
 	}
 
@@ -41,6 +43,7 @@ func (r *Reader) ListApps() ([]LogApp, error) {
 			apps = append(apps, LogApp{Name: e.Name()})
 		}
 	}
+	slog.Debug("list apps", "baseDir", r.baseDir, "count", len(apps))
 	return apps, nil
 }
 
@@ -198,8 +201,16 @@ func (r *Reader) Search(params SearchParams, nodeName string) (*SearchResult, er
 
 	files, err := r.ListFiles(params.App, params.From, params.To)
 	if err != nil {
+		slog.Error("search: list files failed", "app", params.App, "error", err)
 		return nil, err
 	}
+
+	slog.Debug("search: files discovered",
+		"app", params.App,
+		"from", params.From,
+		"to", params.To,
+		"fileCount", len(files),
+	)
 
 	result := &SearchResult{
 		Lines: make([]LogLine, 0),
@@ -215,8 +226,15 @@ func (r *Reader) Search(params SearchParams, nodeName string) (*SearchResult, er
 		remaining := params.Limit - len(result.Lines)
 		lines, hasMore, err := r.searchFile(params, f, remaining)
 		if err != nil {
+			slog.Warn("search: file read error", "file", f.Name, "error", err)
 			continue
 		}
+
+		slog.Debug("search: file scanned",
+			"file", f.Name,
+			"matchedLines", len(lines),
+			"hasMore", hasMore,
+		)
 
 		result.Lines = append(result.Lines, lines...)
 		if hasMore {
@@ -227,7 +245,7 @@ func (r *Reader) Search(params SearchParams, nodeName string) (*SearchResult, er
 	return result, nil
 }
 
-// searchFile - 단일 파일 검색
+// searchFile - 단일 파일 검색 (multi-line 로그 그룹핑 지원)
 func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLine, bool, error) {
 	path := filepath.Join(r.baseDir, params.App, f.Name)
 	reader, err := r.openFile(path)
@@ -241,7 +259,19 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 
 	var lines []LogLine
 	var parser Parser
+	var current *LogLine // 진행 중인 multi-line 엔트리
 	lineNo := 0
+
+	// flush - 진행 중인 엔트리를 필터 적용 후 결과에 추가
+	flush := func() {
+		if current == nil {
+			return
+		}
+		if matchFilters(*current, params) {
+			lines = append(lines, *current)
+		}
+		current = nil
+	}
 
 	for scanner.Scan() {
 		lineNo++
@@ -258,14 +288,32 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 		parsed.File = f.Name
 		parsed.LineNo = lineNo
 
-		if !matchFilters(parsed, params) {
-			continue
+		if parsed.Timestamp != "" {
+			// 새로운 구조화된 로그 엔트리 → 이전 엔트리 flush
+			flush()
+			if len(lines) >= limit {
+				return lines, true, nil
+			}
+			entry := parsed
+			current = &entry
+		} else if current != nil {
+			// Continuation line → 현재 엔트리의 Message에 병합
+			current.Message += "\n" + parsed.Message
+		} else {
+			// 독립 raw line (앞선 구조화 엔트리 없음)
+			if matchFilters(parsed, params) {
+				lines = append(lines, parsed)
+				if len(lines) >= limit {
+					return lines, scanner.Scan(), nil
+				}
+			}
 		}
+	}
 
-		lines = append(lines, parsed)
-		if len(lines) >= limit {
-			return lines, scanner.Scan(), nil
-		}
+	// 파일 끝: 남은 엔트리 flush
+	flush()
+	if len(lines) >= limit {
+		return lines[:limit], true, scanner.Err()
 	}
 
 	return lines, false, scanner.Err()
@@ -275,6 +323,7 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 func (r *Reader) Stats(app, from, to, nodeName string) (*LogStats, error) {
 	files, err := r.ListFiles(app, from, to)
 	if err != nil {
+		slog.Error("stats: list files failed", "app", app, "error", err)
 		return nil, err
 	}
 
@@ -285,6 +334,7 @@ func (r *Reader) Stats(app, from, to, nodeName string) (*LogStats, error) {
 
 	for _, f := range files {
 		if err := r.countFile(filepath.Join(r.baseDir, app, f.Name), stats); err != nil {
+			slog.Warn("stats: file count error", "file", f.Name, "error", err)
 			continue
 		}
 	}
@@ -292,7 +342,7 @@ func (r *Reader) Stats(app, from, to, nodeName string) (*LogStats, error) {
 	return stats, nil
 }
 
-// countFile - 단일 파일 라인/레벨 카운트
+// countFile - 단일 파일 라인/레벨 카운트 (multi-line 그룹핑 지원)
 func (r *Reader) countFile(path string, stats *LogStats) error {
 	reader, err := r.openFile(path)
 	if err != nil {
@@ -304,6 +354,29 @@ func (r *Reader) countFile(path string, stats *LogStats) error {
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
 	var parser Parser
+	var currentLevel string // 진행 중인 multi-line 엔트리의 레벨
+	inEntry := false       // 현재 multi-line 엔트리 진행 중 여부
+
+	// flushCount - 진행 중인 엔트리를 통계에 반영
+	flushCount := func() {
+		if !inEntry {
+			return
+		}
+		stats.TotalLines++
+		switch strings.ToUpper(currentLevel) {
+		case "ERROR":
+			stats.ErrorCount++
+		case "WARN", "WARNING":
+			stats.WarnCount++
+		case "INFO":
+			stats.InfoCount++
+		case "DEBUG":
+			stats.DebugCount++
+		}
+		inEntry = false
+		currentLevel = ""
+	}
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.TrimSpace(line) == "" {
@@ -314,19 +387,21 @@ func (r *Reader) countFile(path string, stats *LogStats) error {
 		}
 
 		parsed := parser.Parse(line)
-		stats.TotalLines++
 
-		switch strings.ToUpper(parsed.Level) {
-		case "ERROR":
-			stats.ErrorCount++
-		case "WARN", "WARNING":
-			stats.WarnCount++
-		case "INFO":
-			stats.InfoCount++
-		case "DEBUG":
-			stats.DebugCount++
+		if parsed.Timestamp != "" {
+			// 새로운 구조화된 엔트리 → 이전 엔트리 카운트
+			flushCount()
+			currentLevel = parsed.Level
+			inEntry = true
+		} else if !inEntry {
+			// 독립 raw line
+			stats.TotalLines++
 		}
+		// continuation line (inEntry && Timestamp=="")은 무시 (부모 엔트리에 포함)
 	}
+
+	// 파일 끝: 남은 엔트리 카운트
+	flushCount()
 
 	return scanner.Err()
 }

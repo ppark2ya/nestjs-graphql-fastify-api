@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -49,7 +49,7 @@ func (m *subscriptionManager) streamMuxLogs(containerID string, reader io.ReadCl
 
 		if _, err := io.ReadFull(reader, header); err != nil {
 			if err != io.EOF && !errors.Is(err, context.Canceled) {
-				log.Printf("Docker log header read error for %s: %v", containerID, err)
+				slog.Warn("docker log header read error", "containerId", containerID, "error", err)
 			}
 			return
 		}
@@ -67,7 +67,7 @@ func (m *subscriptionManager) streamMuxLogs(containerID string, reader io.ReadCl
 		payload := make([]byte, payloadSize)
 		if _, err := io.ReadFull(reader, payload); err != nil {
 			if err != io.EOF && !errors.Is(err, context.Canceled) {
-				log.Printf("Docker log payload read error for %s: %v", containerID, err)
+				slog.Warn("docker log payload read error", "containerId", containerID, "error", err)
 			}
 			return
 		}
@@ -122,6 +122,6 @@ func (m *subscriptionManager) sendLogLine(containerID, streamType, line string) 
 		Message:     message,
 		Stream:      streamType,
 	}); err != nil {
-		log.Printf("WebSocket write error: %v", err)
+		slog.Warn("websocket write error", "containerId", containerID, "error", err)
 	}
 }

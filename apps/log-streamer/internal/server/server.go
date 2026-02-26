@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,6 +25,8 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, fmt.Errorf("failed to create docker client: %w", err)
 	}
 
+	slog.Info("docker client connected")
+
 	return &Server{
 		dockerClient: dockerClient,
 		config:       cfg,
@@ -43,15 +45,15 @@ func (s *Server) Start() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Printf("Starting log-streamer server on port %d", s.config.Port)
+	slog.Info("server listening", "addr", s.httpServer.Addr)
 	return s.httpServer.ListenAndServe()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	log.Println("Shutting down server...")
+	slog.Info("shutting down server")
 
 	if err := s.dockerClient.Close(); err != nil {
-		log.Printf("Error closing docker client: %v", err)
+		slog.Error("docker client close failed", "error", err)
 	}
 
 	return s.httpServer.Shutdown(ctx)

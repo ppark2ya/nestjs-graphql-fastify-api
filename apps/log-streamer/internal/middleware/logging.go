@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"bufio"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -33,17 +33,30 @@ func Logging(next http.Handler) http.Handler {
 		wrapped := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(wrapped, r)
 
+		duration := time.Since(start)
 		correlationID := r.Header.Get("X-Correlation-ID")
 		if correlationID == "" {
 			correlationID = "-"
 		}
 
-		log.Printf("[%s] %s %s %d %s",
-			correlationID,
-			r.Method,
-			r.URL.Path,
-			wrapped.status,
-			time.Since(start),
-		)
+		attrs := []any{
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", wrapped.status,
+			"duration", duration,
+			"correlationId", correlationID,
+		}
+
+		if q := r.URL.RawQuery; q != "" {
+			attrs = append(attrs, "query", q)
+		}
+
+		if wrapped.status >= 500 {
+			slog.Error("request", attrs...)
+		} else if wrapped.status >= 400 {
+			slog.Warn("request", attrs...)
+		} else {
+			slog.Info("request", attrs...)
+		}
 	})
 }

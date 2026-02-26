@@ -20,6 +20,9 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # ---- Stage 2: Build ----
 FROM node:24-alpine AS build
 
+ARG VITE_API_KEY
+ENV VITE_API_KEY=$VITE_API_KEY
+
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@8.10.5 --activate

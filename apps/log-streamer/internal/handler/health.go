@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/docker"
@@ -25,6 +26,7 @@ func Health(dockerClient *docker.Client) http.HandlerFunc {
 		if err != nil {
 			response.Docker = "disconnected"
 			w.WriteHeader(http.StatusServiceUnavailable)
+			slog.Warn("health check: docker disconnected", "error", err)
 		}
 
 		json.NewEncoder(w).Encode(response)

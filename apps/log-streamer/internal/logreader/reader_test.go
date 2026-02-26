@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -426,6 +427,193 @@ func TestListFilesMultiChunkSort(t *testing.T) {
 	}
 	if files[0].Compressed != false {
 		t.Error("plain log file should have Compressed = false")
+	}
+}
+
+func TestSearchMultiLineGrouping(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "spring-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Spring bracket 형식 multi-line 로그 (SQL 쿼리 포함)
+	log1 := `[INFO ] 2026-02-26 15:21:17.938 [CID:abc] [TRACE:xyz] [admin] [10.0.1.5:3306] conn-540 [statement] | 87 ms | kr.co.dozn.LogCallSite
+    select
+        count(t1_0.id)
+    from
+        tb_trans t1_0
+    where
+        t1_0.status='APPROVE'
+[INFO ] 2026-02-26 15:21:17.940 [CID:abc] [TRACE:xyz] [admin] [k.c.d.m.LoggingInterceptor] RESPONSE [GET /api/list]
+[ERROR] 2026-02-26 15:21:18.000 [CID:def] [TRACE:uvw] [admin] [k.c.d.m.ErrorHandler] Request failed
+java.lang.NullPointerException: null
+    at kr.co.dozn.mx.service.OrderService.find(OrderService.java:42)
+    at kr.co.dozn.mx.controller.OrderController.list(OrderController.java:28)
+`
+	if err := os.WriteFile(filepath.Join(appDir, "app-2026-02-26.log"), []byte(log1), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+
+	// 전체 검색 (필터 없음) - multi-line 그룹핑 확인
+	result, err := r.Search(SearchParams{
+		App:   "spring-app",
+		From:  "2026-02-01",
+		To:    "2026-02-28",
+		Limit: 100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 3개의 구조화된 엔트리 (continuation lines는 부모에 병합)
+	if len(result.Lines) != 3 {
+		t.Fatalf("got %d lines, want 3 (multi-line grouped)", len(result.Lines))
+	}
+
+	// 첫 번째 엔트리: SQL 쿼리가 message에 포함되어야 함
+	if result.Lines[0].Level != "INFO" {
+		t.Errorf("line[0].Level = %q, want INFO", result.Lines[0].Level)
+	}
+	if !strings.Contains(result.Lines[0].Message, "select") {
+		t.Error("line[0].Message should contain SQL continuation lines")
+	}
+	if !strings.Contains(result.Lines[0].Message, "tb_trans") {
+		t.Error("line[0].Message should contain 'tb_trans' from SQL")
+	}
+
+	// 두 번째 엔트리: 단일 라인
+	if result.Lines[1].Message != "RESPONSE [GET /api/list]" {
+		t.Errorf("line[1].Message = %q", result.Lines[1].Message)
+	}
+
+	// 세 번째 엔트리: stacktrace가 message에 포함
+	if result.Lines[2].Level != "ERROR" {
+		t.Errorf("line[2].Level = %q, want ERROR", result.Lines[2].Level)
+	}
+	if !strings.Contains(result.Lines[2].Message, "NullPointerException") {
+		t.Error("line[2].Message should contain stacktrace")
+	}
+	if !strings.Contains(result.Lines[2].Message, "OrderService.find") {
+		t.Error("line[2].Message should contain stacktrace frames")
+	}
+}
+
+func TestSearchMultiLineLevelFilter(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "spring-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	log1 := `[INFO ] 2026-02-26 15:21:17.938 [CID:abc] [10.0.1.5:3306] conn-540 [statement] | 87 ms
+    select count(t1_0.id) from tb_trans
+[ERROR] 2026-02-26 15:21:18.000 [CID:def] [k.c.d.ErrorHandler] Request failed
+java.lang.NullPointerException: null
+    at kr.co.dozn.Service.find(Service.java:42)
+`
+	if err := os.WriteFile(filepath.Join(appDir, "app-2026-02-26.log"), []byte(log1), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+
+	// ERROR 필터 → multi-line ERROR 엔트리만 반환 (stacktrace 포함)
+	result, err := r.Search(SearchParams{
+		App:   "spring-app",
+		From:  "2026-02-01",
+		To:    "2026-02-28",
+		Level: "ERROR",
+		Limit: 100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Lines) != 1 {
+		t.Fatalf("got %d lines, want 1 (only ERROR)", len(result.Lines))
+	}
+	if !strings.Contains(result.Lines[0].Message, "NullPointerException") {
+		t.Error("ERROR entry should include stacktrace in message")
+	}
+}
+
+func TestSearchMultiLineKeywordInContinuation(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "spring-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	log1 := `[INFO ] 2026-02-26 15:21:17.938 [CID:abc] [10.0.1.5:3306] conn-540 [statement] | 87 ms
+    select count(t1_0.id) from tb_trans where status='FOREIGN_WON'
+[INFO ] 2026-02-26 15:21:17.940 [CID:abc] [k.c.d.LoggingInterceptor] RESPONSE ok
+`
+	if err := os.WriteFile(filepath.Join(appDir, "app-2026-02-26.log"), []byte(log1), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+
+	// "FOREIGN_WON" 키워드는 continuation line에만 존재
+	result, err := r.Search(SearchParams{
+		App:     "spring-app",
+		From:    "2026-02-01",
+		To:      "2026-02-28",
+		Keyword: "FOREIGN_WON",
+		Limit:   100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Lines) != 1 {
+		t.Fatalf("got %d lines, want 1 (keyword in continuation)", len(result.Lines))
+	}
+	if !strings.Contains(result.Lines[0].Message, "FOREIGN_WON") {
+		t.Error("matched entry should contain continuation line content")
+	}
+}
+
+func TestStatsMultiLine(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "spring-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// 3개 구조화 엔트리 + continuation lines
+	log1 := `[INFO ] 2026-02-26 15:21:17.938 [CID:abc] [source] first entry
+    continuation line 1
+    continuation line 2
+[ERROR] 2026-02-26 15:21:18.000 [CID:def] [source] error entry
+java.lang.Exception: test
+[WARN ] 2026-02-26 15:21:19.000 [CID:ghi] [source] warn entry
+`
+	if err := os.WriteFile(filepath.Join(appDir, "app-2026-02-26.log"), []byte(log1), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	stats, err := r.Stats("spring-app", "2026-02-01", "2026-02-28", "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// multi-line 그룹핑: 3개 엔트리 (continuation lines는 부모에 포함)
+	if stats.TotalLines != 3 {
+		t.Errorf("totalLines = %d, want 3 (grouped multi-line entries)", stats.TotalLines)
+	}
+	if stats.InfoCount != 1 {
+		t.Errorf("infoCount = %d, want 1", stats.InfoCount)
+	}
+	if stats.ErrorCount != 1 {
+		t.Errorf("errorCount = %d, want 1", stats.ErrorCount)
+	}
+	if stats.WarnCount != 1 {
+		t.Errorf("warnCount = %d, want 1", stats.WarnCount)
 	}
 }
 

@@ -73,6 +73,8 @@ steps:
         from_secret: docker_username
       DOCKER_PASSWORD:
         from_secret: docker_password
+      VITE_API_KEY:
+        from_secret: vite_api_key
     commands:
       - |
         if [ -f .skip-build ]; then
@@ -87,7 +89,7 @@ steps:
         else
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
         fi
-        docker build -f apps/gateway/Dockerfile -t "$DOCKER_REPO:$TAG" -t "$DOCKER_REPO:latest" .
+        docker build -f apps/gateway/Dockerfile --build-arg VITE_API_KEY="$VITE_API_KEY" -t "$DOCKER_REPO:$TAG" -t "$DOCKER_REPO:latest" .
         docker push "$DOCKER_REPO:$TAG"
         docker push "$DOCKER_REPO:latest"
         echo ">>> Pushed $DOCKER_REPO:$TAG"
@@ -272,6 +274,11 @@ steps:
         from_secret: docker_username
       password:
         from_secret: docker_password
+      build_args_from_env:
+        - VITE_API_KEY
+    environment:
+      VITE_API_KEY:
+        from_secret: vite_api_key
 
 ---
 # ================== Release: Auth ==================

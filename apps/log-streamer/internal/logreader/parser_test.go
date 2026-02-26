@@ -232,6 +232,97 @@ func TestRawParser(t *testing.T) {
 	}
 }
 
+// --- Spring 실제 로그 형식 테스트 ---
+
+func TestBracketLog4j2SpringDBLog(t *testing.T) {
+	// Spring DB 커넥션 로그: context brackets 뒤에 bracket 없는 텍스트 + 메시지 내 [commit], [DB:RET] 등 내장 bracket
+	p := &Log4j2Parser{}
+	line := "[INFO ] 2026-02-26 15:21:17.938 [CID:f1cefe12-4755-42b2-9fff-5885d1af9aa1] [TRACE:81474387860151257] [jt****k] [10.0.1.5:8080] conn-540 [commit] | 0 ms | [DB:RET] TransDetailRepositoryCustom.findForeignWonTransSummary took=62ms kind=COLLECTION count=0"
+	result := p.Parse(line)
+
+	if result.Level != "INFO" {
+		t.Errorf("level = %q, want %q", result.Level, "INFO")
+	}
+	if result.Timestamp != "2026-02-26 15:21:17.938" {
+		t.Errorf("timestamp = %q, want %q", result.Timestamp, "2026-02-26 15:21:17.938")
+	}
+	if result.Source != "10.0.1.5:8080" {
+		t.Errorf("source = %q, want %q", result.Source, "10.0.1.5:8080")
+	}
+	if result.Message != "conn-540 [commit] | 0 ms | [DB:RET] TransDetailRepositoryCustom.findForeignWonTransSummary took=62ms kind=COLLECTION count=0" {
+		t.Errorf("message = %q", result.Message)
+	}
+
+	var meta map[string]string
+	if err := json.Unmarshal([]byte(result.Metadata), &meta); err != nil {
+		t.Fatalf("metadata JSON parse error: %v", err)
+	}
+	if meta["cid"] != "f1cefe12-4755-42b2-9fff-5885d1af9aa1" {
+		t.Errorf("metadata cid = %q", meta["cid"])
+	}
+	if meta["trace"] != "81474387860151257" {
+		t.Errorf("metadata trace = %q", meta["trace"])
+	}
+	if meta["ctx0"] != "jt****k" {
+		t.Errorf("metadata ctx0 = %q", meta["ctx0"])
+	}
+}
+
+func TestBracketLog4j2SpringResponseLog(t *testing.T) {
+	// Spring HTTP 응답 로그: 메시지 내 [GET /api/...] 패턴
+	p := &Log4j2Parser{}
+	line := `[INFO ] 2026-02-26 15:21:17.940 [CID:f1cefe12-4755-42b2-9fff-5885d1af9aa1] [TRACE:81474387860151257] [jt****k] [k.c.d.m.b.c.i.LoggingInterceptor] RESPONSE [GET /api/currency-exchange/foreign-won/list]`
+	result := p.Parse(line)
+
+	if result.Level != "INFO" {
+		t.Errorf("level = %q, want %q", result.Level, "INFO")
+	}
+	if result.Source != "k.c.d.m.b.c.i.LoggingInterceptor" {
+		t.Errorf("source = %q, want %q", result.Source, "k.c.d.m.b.c.i.LoggingInterceptor")
+	}
+	if result.Message != "RESPONSE [GET /api/currency-exchange/foreign-won/list]" {
+		t.Errorf("message = %q", result.Message)
+	}
+}
+
+func TestBracketLog4j2SpringStatementLog(t *testing.T) {
+	// Spring DB statement 로그: [statement] 패턴 + 소스 클래스
+	p := &Log4j2Parser{}
+	line := "[INFO ] 2026-02-26 15:21:17.976 [CID:7137a48a-3dea-45db-a645-704b2bf8c96] [TRACE:81474387864764860] [jt****k] [10.0.1.5:3306] conn-542 [statement] | 87 ms | kr.co.dozn.mx.backoffice.common.utils.LogCallSite.firstOutside(LogCallSite.kt:21)"
+	result := p.Parse(line)
+
+	if result.Level != "INFO" {
+		t.Errorf("level = %q, want %q", result.Level, "INFO")
+	}
+	if result.Timestamp != "2026-02-26 15:21:17.976" {
+		t.Errorf("timestamp = %q", result.Timestamp)
+	}
+	if result.Source != "10.0.1.5:3306" {
+		t.Errorf("source = %q", result.Source)
+	}
+	expectedMsg := "conn-542 [statement] | 87 ms | kr.co.dozn.mx.backoffice.common.utils.LogCallSite.firstOutside(LogCallSite.kt:21)"
+	if result.Message != expectedMsg {
+		t.Errorf("message = %q, want %q", result.Message, expectedMsg)
+	}
+}
+
+func TestBracketLog4j2ContinuationLineAsRaw(t *testing.T) {
+	// SQL continuation line (구조화 패턴 없음) → raw fallback
+	p := &Log4j2Parser{}
+	line := "        select count(t1_0.id)"
+	result := p.Parse(line)
+
+	if result.Timestamp != "" {
+		t.Errorf("continuation line should have empty timestamp, got %q", result.Timestamp)
+	}
+	if result.Level != "" {
+		t.Errorf("continuation line should have empty level, got %q", result.Level)
+	}
+	if result.Message != "        select count(t1_0.id)" {
+		t.Errorf("message = %q", result.Message)
+	}
+}
+
 func TestDetectParser(t *testing.T) {
 	tests := []struct {
 		line string
