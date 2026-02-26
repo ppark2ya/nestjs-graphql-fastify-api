@@ -32,7 +32,7 @@ echo ""
 echo "--- [3/5] Docker 이미지 빌드 ---"
 
 echo "[3a] gateway 빌드..."
-docker build -f "$PROJECT_ROOT/apps/gateway/Dockerfile" -t gateway:test "$PROJECT_ROOT"
+docker build -f "$PROJECT_ROOT/apps/gateway/Dockerfile" --build-arg VITE_API_KEY="${VITE_API_KEY:-test-api-key}" -t gateway:test "$PROJECT_ROOT"
 
 echo "[3b] auth 빌드..."
 docker build -f "$PROJECT_ROOT/apps/auth/Dockerfile" -t auth:test "$PROJECT_ROOT"
