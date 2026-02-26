@@ -61,3 +61,32 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Login page animations */
+@keyframes login-float-1 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-30px) rotate(8deg); }
+}
+
+@keyframes login-float-2 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(-6deg); }
+}
+
+@keyframes login-float-3 {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  50% { transform: translateY(-25px) rotate(12deg) scale(1.05); }
+}
+
+@keyframes login-glow-drift {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(30px, -20px); }
+  66% { transform: translate(-20px, 15px); }
+}
+
+.login-shape {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(8px);
+}

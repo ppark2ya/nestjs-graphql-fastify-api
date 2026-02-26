@@ -12,6 +12,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable';
 import { PanelLeft } from 'lucide-react';
 
 function makeTabId(type: 'container' | 'service', key: string): string {
@@ -90,23 +95,89 @@ export default function LiveStreamPage() {
       activeTab?.type === 'service' ? activeTab.service.serviceName : null,
   };
 
+  const sidebarContent = (
+    <>
+      <div className="px-4 py-2 border-b border-border">
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Containers
+        </h2>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <ContainerList
+          {...containerListProps}
+          onSelectContainer={(c) => handleSelectContainer(c)}
+          onSelectService={(s) => handleSelectService(s)}
+        />
+      </div>
+    </>
+  );
+
+  const mainContent = (
+    <>
+      <TabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onSelectTab={setActiveTabId}
+        onCloseTab={closeTab}
+      />
+      {tabs.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-muted-foreground text-center px-4">
+          <div>
+            <p>Select a container or service to view logs</p>
+            <p className="text-sm mt-1 md:hidden">
+              Tap the <PanelLeft className="inline h-4 w-4" /> button to
+              browse containers
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 relative overflow-hidden">
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              className="absolute inset-0 flex-col"
+              style={{
+                display: tab.id === activeTabId ? 'flex' : 'none',
+              }}
+            >
+              {tab.type === 'service' ? (
+                <ServiceLogViewer service={tab.service} />
+              ) : (
+                <LogViewer
+                  containerId={tab.container.id}
+                  containerName={tab.container.name}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="flex flex-1 overflow-hidden">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-64 border-r border-border flex-col overflow-hidden shrink-0">
-        <div className="px-4 py-2 border-b border-border">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Containers
-          </h2>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <ContainerList
-            {...containerListProps}
-            onSelectContainer={(c) => handleSelectContainer(c)}
-            onSelectService={(s) => handleSelectService(s)}
-          />
-        </div>
-      </aside>
+      {/* Desktop resizable layout */}
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="hidden md:flex flex-1"
+      >
+        <ResizablePanel
+          defaultSize="20%"
+          minSize="15%"
+          maxSize="40%"
+          className="flex flex-col overflow-hidden"
+        >
+          {sidebarContent}
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel
+          defaultSize="80%"
+          className="flex flex-col overflow-hidden"
+        >
+          {mainContent}
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       {/* Mobile sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -135,45 +206,9 @@ export default function LiveStreamPage() {
         </SheetContent>
       </Sheet>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <TabBar
-          tabs={tabs}
-          activeTabId={activeTabId}
-          onSelectTab={setActiveTabId}
-          onCloseTab={closeTab}
-        />
-        {tabs.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground text-center px-4">
-            <div>
-              <p>Select a container or service to view logs</p>
-              <p className="text-sm mt-1 md:hidden">
-                Tap the <PanelLeft className="inline h-4 w-4" /> button to
-                browse containers
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 relative overflow-hidden">
-            {tabs.map((tab) => (
-              <div
-                key={tab.id}
-                className="absolute inset-0 flex-col"
-                style={{
-                  display: tab.id === activeTabId ? 'flex' : 'none',
-                }}
-              >
-                {tab.type === 'service' ? (
-                  <ServiceLogViewer service={tab.service} />
-                ) : (
-                  <LogViewer
-                    containerId={tab.container.id}
-                    containerName={tab.container.name}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+      {/* Mobile main content */}
+      <main className="flex-1 flex flex-col overflow-hidden md:hidden">
+        {mainContent}
       </main>
     </div>
   );

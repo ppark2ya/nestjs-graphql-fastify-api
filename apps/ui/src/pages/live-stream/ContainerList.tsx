@@ -1,8 +1,10 @@
+import { useMemo, useState } from 'react';
 import { useQuery } from '@apollo/client/react';
 import { CONTAINERS_QUERY, Container, ServiceGroup } from './graphql';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { RefreshCw, Search, X } from 'lucide-react';
 
 interface Props {
   selectedId: string | null;
@@ -42,9 +44,22 @@ export default function ContainerList({
   onSelectContainer,
   onSelectService,
 }: Props) {
+  const [searchQuery, setSearchQuery] = useState('');
   const { data, loading, error, refetch } = useQuery<{
     containers: Container[];
   }>(CONTAINERS_QUERY);
+
+  const containers = data?.containers ?? [];
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return containers;
+    return containers.filter((c) => {
+      if (c.name.toLowerCase().includes(q)) return true;
+      if (c.serviceName?.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [containers, searchQuery]);
 
   if (loading) {
     return (
@@ -66,7 +81,6 @@ export default function ContainerList({
     );
   }
 
-  const containers = data?.containers ?? [];
   if (containers.length === 0) {
     return (
       <div className="p-4 text-muted-foreground text-sm">
@@ -75,13 +89,32 @@ export default function ContainerList({
     );
   }
 
-  const { services, standalone } = groupByService(containers);
+  const { services, standalone } = groupByService(filtered);
 
   return (
     <div className="flex flex-col">
+      <div className="relative px-4 py-2 border-b border-border">
+        <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <Input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search containers..."
+          className="h-7 pl-7 pr-7 text-xs"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-6 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <span className="text-xs text-muted-foreground">
-          {containers.length} containers
+          {filtered.length === containers.length
+            ? `${containers.length} containers`
+            : `${filtered.length} / ${containers.length} containers`}
         </span>
         <Button variant="ghost" size="sm" onClick={() => refetch()}>
           <RefreshCw className="h-3 w-3" />
