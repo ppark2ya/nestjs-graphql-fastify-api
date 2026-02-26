@@ -340,7 +340,8 @@ func matchFilters(line LogLine, params SearchParams) bool {
 	if params.Keyword != "" {
 		kw := strings.ToLower(params.Keyword)
 		if !strings.Contains(strings.ToLower(line.Message), kw) &&
-			!strings.Contains(strings.ToLower(line.Source), kw) {
+			!strings.Contains(strings.ToLower(line.Source), kw) &&
+			!strings.Contains(strings.ToLower(line.Metadata), kw) {
 			return false
 		}
 	}

@@ -17,6 +17,7 @@ export const LOG_SEARCH_QUERY = gql`
         level
         source
         message
+        metadata
         node
         file
         lineNo
@@ -43,6 +44,7 @@ export interface HistoryLogLine {
   level: string | null;
   source: string | null;
   message: string;
+  metadata: string | null;
   node: string;
   file: string;
   lineNo: number;
