@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/docker"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/handler"
+	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/handler/ws"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/logreader"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/middleware"
 )
@@ -33,9 +34,8 @@ func New(dockerClient *docker.Client, logReader *logreader.Reader) *chi.Mux {
 	})
 
 	// WebSocket
-	logsHandler := handler.NewLogsHandler(dockerClient)
 	r.Route("/ws", func(r chi.Router) {
-		r.Get("/logs", logsHandler.ServeHTTP)
+		r.Get("/logs", ws.Handle(dockerClient))
 	})
 
 	return r
