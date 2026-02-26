@@ -216,6 +216,7 @@ export default function LoginPage() {
                     onChange={setOtpCode}
                     disabled={verifyLoading}
                     containerClassName="justify-center"
+                    autoFocus
                   >
                     <InputOTPGroup>
                       <InputOTPSlot index={0} />
