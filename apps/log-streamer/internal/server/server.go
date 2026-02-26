@@ -9,9 +9,8 @@ import (
 
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/config"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/docker"
-	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/handler"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/logreader"
-	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/middleware"
+	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/router"
 )
 
 type Server struct {
@@ -33,31 +32,12 @@ func New(cfg *config.Config) (*Server, error) {
 }
 
 func (s *Server) Start() error {
-	mux := http.NewServeMux()
-
-	// Register handlers
-	healthHandler := handler.NewHealthHandler(s.dockerClient)
-	containersHandler := handler.NewContainersHandler(s.dockerClient)
-	logsHandler := handler.NewLogsHandler(s.dockerClient)
-
-	mux.Handle("/health", healthHandler)
-	mux.Handle("/api/containers", containersHandler)
-	mux.Handle("/ws/logs", logsHandler)
-
-	// Log file reader handlers
 	logReader := logreader.NewReader(s.config.LogDir)
-	logFilesHandler := handler.NewLogFilesHandler(logReader, s.dockerClient)
-	logFilesHandler.RegisterRoutes(mux)
-
-	// Apply middleware chain
-	var h http.Handler = mux
-	h = middleware.Logging(h)
-	h = middleware.Correlation(h)
-	h = middleware.CORS(h)
+	r := router.New(s.dockerClient, logReader)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.config.Port),
-		Handler:      h,
+		Handler:      r,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
