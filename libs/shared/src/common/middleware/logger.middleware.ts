@@ -1,5 +1,5 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
-import { FastifyRequest, FastifyReply } from 'fastify';
+import { IncomingMessage, ServerResponse } from 'http';
 import { WinstonLoggerService } from '../logger/winston-logger.service';
 import { CORRELATION_HEADER } from './correlation-id.middleware';
 
@@ -7,19 +7,18 @@ import { CORRELATION_HEADER } from './correlation-id.middleware';
 export class LoggerMiddleware implements NestMiddleware {
   private logger = new WinstonLoggerService().setContext('HTTP');
 
-  use(req: FastifyRequest, res: FastifyReply, next: () => void) {
-    const method = req.method;
-    const url = req.url;
+  use(req: IncomingMessage, res: ServerResponse, next: () => void) {
+    const method = req.method ?? '';
+    const url = req.url ?? '';
     const userAgent = (req.headers['user-agent'] as string) || '';
     const correlationId = (req.headers[CORRELATION_HEADER] as string) || '';
     const ip =
       (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.ip ||
       req.socket?.remoteAddress ||
       '';
     const start = Date.now();
 
-    res.raw.on('finish', () => {
+    res.on('finish', () => {
       const statusCode = res.statusCode;
       const duration = Date.now() - start;
 
