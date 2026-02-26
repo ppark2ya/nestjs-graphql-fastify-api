@@ -45,12 +45,10 @@ export function startRefreshTimer(onRefresh: () => Promise<void>): void {
   stopRefreshTimer();
   const timeUntilExpiry = getTimeUntilExpiry();
   const refreshIn = Math.max(0, timeUntilExpiry - 10 * 60 * 1000);
-  refreshTimer = setTimeout(async () => {
-    try {
-      await onRefresh();
-    } catch {
+  refreshTimer = setTimeout(() => {
+    void onRefresh().catch(() => {
       // onRefresh handles errors internally
-    }
+    });
   }, refreshIn);
 }
 
@@ -61,9 +59,7 @@ export function stopRefreshTimer(): void {
   }
 }
 
-export function parseJwtPayload(
-  token: string,
-): {
+export function parseJwtPayload(token: string): {
   sub: string;
   loginId: string;
   name: string;
@@ -75,14 +71,18 @@ export function parseJwtPayload(
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
     const binary = atob(base64);
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    const payload = JSON.parse(new TextDecoder().decode(bytes));
+    const payload = JSON.parse(new TextDecoder().decode(bytes)) as Record<
+      string,
+      unknown
+    >;
     return {
-      sub: payload.sub,
-      loginId: payload.loginId,
-      name: payload.name,
-      userType: payload.userType,
-      roleType: payload.roleType,
-      customerNo: payload.customerNo,
+      sub: typeof payload.sub === 'string' ? payload.sub : '',
+      loginId: typeof payload.loginId === 'string' ? payload.loginId : '',
+      name: typeof payload.name === 'string' ? payload.name : '',
+      userType: typeof payload.userType === 'string' ? payload.userType : '',
+      roleType: typeof payload.roleType === 'string' ? payload.roleType : '',
+      customerNo:
+        typeof payload.customerNo === 'string' ? payload.customerNo : '',
     };
   } catch {
     return null;

@@ -85,16 +85,19 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
 
       this.ws.on('message', (data: Buffer) => {
         try {
-          const message: WSLogMessage = JSON.parse(data.toString());
+          const message = JSON.parse(data.toString()) as WSLogMessage;
           if (message.type === 'log' && message.containerId) {
-            this.pubSub.publish(`${LOG_STREAM_TOPIC}.${message.containerId}`, {
-              containerLog: {
-                containerId: message.containerId,
-                timestamp: message.timestamp,
-                message: message.message,
-                stream: message.stream,
+            void this.pubSub.publish(
+              `${LOG_STREAM_TOPIC}.${message.containerId}`,
+              {
+                containerLog: {
+                  containerId: message.containerId,
+                  timestamp: message.timestamp,
+                  message: message.message,
+                  stream: message.stream,
+                },
               },
-            });
+            );
           } else if (message.type === 'error') {
             this.logger.warn(
               `Log-streamer error${message.containerId ? ` [container=${message.containerId}]` : ''}: ${message.message}`,
@@ -145,6 +148,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     } else {
       this.logger.warn('WebSocket not connected, subscription may be delayed');
     }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return -- graphql-redis-subscriptions asyncIterableIterator returns any
     return this.pubSub.asyncIterableIterator(
       `${LOG_STREAM_TOPIC}.${containerId}`,
     );

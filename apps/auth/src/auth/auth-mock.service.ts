@@ -111,7 +111,7 @@ export class MockAuthService {
   async changePassword(
     userId: number,
     currentPassword: string,
-    _newPassword: string,
+    _newPassword: string, // eslint-disable-line @typescript-eslint/no-unused-vars
   ): Promise<{ success: boolean }> {
     const account = MOCK_ACCOUNTS.find((a) => a.id === userId);
     if (!account || account.password !== currentPassword) {

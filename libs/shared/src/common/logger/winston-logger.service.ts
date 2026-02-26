@@ -2,6 +2,7 @@ import { Injectable, LoggerService } from '@nestjs/common';
 import { existsSync, mkdirSync, renameSync } from 'fs';
 import { basename, join } from 'path';
 import * as winston from 'winston';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import DailyRotateFile = require('winston-daily-rotate-file');
 
 // 레벨별 컬러 매핑
@@ -14,18 +15,19 @@ const levelColors: Record<string, string> = {
 };
 const resetColor = '\x1b[0m';
 
-const nestLikeConsoleFormat = winston.format.printf(
-  ({ level, message, timestamp, context, ...meta }) => {
-    const pid = process.pid;
-    const color = levelColors[level] || '';
-    const formattedLevel = `${color}${level.toUpperCase().padEnd(7)}${resetColor}`;
-    const contextStr = context ? `\x1b[33m[${context}]\x1b[0m ` : '';
-    const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+const nestLikeConsoleFormat = winston.format.printf((info) => {
+  const { level, message, timestamp, context, ...meta } = info;
+  const pid = process.pid;
+  const color = levelColors[level] || '';
+  const formattedLevel = `${color}${level.toUpperCase().padEnd(7)}${resetColor}`;
+  const ctxLabel = typeof context === 'string' ? context : '';
+  const contextStr = ctxLabel ? `\x1b[33m[${ctxLabel}]\x1b[0m ` : '';
+  const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+  const ts = typeof timestamp === 'string' ? timestamp : '';
 
-    // NestJS 스타일: [Nest] PID - TIMESTAMP LOG [Context] Message
-    return `[Nest] ${pid} - ${timestamp} ${formattedLevel} ${contextStr}${message}${metaStr}`;
-  },
-);
+  // NestJS 스타일: [Nest] PID - TIMESTAMP LOG [Context] Message
+  return `[Nest] ${pid} - ${ts} ${formattedLevel} ${contextStr}${String(message)}${metaStr}`;
+});
 
 const koreaTimestamp = winston.format.timestamp({
   format: () => new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }),
@@ -87,26 +89,28 @@ export class WinstonLoggerService implements LoggerService {
   }
 
   log(message: any, context?: string): void {
-    this.logger.info(message, { context: context || this.context });
+    this.logger.info(message as string, { context: context || this.context });
   }
 
   error(message: any, trace?: string, context?: string): void {
-    this.logger.error(message, {
+    this.logger.error(message as string, {
       context: context || this.context,
       trace,
     });
   }
 
   warn(message: any, context?: string): void {
-    this.logger.warn(message, { context: context || this.context });
+    this.logger.warn(message as string, { context: context || this.context });
   }
 
   debug(message: any, context?: string): void {
-    this.logger.debug(message, { context: context || this.context });
+    this.logger.debug(message as string, { context: context || this.context });
   }
 
   verbose(message: any, context?: string): void {
-    this.logger.verbose(message, { context: context || this.context });
+    this.logger.verbose(message as string, {
+      context: context || this.context,
+    });
   }
 
   /**
@@ -115,7 +119,7 @@ export class WinstonLoggerService implements LoggerService {
   logWithMeta(
     level: 'info' | 'error' | 'warn' | 'debug',
     message: string,
-    meta: Record<string, any>,
+    meta: Record<string, unknown>,
     context?: string,
   ): void {
     this.logger.log(level, message, {

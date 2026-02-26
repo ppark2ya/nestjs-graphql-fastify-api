@@ -9,6 +9,7 @@ import {
   Inject,
   UseFilters,
 } from '@nestjs/common';
+import { FastifyRequest } from 'fastify';
 import { AuthService } from './auth.service';
 import { MockAuthService } from './auth-mock.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -61,7 +62,10 @@ export class AuthController {
   @Post('password')
   @UseGuards(JwtAuthGuard)
   @UsePipes(new ZodValidationPipe(ChangePasswordSchema))
-  async changePassword(@Body() body: ChangePasswordDto, @Req() req: any) {
+  async changePassword(
+    @Body() body: ChangePasswordDto,
+    @Req() req: FastifyRequest & { user: { userId: number } },
+  ) {
     return this.authService.changePassword(
       Number(req.user.userId),
       body.currentPassword,

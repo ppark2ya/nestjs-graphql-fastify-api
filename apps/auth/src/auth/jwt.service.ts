@@ -97,12 +97,12 @@ export class JwtTokenService implements OnModuleInit {
       issuer: AUTH_CONSTANTS.JWT_ISSUER,
       algorithms: [AUTH_CONSTANTS.JWT_ALGORITHM],
     });
-    if ((payload as any).type !== '2fa') {
+    if ((payload as { type?: string }).type !== '2fa') {
       throw new Error('Invalid 2FA token type');
     }
     return {
       sub: payload.sub as string,
-      userType: (payload as any).userType as string,
+      userType: (payload as { userType?: string }).userType as string,
     };
   }
 }

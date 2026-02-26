@@ -5,6 +5,7 @@ import { GqlExecutionContext } from '@nestjs/graphql';
 import { GraphQLError } from 'graphql';
 import { Env } from '../env.schema';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { GraphQLContext } from '../types/graphql-context.interface';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -31,9 +32,9 @@ export class ApiKeyGuard implements CanActivate {
     }
 
     const ctx = GqlExecutionContext.create(context);
-    const request = ctx.getContext().req;
+    const { req: request } = ctx.getContext<GraphQLContext>();
 
-    const apiKey = request.headers['x-api-key'];
+    const apiKey = request.headers['x-api-key'] as string | undefined;
 
     if (!apiKey) {
       throw new GraphQLError('API key is missing', {

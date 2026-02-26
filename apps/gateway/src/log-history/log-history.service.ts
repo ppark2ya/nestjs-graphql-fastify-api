@@ -11,6 +11,26 @@ import { LogApp } from './models/log-app.model';
 import { LogLine } from './models/log-line.model';
 import { LogSummary } from './models/log-summary.model';
 
+interface LogAppsResponse {
+  apps: { name: string }[];
+  node: string;
+}
+
+interface LogSearchResponse {
+  lines: LogLine[];
+  node: string;
+  hasMore: boolean;
+}
+
+interface LogStatsResponse {
+  node: string;
+  totalLines: number;
+  errorCount: number;
+  warnCount: number;
+  infoCount: number;
+  fileCount: number;
+}
+
 @Injectable()
 export class LogHistoryService {
   private readonly logger = new Logger(LogHistoryService.name);
@@ -39,7 +59,7 @@ export class LogHistoryService {
       hosts.map((host) =>
         this.circuitBreaker.fire('log-history', async () => {
           const res = await firstValueFrom(
-            this.httpService.get(`${host}/api/logs/apps`),
+            this.httpService.get<LogAppsResponse>(`${host}/api/logs/apps`),
           );
           return res.data;
         }),
@@ -49,10 +69,7 @@ export class LogHistoryService {
     const appMap = new Map<string, LogApp>();
     for (const result of results) {
       if (result.status !== 'fulfilled') continue;
-      const { apps, node } = result.value as {
-        apps: { name: string }[];
-        node: string;
-      };
+      const { apps, node } = result.value;
       for (const app of apps ?? []) {
         const key = `${app.name}@${node}`;
         if (!appMap.has(key)) {
@@ -72,7 +89,7 @@ export class LogHistoryService {
     const searchPromises = hosts.map((host) =>
       this.circuitBreaker.fire('log-history', async () => {
         const res = await firstValueFrom(
-          this.httpService.get(`${host}/api/logs/search`, {
+          this.httpService.get<LogSearchResponse>(`${host}/api/logs/search`, {
             params: {
               app: input.app,
               from: input.from,
@@ -92,7 +109,7 @@ export class LogHistoryService {
     const statsPromises = hosts.map((host) =>
       this.circuitBreaker.fire('log-history', async () => {
         const res = await firstValueFrom(
-          this.httpService.get(`${host}/api/logs/stats`, {
+          this.httpService.get<LogStatsResponse>(`${host}/api/logs/stats`, {
             params: {
               app: input.app,
               from: input.from,
@@ -115,11 +132,7 @@ export class LogHistoryService {
 
     for (const result of searchResults) {
       if (result.status !== 'fulfilled') continue;
-      const data = result.value as {
-        lines: LogLine[];
-        node: string;
-        hasMore: boolean;
-      };
+      const data = result.value;
 
       if (input.node && data.node !== input.node) continue;
 
@@ -161,7 +174,7 @@ export class LogHistoryService {
   }
 
   private mergeStats(
-    results: PromiseSettledResult<unknown>[],
+    results: PromiseSettledResult<LogStatsResponse>[],
     nodeFilter?: string,
   ): LogSummary {
     const summary: LogSummary = {
@@ -174,14 +187,7 @@ export class LogHistoryService {
 
     for (const result of results) {
       if (result.status !== 'fulfilled') continue;
-      const data = result.value as {
-        node: string;
-        totalLines: number;
-        errorCount: number;
-        warnCount: number;
-        infoCount: number;
-        fileCount: number;
-      };
+      const data = result.value;
 
       if (nodeFilter && data.node !== nodeFilter) continue;
 
