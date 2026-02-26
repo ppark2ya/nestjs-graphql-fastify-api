@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -62,9 +63,13 @@ func (m *subscriptionManager) CloseAll() {
 	m.subsMu.Lock()
 	defer m.subsMu.Unlock()
 
+	count := len(m.subs)
 	for id, cancel := range m.subs {
 		close(cancel)
 		delete(m.subs, id)
+	}
+	if count > 0 {
+		slog.Debug("websocket close all subscriptions", "count", count)
 	}
 }
 

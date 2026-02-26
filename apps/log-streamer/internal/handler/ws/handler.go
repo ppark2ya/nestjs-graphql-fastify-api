@@ -2,7 +2,7 @@ package ws
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -31,10 +31,12 @@ func Handle(dockerClient *docker.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			log.Printf("WebSocket upgrade error: %v", err)
+			slog.Error("websocket upgrade failed", "error", err, "remoteAddr", r.RemoteAddr)
 			return
 		}
 		defer conn.Close()
+
+		slog.Info("websocket connected", "remoteAddr", r.RemoteAddr)
 
 		mgr := newSubscriptionManager(dockerClient, conn)
 		defer mgr.CloseAll()
@@ -43,13 +45,16 @@ func Handle(dockerClient *docker.Client) http.HandlerFunc {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("WebSocket error: %v", err)
+					slog.Warn("websocket unexpected close", "error", err, "remoteAddr", r.RemoteAddr)
+				} else {
+					slog.Info("websocket disconnected", "remoteAddr", r.RemoteAddr)
 				}
 				break
 			}
 
 			var msg Message
 			if err := json.Unmarshal(message, &msg); err != nil {
+				slog.Warn("websocket invalid message", "error", err, "remoteAddr", r.RemoteAddr)
 				mgr.writeJSON(Message{Type: "error", Message: "invalid message format"})
 				continue
 			}
@@ -60,9 +65,11 @@ func Handle(dockerClient *docker.Client) http.HandlerFunc {
 					mgr.writeJSON(Message{Type: "error", Message: "containerId is required"})
 					continue
 				}
+				slog.Info("websocket subscribe", "containerId", msg.ContainerID, "remoteAddr", r.RemoteAddr)
 				mgr.Subscribe(r.Context(), msg.ContainerID)
 			case "unsubscribe":
 				if msg.ContainerID != "" {
+					slog.Info("websocket unsubscribe", "containerId", msg.ContainerID, "remoteAddr", r.RemoteAddr)
 					mgr.Unsubscribe(msg.ContainerID)
 				}
 			}

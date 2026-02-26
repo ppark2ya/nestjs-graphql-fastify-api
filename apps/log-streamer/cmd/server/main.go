@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,34 +15,59 @@ import (
 )
 
 func main() {
-	log.SetOutput(os.Stdout)
-
 	cfg := config.Load()
+
+	// slog 레벨 설정
+	var level slog.Level
+	switch strings.ToLower(cfg.LogLevel) {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn", "warning":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	slog.SetDefault(slog.New(handler))
+
+	slog.Info("starting log-streamer",
+		"port", cfg.Port,
+		"logDir", cfg.LogDir,
+		"logLevel", cfg.LogLevel,
+	)
 
 	srv, err := server.New(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create server: %v", err)
+		slog.Error("failed to create server", "error", err)
+		os.Exit(1)
 	}
 
 	// Start server in goroutine
 	go func() {
 		if err := srv.Start(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+			slog.Error("server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	sig := <-quit
+
+	slog.Info("shutdown signal received", "signal", sig.String())
 
 	// Graceful shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server shutdown failed: %v", err)
+		slog.Error("server shutdown failed", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("Server exited gracefully")
+	slog.Info("server exited gracefully")
 }
