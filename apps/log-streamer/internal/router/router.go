@@ -17,13 +17,11 @@ func New(dockerClient *docker.Client, logReader *logreader.Reader) *chi.Mux {
 	r.Use(middleware.Logging)
 
 	// Health check
-	healthHandler := handler.NewHealthHandler(dockerClient)
-	r.Get("/health", healthHandler.ServeHTTP)
+	r.Get("/health", handler.Health(dockerClient))
 
 	// REST API
 	r.Route("/api", func(r chi.Router) {
-		containersHandler := handler.NewContainersHandler(dockerClient)
-		r.Get("/containers", containersHandler.ServeHTTP)
+		r.Get("/containers", handler.Containers(dockerClient))
 
 		r.Route("/logs", func(r chi.Router) {
 			h := handler.NewLogFilesHandler(logReader, dockerClient)
