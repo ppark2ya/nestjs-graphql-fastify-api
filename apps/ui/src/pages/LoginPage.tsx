@@ -8,7 +8,12 @@ import {
   type LoginResponse,
   type VerifyTwoFactorResponse,
 } from '@/auth/graphql';
-import OtpInput from '@/components/OtpInput';
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+  InputOTPSeparator,
+} from '@/components/ui/input-otp';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -205,16 +210,30 @@ export default function LoginPage() {
                 </div>
 
                 <form onSubmit={handleVerifyOtp} className="space-y-6">
-                  <OtpInput
+                  <InputOTP
+                    maxLength={6}
                     value={otpCode}
                     onChange={setOtpCode}
                     disabled={verifyLoading}
-                  />
+                    containerClassName="justify-center"
+                  >
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                    </InputOTPGroup>
+                    <InputOTPSeparator />
+                    <InputOTPGroup>
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
 
                   <Button
                     type="submit"
                     disabled={
-                      verifyLoading || otpCode.replace(/\s/g, '').length < 6
+                      verifyLoading || otpCode.length < 6
                     }
                     className="w-full"
                   >
