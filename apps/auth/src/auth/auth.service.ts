@@ -163,12 +163,10 @@ export class AuthService {
   ): Promise<boolean> {
     if (!stored) return false;
     const hash = stored.replace(/^\{bcrypt\}/, '');
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     return bcryptjs.compare(plain, hash);
   }
 
   private hashPassword(plain: string): string {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const hash = bcryptjs.hashSync(plain, 10);
     return `{bcrypt}${hash}`;
   }
