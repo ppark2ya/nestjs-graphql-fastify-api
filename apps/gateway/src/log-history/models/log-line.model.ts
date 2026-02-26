@@ -25,6 +25,12 @@ export class LogLine {
   })
   message: string;
 
+  @Field(() => String, {
+    nullable: true,
+    description: '추가 메타데이터 (JSON 문자열)',
+  })
+  metadata?: string;
+
   @Field(() => String, { description: 'Swarm 노드명' })
   node: string;
 

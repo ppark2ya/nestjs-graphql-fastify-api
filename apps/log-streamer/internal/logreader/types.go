@@ -19,6 +19,7 @@ type LogLine struct {
 	Level     string `json:"level,omitempty"`
 	Source    string `json:"source,omitempty"`
 	Message   string `json:"message"`
+	Metadata  string `json:"metadata,omitempty"`
 	File      string `json:"file"`
 	LineNo    int    `json:"lineNo"`
 }

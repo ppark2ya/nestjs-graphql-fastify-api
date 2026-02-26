@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useLazyQuery } from '@apollo/client/react';
 import { AnsiText } from '@/components/AnsiText';
 import { cn } from '@/lib/utils';
@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search } from 'lucide-react';
+import { Search, ChevronRight, ChevronDown } from 'lucide-react';
 import {
   LOG_SEARCH_QUERY,
   LogApp,
@@ -291,35 +291,78 @@ export default function SearchPanel({
 }
 
 function LogRow({ line }: { line: HistoryLogLine }) {
+  const [expanded, setExpanded] = useState(false);
   const levelColor = line.level ? LEVEL_COLORS[line.level] : '';
 
+  const parsedMetadata = useMemo(() => {
+    if (!line.metadata) return null;
+    try {
+      return JSON.parse(line.metadata) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }, [line.metadata]);
+
+  const hasMetadata = parsedMetadata !== null;
+
   return (
-    <TableRow>
-      <TableCell className="px-3 py-1 text-muted-foreground font-mono whitespace-nowrap">
-        {line.timestamp ?? '-'}
-      </TableCell>
-      <TableCell className="px-2 py-1">
-        {line.level && (
-          <Badge
-            variant="outline"
-            className={cn('px-1.5 py-0 text-[10px]', levelColor)}
-          >
-            {line.level}
-          </Badge>
-        )}
-      </TableCell>
-      <TableCell className="px-2 py-1 text-muted-foreground font-mono truncate max-w-[160px]">
-        {line.source ?? ''}
-      </TableCell>
-      <TableCell className="px-3 py-1 text-secondary-foreground font-mono break-all">
-        <AnsiText text={line.message} />
-      </TableCell>
-      <TableCell className="px-2 py-1 text-purple-400 text-[10px] whitespace-nowrap">
-        {line.node}
-      </TableCell>
-      <TableCell className="px-2 py-1 text-muted-foreground text-[10px] truncate max-w-[140px]">
-        {line.file}
-      </TableCell>
-    </TableRow>
+    <>
+      <TableRow
+        className={cn(hasMetadata && 'cursor-pointer hover:bg-muted/50')}
+        onClick={() => hasMetadata && setExpanded(!expanded)}
+      >
+        <TableCell className="px-3 py-1 text-muted-foreground font-mono whitespace-nowrap">
+          <span className="inline-flex items-center gap-1">
+            {hasMetadata && (
+              expanded ? (
+                <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+              )
+            )}
+            {line.timestamp ?? '-'}
+          </span>
+        </TableCell>
+        <TableCell className="px-2 py-1">
+          {line.level && (
+            <Badge
+              variant="outline"
+              className={cn('px-1.5 py-0 text-[10px]', levelColor)}
+            >
+              {line.level}
+            </Badge>
+          )}
+        </TableCell>
+        <TableCell className="px-2 py-1 text-muted-foreground font-mono truncate max-w-[160px]">
+          {line.source ?? ''}
+        </TableCell>
+        <TableCell className="px-3 py-1 text-secondary-foreground font-mono break-all">
+          <AnsiText text={line.message} />
+        </TableCell>
+        <TableCell className="px-2 py-1 text-purple-400 text-[10px] whitespace-nowrap">
+          {line.node}
+        </TableCell>
+        <TableCell className="px-2 py-1 text-muted-foreground text-[10px] truncate max-w-[140px]">
+          {line.file}
+        </TableCell>
+      </TableRow>
+      {expanded && parsedMetadata && (
+        <TableRow className="bg-muted/30">
+          <TableCell colSpan={6} className="px-6 py-2">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono">
+              {Object.entries(parsedMetadata).map(([key, value]) => (
+                <span key={key}>
+                  <span className="text-blue-400">{key}</span>
+                  <span className="text-muted-foreground">: </span>
+                  <span className="text-secondary-foreground">
+                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   );
 }
