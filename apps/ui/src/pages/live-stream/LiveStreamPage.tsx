@@ -163,16 +163,16 @@ export default function LiveStreamPage() {
         className="hidden md:flex flex-1"
       >
         <ResizablePanel
-          defaultSize={20}
-          minSize={15}
-          maxSize={40}
+          defaultSize="20%"
+          minSize="15%"
+          maxSize="40%"
           className="flex flex-col overflow-hidden"
         >
           {sidebarContent}
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel
-          defaultSize={80}
+          defaultSize="80%"
           className="flex flex-col overflow-hidden"
         >
           {mainContent}
