@@ -49,15 +49,22 @@ export class AxiosExceptionFilter implements GqlExceptionFilter {
       });
     }
 
-    this.logger.error(
-      `Backend error: ${url} responded with ${status}`,
-      exception.message,
-    );
+    const data = exception.response?.data as Record<string, unknown> | undefined;
+    const message =
+      (typeof data?.message === 'string' ? data.message : null) ??
+      `Backend service error (${status})`;
+    const errorCode = typeof data?.code === 'string' ? data.code : undefined;
+
+    this.logger.error(`Backend error: ${url} responded with ${status}`, message);
 
     const gqlCode = HTTP_STATUS_TO_ERROR_CODE[status] ?? 'BAD_GATEWAY';
 
-    return new GraphQLError(`Backend service error (${status})`, {
-      extensions: { code: gqlCode, statusCode: status },
+    return new GraphQLError(message, {
+      extensions: {
+        code: gqlCode,
+        statusCode: status,
+        ...(errorCode && { errorCode }),
+      },
     });
   }
 }

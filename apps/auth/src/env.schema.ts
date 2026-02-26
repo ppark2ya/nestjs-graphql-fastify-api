@@ -10,7 +10,6 @@ const requiredString = (message: string) =>
 export const envSchema = z.object({
   NODE_ENV: z.string().default('development'),
   AUTH_HTTP_PORT: z.coerce.number().default(4001),
-  AUTH_TCP_PORT: z.coerce.number().default(4002),
 
   // Database (USE_MOCK_AUTH=true 시 불필요)
   DB_HOST: requiredString('DB_HOST is required'),
