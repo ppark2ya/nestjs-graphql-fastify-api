@@ -25,7 +25,10 @@ func New(dockerClient *docker.Client, logReader *logreader.Reader) *chi.Mux {
 
 		r.Route("/logs", func(r chi.Router) {
 			h := handler.NewLogFilesHandler(logReader, dockerClient)
-			h.RegisterChiRoutes(r)
+			r.Get("/apps", h.Apps)
+			r.Get("/files", h.Files)
+			r.Get("/search", h.Search)
+			r.Get("/stats", h.Stats)
 		})
 	})
 

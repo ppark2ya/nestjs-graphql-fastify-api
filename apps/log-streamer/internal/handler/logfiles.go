@@ -41,24 +41,8 @@ func (h *LogFilesHandler) resolveNodeName() string {
 	return h.nodeName
 }
 
-// RegisterRoutes - mux에 라우트 등록
-func (h *LogFilesHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/logs/apps", h.handleApps)
-	mux.HandleFunc("/api/logs/files", h.handleFiles)
-	mux.HandleFunc("/api/logs/search", h.handleSearch)
-	mux.HandleFunc("/api/logs/stats", h.handleStats)
-}
-
-// RegisterChiRoutes registers routes on a chi router
-func (h *LogFilesHandler) RegisterChiRoutes(r interface{ Get(string, http.HandlerFunc) }) {
-	r.Get("/apps", h.handleApps)
-	r.Get("/files", h.handleFiles)
-	r.Get("/search", h.handleSearch)
-	r.Get("/stats", h.handleStats)
-}
-
 // GET /api/logs/apps
-func (h *LogFilesHandler) handleApps(w http.ResponseWriter, r *http.Request) {
+func (h *LogFilesHandler) Apps(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	apps, err := h.reader.ListApps()
@@ -75,7 +59,7 @@ func (h *LogFilesHandler) handleApps(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/logs/files?app=xxx&from=YYYY-MM-DD&to=YYYY-MM-DD
-func (h *LogFilesHandler) handleFiles(w http.ResponseWriter, r *http.Request) {
+func (h *LogFilesHandler) Files(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	q := r.URL.Query()
 
@@ -100,7 +84,7 @@ func (h *LogFilesHandler) handleFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/logs/search?app=xxx&from=...&to=...&level=...&keyword=...&after=...&limit=...
-func (h *LogFilesHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
+func (h *LogFilesHandler) Search(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	q := r.URL.Query()
 
@@ -142,7 +126,7 @@ func (h *LogFilesHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/logs/stats?app=xxx&from=...&to=...
-func (h *LogFilesHandler) handleStats(w http.ResponseWriter, r *http.Request) {
+func (h *LogFilesHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	q := r.URL.Query()
 
