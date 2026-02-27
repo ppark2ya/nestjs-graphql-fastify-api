@@ -20,7 +20,8 @@
 #
 # 파이프라인 실행 순서:
 #   dev-gateway → dev-auth → dev-log-streamer (depends_on으로 순차 실행, 빌드 서버 부하 방지)
-#   release-gateway → release-auth → release-log-streamer (동일)
+#   release-{service}-detect → release-{service} (detect/build 쌍, 서비스 간 병렬 실행)
+#     detect 실패(변경 없음) → build 자동 skip
 # ================================================================
 
 # ================== Dev: Gateway ==================
@@ -248,10 +249,47 @@ steps:
         - success
 
 ---
+# ================== Release Detect: Gateway ==================
+kind: pipeline
+type: docker
+name: release-gateway-detect
+
+trigger:
+  event:
+    - tag
+  ref:
+    - refs/tags/v*
+
+steps:
+  - name: detect-changes
+    image: alpine/git
+    commands:
+      - |
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null)
+        if [ $? -ne 0 ]; then
+          echo ">>> Build required (first release, no previous tag)"
+          exit 0
+        fi
+        echo "Previous tag: $PREV_TAG"
+        CHANGED=$(git diff --name-only "$PREV_TAG"..HEAD)
+        echo "Changed files ($PREV_TAG..HEAD):"
+        echo "$CHANGED"
+        echo "---"
+        if echo "$CHANGED" | grep -qE '^(apps/gateway/|apps/ui/|libs/shared/|package\.json|pnpm-lock\.yaml|tsconfig\.base\.json|nest-cli\.json|nx\.json|\.swcrc)'; then
+          echo ">>> Gateway build required"
+        else
+          echo ">>> No gateway changes, skipping build"
+          exit 1
+        fi
+
+---
 # ================== Release: Gateway ==================
 kind: pipeline
 type: docker
 name: release-gateway
+
+depends_on:
+  - release-gateway-detect
 
 trigger:
   event:
@@ -281,13 +319,47 @@ steps:
         from_secret: vite_api_key
 
 ---
+# ================== Release Detect: Auth ==================
+kind: pipeline
+type: docker
+name: release-auth-detect
+
+trigger:
+  event:
+    - tag
+  ref:
+    - refs/tags/v*
+
+steps:
+  - name: detect-changes
+    image: alpine/git
+    commands:
+      - |
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null)
+        if [ $? -ne 0 ]; then
+          echo ">>> Build required (first release, no previous tag)"
+          exit 0
+        fi
+        echo "Previous tag: $PREV_TAG"
+        CHANGED=$(git diff --name-only "$PREV_TAG"..HEAD)
+        echo "Changed files ($PREV_TAG..HEAD):"
+        echo "$CHANGED"
+        echo "---"
+        if echo "$CHANGED" | grep -qE '^(apps/auth/|libs/shared/|package\.json|pnpm-lock\.yaml|tsconfig\.base\.json|nest-cli\.json|nx\.json|\.swcrc)'; then
+          echo ">>> Auth build required"
+        else
+          echo ">>> No auth changes, skipping build"
+          exit 1
+        fi
+
+---
 # ================== Release: Auth ==================
 kind: pipeline
 type: docker
 name: release-auth
 
 depends_on:
-  - release-gateway
+  - release-auth-detect
 
 trigger:
   event:
@@ -312,13 +384,47 @@ steps:
         from_secret: docker_password
 
 ---
+# ================== Release Detect: Log Streamer ==================
+kind: pipeline
+type: docker
+name: release-ls-detect
+
+trigger:
+  event:
+    - tag
+  ref:
+    - refs/tags/v*
+
+steps:
+  - name: detect-changes
+    image: alpine/git
+    commands:
+      - |
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null)
+        if [ $? -ne 0 ]; then
+          echo ">>> Build required (first release, no previous tag)"
+          exit 0
+        fi
+        echo "Previous tag: $PREV_TAG"
+        CHANGED=$(git diff --name-only "$PREV_TAG"..HEAD)
+        echo "Changed files ($PREV_TAG..HEAD):"
+        echo "$CHANGED"
+        echo "---"
+        if echo "$CHANGED" | grep -qE '^apps/log-streamer/'; then
+          echo ">>> Log Streamer build required"
+        else
+          echo ">>> No log-streamer changes, skipping build"
+          exit 1
+        fi
+
+---
 # ================== Release: Log Streamer ==================
 kind: pipeline
 type: docker
 name: release-log-streamer
 
 depends_on:
-  - release-auth
+  - release-ls-detect
 
 trigger:
   event:
