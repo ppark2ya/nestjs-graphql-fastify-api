@@ -1,5 +1,5 @@
 import { useSubscription } from '@apollo/client/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CONTAINER_LOG_SUBSCRIPTION,
   LogEntry,
@@ -63,6 +63,9 @@ export default function ServiceLogViewer({ service }: Props) {
     service.containers.map((c) => [c.id, c.nodeName ?? '']),
   );
 
+  const batchRef = useRef<LogEntry[]>([]);
+  const rafRef = useRef(0);
+
   const isGrepping = grepQuery.trim().length > 0;
 
   const filteredLogs = useMemo(() => {
@@ -71,9 +74,43 @@ export default function ServiceLogViewer({ service }: Props) {
     return logs.filter((log) => log.message.toLowerCase().includes(q));
   }, [logs, grepQuery, isGrepping]);
 
+  const flushBatch = useCallback(() => {
+    rafRef.current = 0;
+    const batch = batchRef.current;
+    if (batch.length === 0) return;
+    batchRef.current = [];
+    setLogs((prev) => {
+      const next = prev.concat(batch);
+      if (
+        prev.length > 0 &&
+        batch.some((e) => e.timestamp < prev[prev.length - 1].timestamp)
+      ) {
+        next.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      }
+      return next.length > MAX_LOG_LINES ? next.slice(-MAX_LOG_LINES) : next;
+    });
+  }, []);
+
+  const handleLog = useCallback(
+    (entry: LogEntry) => {
+      batchRef.current.push(entry);
+      if (rafRef.current === 0) {
+        rafRef.current = requestAnimationFrame(flushBatch);
+      }
+    },
+    [flushBatch],
+  );
+
+  useEffect(
+    () => () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (autoScroll && !isGrepping) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      bottomRef.current?.scrollIntoView();
     }
   }, [logs, autoScroll, isGrepping]);
 
@@ -82,17 +119,6 @@ export default function ServiceLogViewer({ service }: Props) {
     if (!el) return;
     const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
     setAutoScroll(isAtBottom);
-  };
-
-  const handleLog = (entry: LogEntry) => {
-    setLogs((prev) => {
-      const next = [...prev, entry];
-      const len = next.length;
-      if (len > 1 && next[len - 1].timestamp < next[len - 2].timestamp) {
-        next.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-      }
-      return next.length > MAX_LOG_LINES ? next.slice(-MAX_LOG_LINES) : next;
-    });
   };
 
   return (
@@ -137,7 +163,7 @@ export default function ServiceLogViewer({ service }: Props) {
               className="h-auto p-0"
               onClick={() => {
                 setAutoScroll(true);
-                bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+                bottomRef.current?.scrollIntoView();
               }}
             >
               Follow
