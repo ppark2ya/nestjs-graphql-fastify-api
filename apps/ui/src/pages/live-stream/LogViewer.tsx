@@ -1,9 +1,11 @@
 import { useSubscription } from '@apollo/client/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, MAX_LOG_LINES } from './graphql';
 import { AnsiText } from '@/components/AnsiText';
 import { formatTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Search, X } from 'lucide-react';
 
 interface Props {
   containerId: string;
@@ -13,8 +15,17 @@ interface Props {
 export default function LogViewer({ containerId, containerName }: Props) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [grepQuery, setGrepQuery] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const isGrepping = grepQuery.trim().length > 0;
+
+  const filteredLogs = useMemo(() => {
+    if (!isGrepping) return logs;
+    const q = grepQuery.trim().toLowerCase();
+    return logs.filter((log) => log.message.toLowerCase().includes(q));
+  }, [logs, grepQuery, isGrepping]);
 
   const { error } = useSubscription<{ containerLog: LogEntry }>(
     CONTAINER_LOG_SUBSCRIPTION,
@@ -34,10 +45,10 @@ export default function LogViewer({ containerId, containerName }: Props) {
   );
 
   useEffect(() => {
-    if (autoScroll) {
+    if (autoScroll && !isGrepping) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [logs, autoScroll]);
+  }, [logs, autoScroll, isGrepping]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -57,9 +68,28 @@ export default function LogViewer({ containerId, containerName }: Props) {
             {containerId.slice(0, 12)}
           </span>
         </div>
+        <div className="relative flex items-center">
+          <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={grepQuery}
+            onChange={(e) => setGrepQuery(e.target.value)}
+            placeholder="grep..."
+            className="h-7 w-40 pl-7 pr-7 text-xs font-mono"
+          />
+          {grepQuery && (
+            <button
+              onClick={() => setGrepQuery('')}
+              className="absolute right-2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">
-            {logs.length} lines
+            {isGrepping
+              ? `${filteredLogs.length}/${logs.length} lines`
+              : `${logs.length} lines`}
           </span>
           {!autoScroll && (
             <Button
@@ -96,10 +126,12 @@ export default function LogViewer({ containerId, containerName }: Props) {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-2 font-mono text-xs"
       >
-        {logs.length === 0 ? (
-          <p className="text-muted-foreground p-2">Waiting for logs...</p>
+        {filteredLogs.length === 0 ? (
+          <p className="text-muted-foreground p-2">
+            {isGrepping ? 'No matching logs' : 'Waiting for logs...'}
+          </p>
         ) : (
-          logs.map((log, i) => (
+          filteredLogs.map((log, i) => (
             <div
               key={i}
               className={`flex gap-2 py-0.5 px-2 hover:bg-secondary/50 ${
