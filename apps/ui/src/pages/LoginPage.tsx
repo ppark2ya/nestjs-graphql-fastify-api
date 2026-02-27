@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
@@ -31,11 +31,21 @@ export default function LoginPage() {
   const [twoFactorToken, setTwoFactorToken] = useState('');
   const [error, setError] = useState('');
 
+  const otpContainerRef = useRef<HTMLDivElement>(null);
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from =
     (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
+
+  useEffect(() => {
+    if (step === 'otp') {
+      const timer = setTimeout(() => {
+        otpContainerRef.current?.querySelector<HTMLInputElement>('input')?.focus();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [step]);
 
   const [loginMutation, { loading: loginLoading }] =
     useMutation<LoginResponse>(LOGIN_MUTATION);
@@ -191,6 +201,7 @@ export default function LoginPage() {
 
               {/* Step 2: OTP */}
               <div
+                ref={otpContainerRef}
                 className={`transition-all duration-300 ${
                   step === 'otp'
                     ? 'opacity-100 translate-x-0'
@@ -216,7 +227,6 @@ export default function LoginPage() {
                     onChange={setOtpCode}
                     disabled={verifyLoading}
                     containerClassName="justify-center"
-                    autoFocus
                   >
                     <InputOTPGroup>
                       <InputOTPSlot index={0} />
