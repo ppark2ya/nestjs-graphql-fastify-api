@@ -14,7 +14,7 @@ export class HttpExceptionFilter implements GqlExceptionFilter {
     const message =
       typeof response === 'string'
         ? response
-        : ((response as any).message ?? exception.message);
+        : ((response as { message?: string }).message ?? exception.message);
 
     this.logger.error(`HttpException [${status}]: ${message}`);
 
@@ -49,13 +49,18 @@ export class AxiosExceptionFilter implements GqlExceptionFilter {
       });
     }
 
-    const data = exception.response?.data as Record<string, unknown> | undefined;
+    const data = exception.response?.data as
+      | Record<string, unknown>
+      | undefined;
     const message =
       (typeof data?.message === 'string' ? data.message : null) ??
       `Backend service error (${status})`;
     const errorCode = typeof data?.code === 'string' ? data.code : undefined;
 
-    this.logger.error(`Backend error: ${url} responded with ${status}`, message);
+    this.logger.error(
+      `Backend error: ${url} responded with ${status}`,
+      message,
+    );
 
     const gqlCode = HTTP_STATUS_TO_ERROR_CODE[status] ?? 'BAD_GATEWAY';
 

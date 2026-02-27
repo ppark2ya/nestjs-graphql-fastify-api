@@ -18,4 +18,4 @@ async function bootstrap() {
   await app.listen(httpPort, '0.0.0.0');
   console.log(`🚀 Auth HTTP server is running on: ${await app.getUrl()}`);
 }
-bootstrap();
+void bootstrap();

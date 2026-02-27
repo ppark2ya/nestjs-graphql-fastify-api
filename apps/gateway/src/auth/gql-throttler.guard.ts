@@ -6,6 +6,7 @@ import {
 } from '@nestjs/throttler';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { FastifyReply, FastifyRequest } from 'fastify';
+import { GraphQLContext } from '../types/graphql-context.interface';
 
 @Injectable()
 export class GqlThrottlerGuard extends ThrottlerGuard {
@@ -14,11 +15,11 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
     res: FastifyReply;
   } {
     const gqlCtx = GqlExecutionContext.create(context);
-    const ctx = gqlCtx.getContext();
+    const ctx = gqlCtx.getContext<GraphQLContext>();
 
     // GraphQL context에서 req/reply가 없을 경우 HTTP context에서 가져옴
-    const req = ctx.req ?? context.switchToHttp().getRequest();
-    const res = ctx.reply ?? context.switchToHttp().getResponse();
+    const req = ctx.req ?? context.switchToHttp().getRequest<FastifyRequest>();
+    const res = ctx.reply ?? context.switchToHttp().getResponse<FastifyReply>();
 
     return { req, res };
   }
@@ -42,11 +43,10 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
 
     // User-Agent 무시 패턴 체크
     const ignoreUserAgents =
-      (throttler as any).ignoreUserAgents ??
-      (this as any).commonOptions?.ignoreUserAgents;
+      throttler.ignoreUserAgents ?? this.commonOptions?.ignoreUserAgents;
     if (Array.isArray(ignoreUserAgents)) {
       for (const pattern of ignoreUserAgents) {
-        if (pattern.test(req.headers['user-agent'])) {
+        if (pattern.test(req.headers['user-agent'] ?? '')) {
           return true;
         }
       }
@@ -67,12 +67,11 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
     const getThrottlerSuffix = (name: string) =>
       name === 'default' ? '' : `-${name}`;
     const setHeaders =
-      (throttler as any).setHeaders ??
-      (this as any).commonOptions?.setHeaders ??
-      true;
+      throttler.setHeaders ?? this.commonOptions?.setHeaders ?? true;
 
     // Fastify reply.header() 사용
     if (isBlocked) {
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises -- FastifyReply is thenable but used synchronously here
       if (setHeaders && res && typeof res.header === 'function') {
         res.header(
           `Retry-After${getThrottlerSuffix(throttlerName)}`,
@@ -91,17 +90,18 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
       } as ThrottlerLimitDetail);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- FastifyReply is thenable but used synchronously here
     if (setHeaders && res && typeof res.header === 'function') {
       res.header(
-        `${(this as any).headerPrefix}-Limit${getThrottlerSuffix(throttlerName)}`,
+        `${this.headerPrefix}-Limit${getThrottlerSuffix(throttlerName)}`,
         String(limit),
       );
       res.header(
-        `${(this as any).headerPrefix}-Remaining${getThrottlerSuffix(throttlerName)}`,
+        `${this.headerPrefix}-Remaining${getThrottlerSuffix(throttlerName)}`,
         String(Math.max(0, limit - totalHits)),
       );
       res.header(
-        `${(this as any).headerPrefix}-Reset${getThrottlerSuffix(throttlerName)}`,
+        `${this.headerPrefix}-Reset${getThrottlerSuffix(throttlerName)}`,
         String(timeToExpire),
       );
     }
@@ -112,7 +112,7 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
   /**
    * GraphQL 요청에서 IP 주소 추출
    */
-  protected async getTracker(req: FastifyRequest): Promise<string> {
-    return req.ip ?? req.ips?.[0] ?? 'unknown';
+  protected getTracker(req: FastifyRequest): Promise<string> {
+    return Promise.resolve(req.ip ?? req.ips?.[0] ?? 'unknown');
   }
 }

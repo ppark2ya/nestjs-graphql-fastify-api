@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ContainerList from './ContainerList';
 import LogViewer from './LogViewer';
 import ServiceLogViewer from './ServiceLogViewer';
@@ -19,14 +19,51 @@ import {
 } from '@/components/ui/resizable';
 import { PanelLeft } from 'lucide-react';
 
+const TAB_STORAGE_KEY = 'live-stream-tabs';
+
+interface PersistedTabState {
+  tabs: Tab[];
+  activeTabId: string | null;
+}
+
+function loadTabState(): PersistedTabState {
+  try {
+    const raw = sessionStorage.getItem(TAB_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as PersistedTabState;
+      if (Array.isArray(parsed.tabs)) return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return { tabs: [], activeTabId: null };
+}
+
+function saveTabState(tabs: Tab[], activeTabId: string | null) {
+  try {
+    sessionStorage.setItem(
+      TAB_STORAGE_KEY,
+      JSON.stringify({ tabs, activeTabId }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 function makeTabId(type: 'container' | 'service', key: string): string {
   return `${type}-${key}`;
 }
 
 export default function LiveStreamPage() {
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<Tab[]>(() => loadTabState().tabs);
+  const [activeTabId, setActiveTabId] = useState<string | null>(
+    () => loadTabState().activeTabId,
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  useEffect(() => {
+    saveTabState(tabs, activeTabId);
+  }, [tabs, activeTabId]);
 
   const openTab = useCallback(
     (tab: Tab) => {

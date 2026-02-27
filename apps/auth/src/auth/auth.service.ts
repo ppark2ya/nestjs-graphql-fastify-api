@@ -121,7 +121,7 @@ export class AuthService {
   }
 
   private validateAccountStatus(status: string | null): void {
-    if (!status || status === AccountStatus.ACTIVE) return;
+    if (!status || status === (AccountStatus.ACTIVE as string)) return;
 
     const statusErrorMap: Record<string, keyof typeof AUTH_ERROR> = {
       [AccountStatus.PENDING]: 'ACCOUNT_PENDING',

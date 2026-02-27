@@ -27,6 +27,7 @@ async function bootstrap() {
   // wildcard: false → 개별 파일 라우트만 등록 (GET /assets/..., GET / 등)
   // wildcard: true 사용 시 파일 미존재 → reply.callNotFound() → NestJS의
   // GqlExceptionFilter가 HTTP 응답을 보내지 않아 커넥션이 hang되는 문제 방지
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   await fastifyInstance.register(fastifyStatic as any, {
     root: staticRoot,
     wildcard: false,
@@ -51,4 +52,4 @@ async function bootstrap() {
   console.log(`🚀 Application is running on: ${await app.getUrl()}`);
   console.log(`📊 GraphQL endpoint: ${await app.getUrl()}/graphql`);
 }
-bootstrap();
+void bootstrap();

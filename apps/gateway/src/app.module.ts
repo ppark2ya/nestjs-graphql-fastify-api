@@ -11,6 +11,8 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
 import depthLimit from 'graphql-depth-limit';
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { AxiosError } from 'axios';
 import { GlobalHttpModule } from './http/global-http.module';
 import { AppService } from './app.service';
 import { AppResolver } from './app.resolver';
@@ -67,9 +69,9 @@ import { LogHistoryModule } from './log-history/log-history.module';
           reply,
           connection,
         }: {
-          request: any;
-          reply: any;
-          connection?: any;
+          request: FastifyRequest;
+          reply: FastifyReply;
+          connection?: { context: FastifyRequest };
         }) => {
           if (connection) {
             return {
@@ -155,9 +157,9 @@ export class AppModule implements NestModule, OnModuleInit {
         this.logger.log(`← ${response.status} ${response.config.url}`);
         return response;
       },
-      (error) => {
-        const status = error.response?.status || 'ERR';
-        const url = error.config?.url || 'unknown';
+      (error: AxiosError) => {
+        const status = error.response?.status ?? 'ERR';
+        const url = error.config?.url ?? 'unknown';
         this.logger.error(`← ${status} ${url}`, error.message);
         return Promise.reject(error);
       },
