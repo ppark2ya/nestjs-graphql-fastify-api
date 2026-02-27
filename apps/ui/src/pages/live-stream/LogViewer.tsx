@@ -1,5 +1,5 @@
 import { useSubscription } from '@apollo/client/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, MAX_LOG_LINES } from './graphql';
 import { AnsiText } from '@/components/AnsiText';
 import { formatTime } from '@/lib/utils';
@@ -19,6 +19,9 @@ export default function LogViewer({ containerId, containerName }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const batchRef = useRef<LogEntry[]>([]);
+  const rafRef = useRef(0);
+
   const isGrepping = grepQuery.trim().length > 0;
 
   const filteredLogs = useMemo(() => {
@@ -27,26 +30,42 @@ export default function LogViewer({ containerId, containerName }: Props) {
     return logs.filter((log) => log.message.toLowerCase().includes(q));
   }, [logs, grepQuery, isGrepping]);
 
+  const flushBatch = useCallback(() => {
+    rafRef.current = 0;
+    const batch = batchRef.current;
+    if (batch.length === 0) return;
+    batchRef.current = [];
+    setLogs((prev) => {
+      const next = prev.concat(batch);
+      return next.length > MAX_LOG_LINES ? next.slice(-MAX_LOG_LINES) : next;
+    });
+  }, []);
+
   const { error } = useSubscription<{ containerLog: LogEntry }>(
     CONTAINER_LOG_SUBSCRIPTION,
     {
       variables: { containerId },
       onData: ({ data }) => {
         if (data.data?.containerLog) {
-          setLogs((prev) => {
-            const next = [...prev, data.data!.containerLog];
-            return next.length > MAX_LOG_LINES
-              ? next.slice(-MAX_LOG_LINES)
-              : next;
-          });
+          batchRef.current.push(data.data.containerLog);
+          if (rafRef.current === 0) {
+            rafRef.current = requestAnimationFrame(flushBatch);
+          }
         }
       },
     },
   );
 
+  useEffect(
+    () => () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (autoScroll && !isGrepping) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      bottomRef.current?.scrollIntoView();
     }
   }, [logs, autoScroll, isGrepping]);
 
@@ -98,7 +117,7 @@ export default function LogViewer({ containerId, containerName }: Props) {
               className="h-auto p-0"
               onClick={() => {
                 setAutoScroll(true);
-                bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+                bottomRef.current?.scrollIntoView();
               }}
             >
               Follow

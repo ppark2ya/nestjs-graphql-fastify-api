@@ -17,8 +17,7 @@ export class LogStreamerProxyResolver {
   @Subscription(() => LogEntry, {
     description: 'Subscribe to container logs',
   })
-  containerLog(@Args('containerId') containerId: string) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return -- graphql-redis-subscriptions asyncIterableIterator returns any
+  async containerLog(@Args('containerId') containerId: string) {
     return this.service.subscribeToLogs(containerId);
   }
 }
