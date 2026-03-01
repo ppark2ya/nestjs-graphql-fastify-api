@@ -151,9 +151,11 @@ services:
   error-reporter:
     image: node:24-alpine
     command: crond -f -d 8
-    volumes:
-      - ./scripts/crontab-error-report:/etc/crontabs/root:ro
-      - ./scripts/daily-error-report.mjs:/app/daily-error-report.mjs:ro
+    configs:
+      - source: error-report-crontab
+        target: /etc/crontabs/root
+      - source: error-report-script
+        target: /app/daily-error-report.mjs
     environment:
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
       - LOG_STREAMER_HOST=tasks.log-streamer
@@ -187,4 +189,10 @@ secrets:
   jwt_public_key:
     external: true
   jwt_private_key:
+    external: true
+
+configs:
+  error-report-crontab:
+    external: true
+  error-report-script:
     external: true
