@@ -154,21 +154,23 @@ async function fetchErrorsForApp(app, date, ips, port) {
 // Slack message formatting
 // ---------------------------------------------------------------------------
 
-function formatTime(timestamp) {
-  if (!timestamp) return '??:??:??';
-  // timestamp may be ISO or "YYYY-MM-DD HH:MM:SS.sss" format
-  const timePart = timestamp.includes('T')
-    ? timestamp.split('T')[1]
-    : timestamp.split(' ')[1];
-  if (!timePart) return timestamp.slice(0, 8);
-  return timePart.slice(0, 8); // HH:MM:SS
-}
-
-function truncate(str, max) {
+function truncateMessage(str, max = 200) {
   if (!str) return '';
   const firstLine = str.split('\n')[0];
   if (firstLine.length <= max) return firstLine;
   return firstLine.slice(0, max) + '...';
+}
+
+/** 동일 에러 메시지를 그룹핑하여 { message, count } 배열로 반환 */
+function groupErrors(errors) {
+  const counts = new Map();
+  for (const line of errors) {
+    const msg = truncateMessage(line.message);
+    counts.set(msg, (counts.get(msg) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([message, count]) => ({ message, count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 function buildSlackMessage(date, appErrors) {
@@ -182,14 +184,12 @@ function buildSlackMessage(date, appErrors) {
     totalErrors += errors.length;
 
     if (errors.length === 0) {
-      parts.push(`:white_check_mark: *${app}* \u2014 ERROR \uC5C6\uC74C`);
+      parts.push(`:white_check_mark: *${app}* \u2014 ERROR: 0\uAC74`);
     } else {
-      parts.push(`:red_circle: *${app}* (${errors.length}\uAC74)`);
-      for (const line of errors) {
-        const time = formatTime(line.timestamp);
-        const source = line.source || '-';
-        const msg = truncate(line.message, 200);
-        parts.push(`> \`${time}\` | ${source} | ${msg}`);
+      parts.push(`:red_circle: *${app}* \u2014 ERROR: ${errors.length}\uAC74`);
+      for (const { message, count } of groupErrors(errors)) {
+        const suffix = count > 1 ? ` _(${count}\uAC74)_` : '';
+        parts.push(`> \u2022 ${message}${suffix}`);
       }
     }
     parts.push('');
