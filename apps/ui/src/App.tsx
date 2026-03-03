@@ -60,6 +60,8 @@ function AppRoutes() {
             )
           }
         />
+        <Route path="/admin/live-stream" element={null} />
+        <Route path="/admin/history" element={null} />
         <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
         <Route path="*" element={<NotFoundPage />} />
