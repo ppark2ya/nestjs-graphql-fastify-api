@@ -148,6 +148,35 @@ services:
     networks:
       - app-network
 
+  error-reporter:
+    image: node:24-alpine
+    command: crond -f -d 8
+    configs:
+      - source: error-report-crontab
+        target: /etc/crontabs/root
+      - source: error-report-script
+        target: /app/daily-error-report.mjs
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - LOG_STREAMER_HOST=tasks.log-streamer
+      - LOG_STREAMER_PORT=4003
+      - TZ=Asia/Seoul
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 3
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: overlay
@@ -160,4 +189,10 @@ secrets:
   jwt_public_key:
     external: true
   jwt_private_key:
+    external: true
+
+configs:
+  error-report-crontab:
+    external: true
+  error-report-script:
     external: true

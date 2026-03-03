@@ -225,6 +225,35 @@ services:
     networks:
       - test-overlay
 
+  error-reporter:
+    image: node:24-alpine
+    command: crond -f -d 8
+    configs:
+      - source: error-report-crontab
+        target: /etc/crontabs/root
+      - source: error-report-script
+        target: /app/daily-error-report.mjs
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-https://hooks.slack.com/services/test}
+      - LOG_STREAMER_HOST=tasks.log-streamer
+      - LOG_STREAMER_PORT=4003
+      - TZ=Asia/Seoul
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 3
+    networks:
+      - test-overlay
+
 networks:
   test-overlay:
     driver: overlay
@@ -246,3 +275,7 @@ secrets:
 configs:
   init-auth-db:
     file: ./scripts/docker/init-auth-db.sql
+  error-report-crontab:
+    file: ./scripts/crontab-error-report
+  error-report-script:
+    file: ./scripts/daily-error-report.mjs
