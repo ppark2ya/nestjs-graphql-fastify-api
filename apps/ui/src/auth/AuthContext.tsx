@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate('/admin/login', { replace: true });
   }, [navigate]);
 
-  const doRefreshRef = useRef<() => Promise<void>>();
+  const doRefreshRef = useRef<(() => Promise<void>) | undefined>(undefined);
 
   const doRefresh = useCallback(async () => {
     const rt = getRefreshToken();
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data?.refreshToken) {
         const { accessToken, refreshToken, expiresIn } = data.refreshToken;
         saveTokens(accessToken, refreshToken, expiresIn);
-        startRefreshTimer(() => doRefreshRef.current());
+        startRefreshTimer(() => doRefreshRef.current?.());
       } else {
         handleLogout();
       }
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : null,
     );
     setIsAuthenticated(true);
-    startRefreshTimer(() => doRefreshRef.current());
+    startRefreshTimer(() => doRefreshRef.current?.());
   }, []);
 
   useEffect(() => {
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 : null,
             );
             setIsAuthenticated(true);
-            startRefreshTimer(() => doRefreshRef.current());
+            startRefreshTimer(() => doRefreshRef.current?.());
           } else {
             clearTokens();
           }
