@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Login Page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
+    await page.goto('/admin/login');
     await page.evaluate(() => localStorage.clear());
-    await page.goto('/login');
+    await page.goto('/admin/login');
   });
 
   test('should display login form', async ({ page }) => {

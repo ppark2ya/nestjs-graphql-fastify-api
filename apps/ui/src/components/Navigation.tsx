@@ -14,7 +14,7 @@ export default function Navigation() {
       </h1>
       <nav className="flex gap-1">
         <NavLink
-          to="/live-stream"
+          to="/admin/live-stream"
           className={({ isActive }) =>
             cn(
               'px-3 py-1.5 rounded text-sm transition-colors',
@@ -27,7 +27,7 @@ export default function Navigation() {
           Live Stream
         </NavLink>
         <NavLink
-          to="/history"
+          to="/admin/history"
           className={({ isActive }) =>
             cn(
               'px-3 py-1.5 rounded text-sm transition-colors',
