@@ -13,6 +13,7 @@ import Navigation from './components/Navigation';
 import LoginPage from './pages/LoginPage';
 import LiveStreamPage from './pages/live-stream/LiveStreamPage';
 import HistoryPage from './pages/history/HistoryPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 const AUTHENTICATED_PATHS = ['/admin/live-stream', '/admin/history'];
 
@@ -61,6 +62,7 @@ function AppRoutes() {
         />
         <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       {isAuthenticatedPath && <AuthenticatedApp />}
     </>
