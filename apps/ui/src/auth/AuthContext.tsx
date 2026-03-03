@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data?.refreshToken) {
         const { accessToken, refreshToken, expiresIn } = data.refreshToken;
         saveTokens(accessToken, refreshToken, expiresIn);
-        startRefreshTimer(() => doRefreshRef.current?.());
+        startRefreshTimer(async () => { await doRefreshRef.current?.(); });
       } else {
         handleLogout();
       }
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : null,
     );
     setIsAuthenticated(true);
-    startRefreshTimer(() => doRefreshRef.current?.());
+    startRefreshTimer(async () => { await doRefreshRef.current?.(); });
   }, []);
 
   useEffect(() => {
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 : null,
             );
             setIsAuthenticated(true);
-            startRefreshTimer(() => doRefreshRef.current?.());
+            startRefreshTimer(async () => { await doRefreshRef.current?.(); });
           } else {
             clearTokens();
           }
