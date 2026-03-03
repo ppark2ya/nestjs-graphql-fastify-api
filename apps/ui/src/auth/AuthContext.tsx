@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
     setUser(null);
     await client.clearStore();
-    navigate('/login', { replace: true });
+    navigate('/admin/login', { replace: true });
   }, [navigate]);
 
   const doRefreshRef = useRef<() => Promise<void>>();

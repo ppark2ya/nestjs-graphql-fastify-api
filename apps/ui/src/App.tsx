@@ -14,7 +14,7 @@ import LoginPage from './pages/LoginPage';
 import LiveStreamPage from './pages/live-stream/LiveStreamPage';
 import HistoryPage from './pages/history/HistoryPage';
 
-const AUTHENTICATED_PATHS = ['/live-stream', '/history'];
+const AUTHENTICATED_PATHS = ['/admin/live-stream', '/admin/history'];
 
 function AuthenticatedApp() {
   const { pathname } = useLocation();
@@ -25,13 +25,13 @@ function AuthenticatedApp() {
         <Navigation />
         <div
           className="flex-1 flex flex-col overflow-hidden"
-          style={{ display: pathname === '/live-stream' ? 'flex' : 'none' }}
+          style={{ display: pathname === '/admin/live-stream' ? 'flex' : 'none' }}
         >
           <LiveStreamPage />
         </div>
         <div
           className="flex-1 flex flex-col overflow-hidden"
-          style={{ display: pathname === '/history' ? 'flex' : 'none' }}
+          style={{ display: pathname === '/admin/history' ? 'flex' : 'none' }}
         >
           <HistoryPage />
         </div>
@@ -50,16 +50,17 @@ function AppRoutes() {
     <>
       <Routes>
         <Route
-          path="/login"
+          path="/admin/login"
           element={
             !isLoading && isAuthenticated ? (
-              <Navigate to="/live-stream" replace />
+              <Navigate to="/admin/live-stream" replace />
             ) : (
               <LoginPage />
             )
           }
         />
-        <Route path="/" element={<Navigate to="/live-stream" replace />} />
+        <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
+        <Route path="/" element={<Navigate to="/admin/login" replace />} />
       </Routes>
       {isAuthenticatedPath && <AuthenticatedApp />}
     </>

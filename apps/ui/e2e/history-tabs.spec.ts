@@ -16,7 +16,7 @@ const FAKE_JWT =
   '.fake-signature';
 
 async function injectAuth(page: Page) {
-  await page.goto('/login');
+  await page.goto('/admin/login');
   await page.evaluate(
     ({ token }) => {
       localStorage.setItem('access_token', token);
@@ -45,7 +45,7 @@ function plusBtn(page: Page) {
 test.describe('History Tabs', () => {
   test.beforeEach(async ({ page }) => {
     await injectAuth(page);
-    await page.goto('/history');
+    await page.goto('/admin/history');
     await expect(tabBar(page)).toBeVisible({ timeout: 5000 });
   });
 
