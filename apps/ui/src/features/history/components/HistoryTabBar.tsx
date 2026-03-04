@@ -1,9 +1,10 @@
 import { Plus, Search, X } from 'lucide-react';
-import { SearchTab, MAX_SEARCH_TABS } from '../graphql';
+import type { Tab } from '@/hooks/useTabs';
+import { MAX_SEARCH_TABS } from '../graphql';
 
 interface Props {
-  tabs: SearchTab[];
-  activeTabId: string;
+  tabs: Tab<null>[];
+  activeTabId: string | null;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onNewTab: () => void;

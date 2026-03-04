@@ -1,8 +1,9 @@
 import { X } from 'lucide-react';
-import { Tab } from '../graphql';
+import type { Tab } from '@/hooks/useTabs';
+import type { LiveStreamTabData } from '../graphql';
 
 interface Props {
-  tabs: Tab[];
+  tabs: Tab<LiveStreamTabData>[];
   activeTabId: string | null;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
@@ -32,7 +33,7 @@ export default function TabBar({
           >
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                tab.type === 'service' ? 'bg-purple-500' : 'bg-green-500'
+                tab.data.type === 'service' ? 'bg-purple-500' : 'bg-green-500'
               }`}
             />
             <span className="max-w-[180px] truncate">{tab.label}</span>

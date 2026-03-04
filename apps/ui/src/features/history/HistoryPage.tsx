@@ -1,61 +1,33 @@
-import { useState } from 'react';
 import { useQuery } from '@apollo/client/react';
 import { Search, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { LOG_APPS_QUERY, LogApp, SearchTab, MAX_SEARCH_TABS } from './graphql';
+import { LOG_APPS_QUERY, LogApp, MAX_SEARCH_TABS } from './graphql';
+import { useTabs } from '@/hooks/useTabs';
 import HistoryTabBar from './components/HistoryTabBar';
 import SearchPanel from './components/SearchPanel';
 
-function createTab(): SearchTab {
+function createTab() {
   return {
     id: `search-${Date.now()}`,
     label: 'New Search',
+    data: null,
   };
 }
 
-const initialTab = createTab();
-
 export default function HistoryPage() {
-  const [tabs, setTabs] = useState<SearchTab[]>([initialTab]);
-  const [activeTabId, setActiveTabId] = useState<string>(initialTab.id);
+  const initialTab = createTab();
+  const { tabs, activeTabId, openTab, closeTab, setActiveTabId, updateTabLabel } =
+    useTabs<null>({
+      maxTabs: MAX_SEARCH_TABS,
+      initialTabs: [initialTab],
+      initialActiveTabId: initialTab.id,
+    });
 
   const { data: appsData } = useQuery<{ logApps: LogApp[] }>(LOG_APPS_QUERY);
   const apps = appsData?.logApps ?? [];
 
   const addTab = () => {
-    const newTab = createTab();
-    setTabs((prev) => {
-      if (prev.length >= MAX_SEARCH_TABS) {
-        const oldest = prev.find((t) => t.id !== activeTabId);
-        if (oldest) {
-          return [...prev.filter((t) => t.id !== oldest.id), newTab];
-        }
-        return prev;
-      }
-      return [...prev, newTab];
-    });
-    setActiveTabId(newTab.id);
-  };
-
-  const closeTab = (tabId: string) => {
-    setTabs((prev) => {
-      const idx = prev.findIndex((t) => t.id === tabId);
-      const next = prev.filter((t) => t.id !== tabId);
-
-      if (tabId === activeTabId && next.length > 0) {
-        // Activate adjacent tab
-        const newIdx = Math.min(idx, next.length - 1);
-        setActiveTabId(next[newIdx].id);
-      }
-
-      return next;
-    });
-  };
-
-  const updateTabLabel = (tabId: string, label: string) => {
-    setTabs((prev) =>
-      prev.map((t) => (t.id === tabId ? { ...t, label } : t)),
-    );
+    openTab(createTab());
   };
 
   return (
@@ -67,7 +39,6 @@ export default function HistoryPage() {
         onCloseTab={closeTab}
         onNewTab={addTab}
       />
-
       {tabs.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground">
           <Search className="h-10 w-10 opacity-30" />

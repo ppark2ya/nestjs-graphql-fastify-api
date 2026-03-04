@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import ContainerList from './components/ContainerList';
 import LogViewer from './components/LogViewer';
 import ServiceLogViewer from './components/ServiceLogViewer';
 import TabBar from './components/TabBar';
-import { Container, MAX_TABS, ServiceGroup, Tab } from './graphql';
+import { Container, ServiceGroup, LiveStreamTabData } from './graphql';
+import { useTabs } from '@/hooks/useTabs';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -19,91 +20,25 @@ import {
 } from '@/components/ui/resizable';
 import { PanelLeft } from 'lucide-react';
 
-const TAB_STORAGE_KEY = 'live-stream-tabs';
-
-interface PersistedTabState {
-  tabs: Tab[];
-  activeTabId: string | null;
-}
-
-function loadTabState(): PersistedTabState {
-  try {
-    const raw = sessionStorage.getItem(TAB_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as PersistedTabState;
-      if (Array.isArray(parsed.tabs)) return parsed;
-    }
-  } catch {
-    /* ignore */
-  }
-  return { tabs: [], activeTabId: null };
-}
-
-function saveTabState(tabs: Tab[], activeTabId: string | null) {
-  try {
-    sessionStorage.setItem(
-      TAB_STORAGE_KEY,
-      JSON.stringify({ tabs, activeTabId }),
-    );
-  } catch {
-    /* ignore */
-  }
-}
+const MAX_TABS = 10;
 
 function makeTabId(type: 'container' | 'service', key: string): string {
   return `${type}-${key}`;
 }
 
 export default function LiveStreamPage() {
-  const [tabs, setTabs] = useState<Tab[]>(() => loadTabState().tabs);
-  const [activeTabId, setActiveTabId] = useState<string | null>(
-    () => loadTabState().activeTabId,
-  );
+  const { tabs, activeTabId, openTab, closeTab, setActiveTabId } =
+    useTabs<LiveStreamTabData>({
+      maxTabs: MAX_TABS,
+      storageKey: 'live-stream-tabs',
+    });
   const [sheetOpen, setSheetOpen] = useState(false);
-
-  useEffect(() => {
-    saveTabState(tabs, activeTabId);
-  }, [tabs, activeTabId]);
-
-  const openTab = (tab: Tab) => {
-    setTabs((prev) => {
-      const existing = prev.find((t) => t.id === tab.id);
-      if (existing) {
-        setActiveTabId(tab.id);
-        return prev;
-      }
-      let next = [...prev, tab];
-      if (next.length > MAX_TABS) {
-        const oldestInactive = next.find((t) => t.id !== activeTabId);
-        if (oldestInactive) {
-          next = next.filter((t) => t.id !== oldestInactive.id);
-        }
-      }
-      setActiveTabId(tab.id);
-      return next;
-    });
-  };
-
-  const closeTab = (tabId: string) => {
-    setTabs((prev) => {
-      const idx = prev.findIndex((t) => t.id === tabId);
-      const next = prev.filter((t) => t.id !== tabId);
-      if (tabId === activeTabId && next.length > 0) {
-        const newIdx = Math.min(idx, next.length - 1);
-        setActiveTabId(next[newIdx].id);
-      } else if (next.length === 0) {
-        setActiveTabId(null);
-      }
-      return next;
-    });
-  };
 
   const handleSelectContainer = (c: Container, closeSheet?: boolean) => {
     openTab({
       id: makeTabId('container', c.id),
-      type: 'container',
-      container: c,
       label: c.name,
+      data: { type: 'container', container: c },
     });
     if (closeSheet) setSheetOpen(false);
   };
@@ -111,9 +46,8 @@ export default function LiveStreamPage() {
   const handleSelectService = (s: ServiceGroup, closeSheet?: boolean) => {
     openTab({
       id: makeTabId('service', s.serviceName),
-      type: 'service',
-      service: s,
       label: s.serviceName,
+      data: { type: 'service', service: s },
     });
     if (closeSheet) setSheetOpen(false);
   };
@@ -121,9 +55,12 @@ export default function LiveStreamPage() {
   // Derive selected IDs from active tab for sidebar highlighting
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
   const containerListProps = {
-    selectedId: activeTab?.type === 'container' ? activeTab.container.id : null,
+    selectedId:
+      activeTab?.data.type === 'container' ? activeTab.data.container.id : null,
     selectedServiceName:
-      activeTab?.type === 'service' ? activeTab.service.serviceName : null,
+      activeTab?.data.type === 'service'
+        ? activeTab.data.service.serviceName
+        : null,
   };
 
   const sidebarContent = (
@@ -171,12 +108,12 @@ export default function LiveStreamPage() {
                 display: tab.id === activeTabId ? 'flex' : 'none',
               }}
             >
-              {tab.type === 'service' ? (
-                <ServiceLogViewer service={tab.service} />
+              {tab.data.type === 'service' ? (
+                <ServiceLogViewer service={tab.data.service} />
               ) : (
                 <LogViewer
-                  containerId={tab.container.id}
-                  containerName={tab.container.name}
+                  containerId={tab.data.container.id}
+                  containerName={tab.data.container.name}
                 />
               )}
             </div>
