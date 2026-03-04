@@ -67,6 +67,7 @@
     "dataloader": "^2.2.3",
     "drizzle-orm": "^0.44.0",
     "fastify": "^5.7.2",
+    "framer-motion": "^12.35.0",
     "graphql": "^16.12.0",
     "graphql-depth-limit": "^1.1.0",
     "graphql-redis-subscriptions": "^2.7.0",
