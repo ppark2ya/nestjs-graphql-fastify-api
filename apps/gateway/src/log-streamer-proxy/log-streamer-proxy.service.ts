@@ -29,6 +29,15 @@ interface WSLogMessage {
   stream?: string;
 }
 
+interface ContainerLogPayload {
+  containerLog: {
+    containerId: string;
+    timestamp: string;
+    message: string;
+    stream: string;
+  };
+}
+
 class LogStreamerConnection {
   readonly host: string;
   readonly wsUrl: string;
@@ -63,9 +72,12 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     this.logStreamerPort = this.configService.getOrThrow('LOG_STREAMER_PORT', {
       infer: true,
     });
-    this.logStreamerBaseUrl = this.configService.getOrThrow('LOG_STREAMER_URL', {
-      infer: true,
-    });
+    this.logStreamerBaseUrl = this.configService.getOrThrow(
+      'LOG_STREAMER_URL',
+      {
+        infer: true,
+      },
+    );
   }
 
   async onModuleInit() {
@@ -118,18 +130,14 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private connectWebSocket(conn: LogStreamerConnection) {
     if (this.isShuttingDown) return;
 
-    this.logger.log(
-      `Connecting to log-streamer WebSocket at ${conn.wsUrl}`,
-    );
+    this.logger.log(`Connecting to log-streamer WebSocket at ${conn.wsUrl}`);
 
     try {
       conn.ws = new WebSocket(conn.wsUrl);
 
       conn.ws.on('open', () => {
         conn.reconnectAttempts = 0;
-        this.logger.log(
-          `Connected to log-streamer WebSocket [${conn.host}]`,
-        );
+        this.logger.log(`Connected to log-streamer WebSocket [${conn.host}]`);
         if (this.activeSubscriptions.size > 0) {
           this.logger.log(
             `Re-subscribing ${this.activeSubscriptions.size} active container(s) on [${conn.host}]`,
@@ -171,9 +179,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
       });
 
       conn.ws.on('close', () => {
-        this.logger.warn(
-          `WebSocket connection closed [${conn.host}]`,
-        );
+        this.logger.warn(`WebSocket connection closed [${conn.host}]`);
         this.scheduleReconnect(conn);
       });
 
@@ -235,14 +241,9 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     const preSubId = await this.pubSub.subscribe(topic, () => {});
 
     // 2. Create async iterator (channel already active → immediate resolve)
-    const iterator = this.pubSub.asyncIterableIterator<{
-      containerLog: {
-        containerId: string;
-        timestamp: string;
-        message: string;
-        stream: string;
-      };
-    }>(topic);
+    const iterator = this.pubSub.asyncIterableIterator<ContainerLogPayload>(
+      topic,
+    ) as AsyncIterableIterator<ContainerLogPayload>;
 
     // 3. Now request data from all Log Streamer instances (Redis is ready to receive)
     const subscribeMsg = JSON.stringify({ type: 'subscribe', containerId });
@@ -259,13 +260,13 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     const self = this;
     const originalReturn = iterator.return!.bind(iterator);
 
-    return {
+    const wrapper: AsyncIterableIterator<ContainerLogPayload> = {
       next: iterator.next.bind(iterator),
       throw: iterator.throw!.bind(iterator),
       [Symbol.asyncIterator]() {
-        return this;
+        return wrapper;
       },
-      async return() {
+      async return(): Promise<IteratorResult<ContainerLogPayload>> {
         self.activeSubscriptions.delete(containerId);
         self.unsubscribeFromLogs(containerId);
         const result = await originalReturn();
@@ -273,6 +274,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
         return result;
       },
     };
+    return wrapper;
   }
 
   unsubscribeFromLogs(containerId: string) {

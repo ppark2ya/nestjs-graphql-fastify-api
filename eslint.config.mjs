@@ -14,6 +14,8 @@ export default tseslint.config(
       '**/playwright.config.ts',
       '**/test/**',
       '**/e2e/**',
+      '**/*.spec.ts',
+      '**/*.e2e-spec.ts',
     ],
   },
   eslint.configs.recommended,
