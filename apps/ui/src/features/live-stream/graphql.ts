@@ -53,8 +53,6 @@ export interface ServiceGroup {
   containers: Container[];
 }
 
-export const MAX_LOG_LINES = 5000;
-
 export type LiveStreamTabData =
   | { type: 'container'; container: Container }
   | { type: 'service'; service: ServiceGroup };

@@ -31,7 +31,11 @@ function loadState<T>(storageKey: string): PersistedState<T> | null {
   return null;
 }
 
-function saveState<T>(storageKey: string, tabs: Tab<T>[], activeTabId: string | null) {
+function saveState<T>(
+  storageKey: string,
+  tabs: Tab<T>[],
+  activeTabId: string | null,
+) {
   try {
     sessionStorage.setItem(storageKey, JSON.stringify({ tabs, activeTabId }));
   } catch {
@@ -40,7 +44,12 @@ function saveState<T>(storageKey: string, tabs: Tab<T>[], activeTabId: string | 
 }
 
 export function useTabs<T = unknown>(options: UseTabsOptions<T>) {
-  const { maxTabs, storageKey, initialTabs = [], initialActiveTabId = null } = options;
+  const {
+    maxTabs,
+    storageKey,
+    initialTabs = [],
+    initialActiveTabId = null,
+  } = options;
 
   const [tabs, setTabs] = useState<Tab<T>[]>(() => {
     if (storageKey) {
@@ -101,5 +110,12 @@ export function useTabs<T = unknown>(options: UseTabsOptions<T>) {
     setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, label } : t)));
   };
 
-  return { tabs, activeTabId, openTab, closeTab, setActiveTabId, updateTabLabel };
+  return {
+    tabs,
+    activeTabId,
+    openTab,
+    closeTab,
+    setActiveTabId,
+    updateTabLabel,
+  };
 }

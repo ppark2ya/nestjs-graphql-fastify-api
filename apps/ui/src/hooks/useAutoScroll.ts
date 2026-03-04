@@ -7,7 +7,11 @@ interface UseAutoScrollOptions {
   enabled?: boolean;
 }
 
-export function useAutoScroll({ virtualizer, itemCount, enabled = true }: UseAutoScrollOptions) {
+export function useAutoScroll({
+  virtualizer,
+  itemCount,
+  enabled = true,
+}: UseAutoScrollOptions) {
   const [isFollowing, setIsFollowing] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
