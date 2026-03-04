@@ -46,7 +46,8 @@ export default function ServiceLogViewer({ service }: Props) {
   const { logs, addLog, clearLogs, lineCount } = useLogBuffer<LogEntry>({
     sortByTimestamp: true,
   });
-  const { grepQuery, setGrepQuery, filteredLogs, isGrepping } = useLogFilter(logs);
+  const { grepQuery, setGrepQuery, filteredLogs, isGrepping } =
+    useLogFilter(logs);
 
   const containerIds = service.containers.map((c) => c.id);
 
@@ -69,11 +70,12 @@ export default function ServiceLogViewer({ service }: Props) {
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  const { scrollRef, isFollowing, handleScroll, scrollToBottom } = useAutoScroll({
-    virtualizer,
-    itemCount: filteredLogs.length,
-    enabled: !isGrepping,
-  });
+  const { scrollRef, isFollowing, handleScroll, scrollToBottom } =
+    useAutoScroll({
+      virtualizer,
+      itemCount: filteredLogs.length,
+      enabled: !isGrepping,
+    });
 
   return (
     <div className="flex flex-col h-full">

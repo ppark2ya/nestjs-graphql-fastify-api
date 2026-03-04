@@ -18,7 +18,10 @@ export default function HistoryTabBar({
   onNewTab,
 }: Props) {
   return (
-    <div data-testid="history-tab-bar" className="flex items-center border-b border-border overflow-x-auto bg-card/50">
+    <div
+      data-testid="history-tab-bar"
+      className="flex items-center border-b border-border overflow-x-auto bg-card/50"
+    >
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         return (
@@ -32,7 +35,7 @@ export default function HistoryTabBar({
             }`}
           >
             <Search className="h-3 w-3 shrink-0 text-blue-400" />
-            <span className="max-w-[200px] truncate">{tab.label}</span>
+            <span className="max-w-50 truncate">{tab.label}</span>
             <span
               role="button"
               onClick={(e) => {
@@ -42,7 +45,7 @@ export default function HistoryTabBar({
               className={`ml-1 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive shrink-0 ${
                 isActive
                   ? 'opacity-60 hover:opacity-100'
-                  : 'opacity-0 group-hover:opacity-60 hover:!opacity-100'
+                  : 'opacity-0 group-hover:opacity-60 hover:opacity-100!'
               }`}
             >
               <X className="h-3 w-3" />

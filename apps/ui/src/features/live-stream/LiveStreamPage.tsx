@@ -93,8 +93,8 @@ export default function LiveStreamPage() {
           <div>
             <p>Select a container or service to view logs</p>
             <p className="text-sm mt-1 md:hidden">
-              Tap the <PanelLeft className="inline h-4 w-4" /> button to
-              browse containers
+              Tap the <PanelLeft className="inline h-4 w-4" /> button to browse
+              containers
             </p>
           </div>
         </div>

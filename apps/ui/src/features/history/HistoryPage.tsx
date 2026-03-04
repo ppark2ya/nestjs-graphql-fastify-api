@@ -16,12 +16,18 @@ function createTab() {
 
 export default function HistoryPage() {
   const initialTab = createTab();
-  const { tabs, activeTabId, openTab, closeTab, setActiveTabId, updateTabLabel } =
-    useTabs<null>({
-      maxTabs: MAX_SEARCH_TABS,
-      initialTabs: [initialTab],
-      initialActiveTabId: initialTab.id,
-    });
+  const {
+    tabs,
+    activeTabId,
+    openTab,
+    closeTab,
+    setActiveTabId,
+    updateTabLabel,
+  } = useTabs<null>({
+    maxTabs: MAX_SEARCH_TABS,
+    initialTabs: [initialTab],
+    initialActiveTabId: initialTab.id,
+  });
 
   const { data: appsData } = useQuery<{ logApps: LogApp[] }>(LOG_APPS_QUERY);
   const apps = appsData?.logApps ?? [];

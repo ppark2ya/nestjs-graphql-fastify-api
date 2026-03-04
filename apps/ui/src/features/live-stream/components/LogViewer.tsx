@@ -16,7 +16,8 @@ interface Props {
 
 export default function LogViewer({ containerId, containerName }: Props) {
   const { logs, addLog, clearLogs, lineCount } = useLogBuffer<LogEntry>();
-  const { grepQuery, setGrepQuery, filteredLogs, isGrepping } = useLogFilter(logs);
+  const { grepQuery, setGrepQuery, filteredLogs, isGrepping } =
+    useLogFilter(logs);
 
   const virtualizer = useVirtualizer({
     count: filteredLogs.length,
@@ -26,11 +27,12 @@ export default function LogViewer({ containerId, containerName }: Props) {
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  const { scrollRef, isFollowing, handleScroll, scrollToBottom } = useAutoScroll({
-    virtualizer,
-    itemCount: filteredLogs.length,
-    enabled: !isGrepping,
-  });
+  const { scrollRef, isFollowing, handleScroll, scrollToBottom } =
+    useAutoScroll({
+      virtualizer,
+      itemCount: filteredLogs.length,
+      enabled: !isGrepping,
+    });
 
   const { error } = useSubscription<{ containerLog: LogEntry }>(
     CONTAINER_LOG_SUBSCRIPTION,

@@ -55,9 +55,7 @@ export function ServiceLogRow({
       </span>
       <span className={`shrink-0 truncate ${replicaColor}`}>
         {log.containerId.slice(0, 8)}
-        {nodeName && (
-          <span className="text-muted-foreground">@{nodeName}</span>
-        )}
+        {nodeName && <span className="text-muted-foreground">@{nodeName}</span>}
       </span>
       <span
         className={`shrink-0 w-12 ${

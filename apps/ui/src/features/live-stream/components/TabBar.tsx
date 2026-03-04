@@ -36,7 +36,7 @@ export default function TabBar({
                 tab.data.type === 'service' ? 'bg-purple-500' : 'bg-green-500'
               }`}
             />
-            <span className="max-w-[180px] truncate">{tab.label}</span>
+            <span className="max-w-45 truncate">{tab.label}</span>
             <span
               role="button"
               onClick={(e) => {
@@ -46,7 +46,7 @@ export default function TabBar({
               className={`ml-1 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive shrink-0 ${
                 isActive
                   ? 'opacity-60 hover:opacity-100'
-                  : 'opacity-0 group-hover:opacity-60 hover:!opacity-100'
+                  : 'opacity-0 group-hover:opacity-60 hover:opacity-100!'
               }`}
             >
               <X className="h-3 w-3" />

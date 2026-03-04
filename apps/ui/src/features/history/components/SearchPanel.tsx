@@ -313,13 +313,12 @@ function LogRow({ line }: { line: HistoryLogLine }) {
       >
         <TableCell className="px-3 py-1 text-muted-foreground font-mono whitespace-nowrap">
           <span className="inline-flex items-center gap-1">
-            {hasMetadata && (
-              expanded ? (
+            {hasMetadata &&
+              (expanded ? (
                 <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
               ) : (
                 <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-              )
-            )}
+              ))}
             {line.timestamp ?? '-'}
           </span>
         </TableCell>
@@ -333,7 +332,7 @@ function LogRow({ line }: { line: HistoryLogLine }) {
             </Badge>
           )}
         </TableCell>
-        <TableCell className="px-2 py-1 text-muted-foreground font-mono truncate max-w-[160px]">
+        <TableCell className="px-2 py-1 text-muted-foreground font-mono truncate max-w-40">
           {line.source ?? ''}
         </TableCell>
         <TableCell className="px-3 py-1 text-secondary-foreground font-mono break-all">
@@ -342,7 +341,7 @@ function LogRow({ line }: { line: HistoryLogLine }) {
         <TableCell className="px-2 py-1 text-purple-400 text-[10px] whitespace-nowrap">
           {line.node}
         </TableCell>
-        <TableCell className="px-2 py-1 text-muted-foreground text-[10px] truncate max-w-[140px]">
+        <TableCell className="px-2 py-1 text-muted-foreground text-[10px] truncate max-w-35">
           {line.file}
         </TableCell>
       </TableRow>
@@ -355,7 +354,9 @@ function LogRow({ line }: { line: HistoryLogLine }) {
                   <span className="text-blue-400">{key}</span>
                   <span className="text-muted-foreground">: </span>
                   <span className="text-secondary-foreground">
-                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                    {typeof value === 'object'
+                      ? JSON.stringify(value)
+                      : String(value)}
                   </span>
                 </span>
               ))}
