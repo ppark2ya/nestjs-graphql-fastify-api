@@ -174,6 +174,7 @@ export default function ServiceLogViewer({ service }: Props) {
               return (
                 <div
                   key={virtualRow.key}
+                  ref={virtualizer.measureElement}
                   data-index={virtualRow.index}
                   className={
                     isFollowing && !isGrepping && virtualRow.index >= batchStartIndex
@@ -195,7 +196,6 @@ export default function ServiceLogViewer({ service }: Props) {
                       'text-muted-foreground'
                     }
                     nodeName={containerNodeMap.get(log.containerId) ?? ''}
-                    measureRef={virtualizer.measureElement}
                   />
                 </div>
               );

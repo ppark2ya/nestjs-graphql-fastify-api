@@ -127,6 +127,7 @@ export default function LogViewer({ containerId, containerName }: Props) {
             {virtualizer.getVirtualItems().map((virtualRow) => (
               <div
                 key={virtualRow.key}
+                ref={virtualizer.measureElement}
                 data-index={virtualRow.index}
                 className={
                   isFollowing && !isGrepping && virtualRow.index >= batchStartIndex
@@ -141,10 +142,7 @@ export default function LogViewer({ containerId, containerName }: Props) {
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <LogRow
-                  log={filteredLogs[virtualRow.index]}
-                  measureRef={virtualizer.measureElement}
-                />
+                <LogRow log={filteredLogs[virtualRow.index]} />
               </div>
             ))}
           </div>
