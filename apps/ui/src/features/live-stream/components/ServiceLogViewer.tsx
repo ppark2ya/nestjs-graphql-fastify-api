@@ -1,13 +1,10 @@
 import { useSubscription } from '@apollo/client/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  CONTAINER_LOG_SUBSCRIPTION,
-  LogEntry,
-  MAX_LOG_LINES,
-  ServiceGroup,
-} from './graphql';
-import { AnsiText } from '@/components/AnsiText';
-import { formatTime } from '@/lib/utils';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, ServiceGroup } from '../graphql';
+import { ServiceLogRow } from './LogRow';
+import { useLogBuffer } from '@/hooks/useLogBuffer';
+import { useAutoScroll } from '@/hooks/useAutoScroll';
+import { useLogFilter } from '@/hooks/useLogFilter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -46,80 +43,39 @@ const REPLICA_COLORS = [
 ];
 
 export default function ServiceLogViewer({ service }: Props) {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [autoScroll, setAutoScroll] = useState(true);
-  const [grepQuery, setGrepQuery] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const { logs, addLog, clearLogs, lineCount, batchStartIndex } = useLogBuffer<LogEntry>({
+    sortByTimestamp: true,
+  });
+  const { grepQuery, setGrepQuery, filteredLogs, isGrepping } =
+    useLogFilter(logs);
 
   const containerIds = service.containers.map((c) => c.id);
+
   const containerColorMap = new Map(
     service.containers.map((c, i) => [
       c.id,
       REPLICA_COLORS[i % REPLICA_COLORS.length],
     ]),
   );
+
   const containerNodeMap = new Map(
     service.containers.map((c) => [c.id, c.nodeName ?? '']),
   );
 
-  const batchRef = useRef<LogEntry[]>([]);
-  const rafRef = useRef(0);
+  const virtualizer = useVirtualizer({
+    count: filteredLogs.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 24,
+    overscan: 20,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
 
-  const isGrepping = grepQuery.trim().length > 0;
-
-  const filteredLogs = useMemo(() => {
-    if (!isGrepping) return logs;
-    const q = grepQuery.trim().toLowerCase();
-    return logs.filter((log) => log.message.toLowerCase().includes(q));
-  }, [logs, grepQuery, isGrepping]);
-
-  const flushBatch = useCallback(() => {
-    rafRef.current = 0;
-    const batch = batchRef.current;
-    if (batch.length === 0) return;
-    batchRef.current = [];
-    setLogs((prev) => {
-      const next = prev.concat(batch);
-      if (
-        prev.length > 0 &&
-        batch.some((e) => e.timestamp < prev[prev.length - 1].timestamp)
-      ) {
-        next.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-      }
-      return next.length > MAX_LOG_LINES ? next.slice(-MAX_LOG_LINES) : next;
+  const { scrollRef, isFollowing, handleScroll, scrollToBottom } =
+    useAutoScroll({
+      virtualizer,
+      itemCount: filteredLogs.length,
+      enabled: !isGrepping,
     });
-  }, []);
-
-  const handleLog = useCallback(
-    (entry: LogEntry) => {
-      batchRef.current.push(entry);
-      if (rafRef.current === 0) {
-        rafRef.current = requestAnimationFrame(flushBatch);
-      }
-    },
-    [flushBatch],
-  );
-
-  useEffect(
-    () => () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (autoScroll && !isGrepping) {
-      bottomRef.current?.scrollIntoView();
-    }
-  }, [logs, autoScroll, isGrepping]);
-
-  const handleScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-    setAutoScroll(isAtBottom);
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -153,18 +109,15 @@ export default function ServiceLogViewer({ service }: Props) {
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">
             {isGrepping
-              ? `${filteredLogs.length}/${logs.length} lines`
-              : `${logs.length} lines`}
+              ? `${filteredLogs.length}/${lineCount} lines`
+              : `${lineCount} lines`}
           </span>
-          {!autoScroll && (
+          {!isFollowing && (
             <Button
               variant="link"
               size="sm"
               className="h-auto p-0"
-              onClick={() => {
-                setAutoScroll(true);
-                bottomRef.current?.scrollIntoView();
-              }}
+              onClick={scrollToBottom}
             >
               Follow
             </Button>
@@ -173,7 +126,7 @@ export default function ServiceLogViewer({ service }: Props) {
             variant="ghost"
             size="sm"
             className="h-auto p-0"
-            onClick={() => setLogs([])}
+            onClick={clearLogs}
           >
             Clear
           </Button>
@@ -194,7 +147,7 @@ export default function ServiceLogViewer({ service }: Props) {
 
       {/* Hidden subscription components */}
       {containerIds.map((id) => (
-        <ContainerSubscription key={id} containerId={id} onLog={handleLog} />
+        <ContainerSubscription key={id} containerId={id} onLog={addLog} />
       ))}
 
       <div
@@ -209,41 +162,46 @@ export default function ServiceLogViewer({ service }: Props) {
               : `Waiting for logs from ${containerIds.length} replicas...`}
           </p>
         ) : (
-          filteredLogs.map((log, i) => (
-            <div
-              key={i}
-              className={`flex gap-2 py-0.5 px-2 hover:bg-secondary/50 ${
-                log.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'
-              }`}
-            >
-              <span className="text-muted-foreground shrink-0">
-                {formatTime(log.timestamp)}
-              </span>
-              <span
-                className={`shrink-0 truncate ${containerColorMap.get(log.containerId) ?? 'text-muted-foreground'}`}
-              >
-                {log.containerId.slice(0, 8)}
-                {containerNodeMap.get(log.containerId) && (
-                  <span className="text-muted-foreground">
-                    @{containerNodeMap.get(log.containerId)}
-                  </span>
-                )}
-              </span>
-              <span
-                className={`shrink-0 w-12 ${
-                  log.stream === 'stderr' ? 'text-red-500' : 'text-blue-500'
-                }`}
-              >
-                {log.stream}
-              </span>
-              <AnsiText
-                text={log.message}
-                className="whitespace-pre-wrap break-all"
-              />
-            </div>
-          ))
+          <div
+            style={{
+              height: virtualizer.getTotalSize(),
+              position: 'relative',
+              width: '100%',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const log = filteredLogs[virtualRow.index];
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  className={
+                    isFollowing && !isGrepping && virtualRow.index >= batchStartIndex
+                      ? 'animate-log-enter'
+                      : undefined
+                  }
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <ServiceLogRow
+                    log={log}
+                    replicaColor={
+                      containerColorMap.get(log.containerId) ??
+                      'text-muted-foreground'
+                    }
+                    nodeName={containerNodeMap.get(log.containerId) ?? ''}
+                    measureRef={virtualizer.measureElement}
+                  />
+                </div>
+              );
+            })}
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
     </div>
   );

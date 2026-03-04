@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useLazyQuery } from '@apollo/client/react';
 import { AnsiText } from '@/components/AnsiText';
 import { cn } from '@/lib/utils';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -27,7 +28,7 @@ import {
   LogApp,
   HistoryLogLine,
   LogSearchResult,
-} from './graphql';
+} from '../graphql';
 
 const LEVELS = ['ERROR', 'WARN', 'INFO', 'DEBUG'] as const;
 
@@ -213,6 +214,18 @@ export default function SearchPanel({
         </Button>
       </div>
 
+      {/* Loading Progress */}
+      {loading && (
+        <div className="h-0.5 w-full overflow-hidden bg-secondary">
+          <div
+            className="h-full w-1/4 bg-primary rounded-full"
+            style={{
+              animation: 'progress-indeterminate 1.5s ease-in-out infinite',
+            }}
+          />
+        </div>
+      )}
+
       {/* Summary Bar */}
       {result && (
         <div className="px-4 py-2 border-b border-border flex gap-4 text-xs">
@@ -240,6 +253,21 @@ export default function SearchPanel({
 
       {/* Log Table */}
       <div className="flex-1 overflow-y-auto">
+        {loading && !result && (
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex gap-3 items-center">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-14" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-28" />
+              </div>
+            ))}
+          </div>
+        )}
+
         {!result && !loading && (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <p>Select an app and date range to search logs</p>
@@ -294,14 +322,14 @@ function LogRow({ line }: { line: HistoryLogLine }) {
   const [expanded, setExpanded] = useState(false);
   const levelColor = line.level ? LEVEL_COLORS[line.level] : '';
 
-  const parsedMetadata = useMemo(() => {
+  const parsedMetadata = (() => {
     if (!line.metadata) return null;
     try {
       return JSON.parse(line.metadata) as Record<string, unknown>;
     } catch {
       return null;
     }
-  }, [line.metadata]);
+  })();
 
   const hasMetadata = parsedMetadata !== null;
 
@@ -313,13 +341,12 @@ function LogRow({ line }: { line: HistoryLogLine }) {
       >
         <TableCell className="px-3 py-1 text-muted-foreground font-mono whitespace-nowrap">
           <span className="inline-flex items-center gap-1">
-            {hasMetadata && (
-              expanded ? (
+            {hasMetadata &&
+              (expanded ? (
                 <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
               ) : (
                 <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-              )
-            )}
+              ))}
             {line.timestamp ?? '-'}
           </span>
         </TableCell>
@@ -333,7 +360,7 @@ function LogRow({ line }: { line: HistoryLogLine }) {
             </Badge>
           )}
         </TableCell>
-        <TableCell className="px-2 py-1 text-muted-foreground font-mono truncate max-w-[160px]">
+        <TableCell className="px-2 py-1 text-muted-foreground font-mono truncate max-w-40">
           {line.source ?? ''}
         </TableCell>
         <TableCell className="px-3 py-1 text-secondary-foreground font-mono break-all">
@@ -342,7 +369,7 @@ function LogRow({ line }: { line: HistoryLogLine }) {
         <TableCell className="px-2 py-1 text-purple-400 text-[10px] whitespace-nowrap">
           {line.node}
         </TableCell>
-        <TableCell className="px-2 py-1 text-muted-foreground text-[10px] truncate max-w-[140px]">
+        <TableCell className="px-2 py-1 text-muted-foreground text-[10px] truncate max-w-35">
           {line.file}
         </TableCell>
       </TableRow>
@@ -355,7 +382,9 @@ function LogRow({ line }: { line: HistoryLogLine }) {
                   <span className="text-blue-400">{key}</span>
                   <span className="text-muted-foreground">: </span>
                   <span className="text-secondary-foreground">
-                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                    {typeof value === 'object'
+                      ? JSON.stringify(value)
+                      : String(value)}
                   </span>
                 </span>
               ))}

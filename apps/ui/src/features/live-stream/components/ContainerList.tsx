@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@apollo/client/react';
-import { CONTAINERS_QUERY, Container, ServiceGroup } from './graphql';
+import { CONTAINERS_QUERY, Container, ServiceGroup } from '../graphql';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { RefreshCw, Search, X } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Props {
   selectedId: string | null;
@@ -51,7 +52,7 @@ export default function ContainerList({
 
   const containers = data?.containers ?? [];
 
-  const filtered = useMemo(() => {
+  const filtered = (() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return containers;
     return containers.filter((c) => {
@@ -59,11 +60,26 @@ export default function ContainerList({
       if (c.serviceName?.toLowerCase().includes(q)) return true;
       return false;
     });
-  }, [containers, searchQuery]);
+  })();
 
   if (loading) {
     return (
-      <div className="p-4 text-muted-foreground">Loading containers...</div>
+      <div className="flex flex-col">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <Skeleton className="w-2 h-2 rounded-full" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-16 ml-auto" />
+            </div>
+            <Skeleton className="h-3 w-48 mt-2" />
+            <div className="flex gap-1 mt-1">
+              <Skeleton className="w-1.5 h-1.5 rounded-full" />
+              <Skeleton className="w-1.5 h-1.5 rounded-full" />
+            </div>
+          </div>
+        ))}
+      </div>
     );
   }
 

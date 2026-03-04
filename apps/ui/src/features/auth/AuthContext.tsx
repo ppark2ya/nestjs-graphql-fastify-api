@@ -3,7 +3,6 @@ import {
   useContext,
   useState,
   useEffect,
-  useCallback,
   useRef,
   type ReactNode,
 } from 'react';
@@ -53,18 +52,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     REFRESH_TOKEN_MUTATION,
   );
 
-  const handleLogout = useCallback(async () => {
+  const handleLogout = async () => {
     clearTokens();
     stopRefreshTimer();
     setIsAuthenticated(false);
     setUser(null);
     await client.clearStore();
     navigate('/admin/login', { replace: true });
-  }, [navigate]);
+  };
 
   const doRefreshRef = useRef<(() => Promise<void>) | undefined>(undefined);
 
-  const doRefresh = useCallback(async () => {
+  const doRefresh = async () => {
     const rt = getRefreshToken();
     if (!rt) {
       handleLogout();
@@ -77,18 +76,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data?.refreshToken) {
         const { accessToken, refreshToken, expiresIn } = data.refreshToken;
         saveTokens(accessToken, refreshToken, expiresIn);
-        startRefreshTimer(async () => { await doRefreshRef.current?.(); });
+        startRefreshTimer(async () => {
+          await doRefreshRef.current?.();
+        });
       } else {
         handleLogout();
       }
     } catch {
       handleLogout();
     }
-  }, [refreshMutation, handleLogout]);
+  };
 
   doRefreshRef.current = doRefresh;
 
-  const handleLogin = useCallback((tokens: AuthTokenResponse) => {
+  const handleLogin = (tokens: AuthTokenResponse) => {
     saveTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
     const payload = parseJwtPayload(tokens.accessToken);
     setUser(
@@ -102,8 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : null,
     );
     setIsAuthenticated(true);
-    startRefreshTimer(async () => { await doRefreshRef.current?.(); });
-  }, []);
+    startRefreshTimer(async () => {
+      await doRefreshRef.current?.();
+    });
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -139,7 +142,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 : null,
             );
             setIsAuthenticated(true);
-            startRefreshTimer(async () => { await doRefreshRef.current?.(); });
+            startRefreshTimer(async () => {
+              await doRefreshRef.current?.();
+            });
           } else {
             clearTokens();
           }
@@ -165,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     init();
     return () => stopRefreshTimer();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <AuthContext.Provider

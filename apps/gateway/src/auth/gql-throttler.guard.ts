@@ -71,7 +71,6 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
 
     // Fastify reply.header() 사용
     if (isBlocked) {
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises -- FastifyReply is thenable but used synchronously here
       if (setHeaders && res && typeof res.header === 'function') {
         res.header(
           `Retry-After${getThrottlerSuffix(throttlerName)}`,
@@ -90,7 +89,6 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
       } as ThrottlerLimitDetail);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- FastifyReply is thenable but used synchronously here
     if (setHeaders && res && typeof res.header === 'function') {
       res.header(
         `${this.headerPrefix}-Limit${getThrottlerSuffix(throttlerName)}`,

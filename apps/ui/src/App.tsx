@@ -1,3 +1,5 @@
+import { lazy, Suspense } from 'react';
+import { motion } from 'framer-motion';
 import { ApolloProvider } from '@apollo/client/react';
 import {
   BrowserRouter,
@@ -7,13 +9,16 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { client } from './lib/apollo';
-import { AuthProvider, useAuth } from './auth/AuthContext';
-import AuthGuard from './auth/AuthGuard';
+import { AuthProvider, useAuth } from './features/auth/AuthContext';
+import AuthGuard from './features/auth/AuthGuard';
 import Navigation from './components/Navigation';
-import LoginPage from './pages/LoginPage';
-import LiveStreamPage from './pages/live-stream/LiveStreamPage';
-import HistoryPage from './pages/history/HistoryPage';
-import NotFoundPage from './pages/NotFoundPage';
+import NotFoundPage from './components/NotFoundPage';
+
+const LoginPage = lazy(() => import('./features/auth/LoginPage'));
+const LiveStreamPage = lazy(
+  () => import('./features/live-stream/LiveStreamPage'),
+);
+const HistoryPage = lazy(() => import('./features/history/HistoryPage'));
 
 const AUTHENTICATED_PATHS = ['/admin/live-stream', '/admin/history'];
 
@@ -24,17 +29,34 @@ function AuthenticatedApp() {
     <AuthGuard>
       <div className="h-screen flex flex-col bg-card text-foreground">
         <Navigation />
-        <div
-          className="flex-1 flex flex-col overflow-hidden"
-          style={{ display: pathname === '/admin/live-stream' ? 'flex' : 'none' }}
-        >
-          <LiveStreamPage />
-        </div>
-        <div
-          className="flex-1 flex flex-col overflow-hidden"
-          style={{ display: pathname === '/admin/history' ? 'flex' : 'none' }}
-        >
-          <HistoryPage />
+        <div className="flex-1 relative overflow-hidden">
+          <motion.div
+            className="absolute inset-0 flex flex-col overflow-hidden"
+            animate={{
+              opacity: pathname === '/admin/live-stream' ? 1 : 0,
+              scale: pathname === '/admin/live-stream' ? 1 : 0.98,
+            }}
+            transition={{ duration: 0.15 }}
+            style={{
+              pointerEvents:
+                pathname === '/admin/live-stream' ? 'auto' : 'none',
+            }}
+          >
+            <LiveStreamPage />
+          </motion.div>
+          <motion.div
+            className="absolute inset-0 flex flex-col overflow-hidden"
+            animate={{
+              opacity: pathname === '/admin/history' ? 1 : 0,
+              scale: pathname === '/admin/history' ? 1 : 0.98,
+            }}
+            transition={{ duration: 0.15 }}
+            style={{
+              pointerEvents: pathname === '/admin/history' ? 'auto' : 'none',
+            }}
+          >
+            <HistoryPage />
+          </motion.div>
         </div>
       </div>
     </AuthGuard>
@@ -48,7 +70,7 @@ function AppRoutes() {
   const isAuthenticatedPath = AUTHENTICATED_PATHS.includes(pathname);
 
   return (
-    <>
+    <Suspense fallback={null}>
       <Routes>
         <Route
           path="/admin/login"
@@ -67,7 +89,7 @@ function AppRoutes() {
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
       {isAuthenticatedPath && <AuthenticatedApp />}
-    </>
+    </Suspense>
   );
 }
 

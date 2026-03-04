@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/auth/AuthContext';
+import { useAuth } from '@/features/auth/AuthContext';
 import { Button } from '@/components/ui/button';
 
 export default function Navigation() {
