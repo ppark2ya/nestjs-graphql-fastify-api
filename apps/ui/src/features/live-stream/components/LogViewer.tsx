@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function LogViewer({ containerId, containerName }: Props) {
-  const { logs, addLog, clearLogs, lineCount } = useLogBuffer<LogEntry>();
+  const { logs, addLog, clearLogs, lineCount, batchStartIndex } = useLogBuffer<LogEntry>();
   const { grepQuery, setGrepQuery, filteredLogs, isGrepping } =
     useLogFilter(logs);
 
@@ -128,6 +128,11 @@ export default function LogViewer({ containerId, containerName }: Props) {
               <div
                 key={virtualRow.key}
                 data-index={virtualRow.index}
+                className={
+                  isFollowing && !isGrepping && virtualRow.index >= batchStartIndex
+                    ? 'animate-log-enter'
+                    : undefined
+                }
                 style={{
                   position: 'absolute',
                   top: 0,

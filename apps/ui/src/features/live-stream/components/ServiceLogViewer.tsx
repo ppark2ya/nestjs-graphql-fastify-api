@@ -43,7 +43,7 @@ const REPLICA_COLORS = [
 ];
 
 export default function ServiceLogViewer({ service }: Props) {
-  const { logs, addLog, clearLogs, lineCount } = useLogBuffer<LogEntry>({
+  const { logs, addLog, clearLogs, lineCount, batchStartIndex } = useLogBuffer<LogEntry>({
     sortByTimestamp: true,
   });
   const { grepQuery, setGrepQuery, filteredLogs, isGrepping } =
@@ -175,6 +175,11 @@ export default function ServiceLogViewer({ service }: Props) {
                 <div
                   key={virtualRow.key}
                   data-index={virtualRow.index}
+                  className={
+                    isFollowing && !isGrepping && virtualRow.index >= batchStartIndex
+                      ? 'animate-log-enter'
+                      : undefined
+                  }
                   style={{
                     position: 'absolute',
                     top: 0,

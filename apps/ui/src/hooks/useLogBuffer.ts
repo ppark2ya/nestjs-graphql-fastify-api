@@ -13,6 +13,7 @@ export function useLogBuffer<T extends { timestamp: string }>(
 
   const batchRef = useRef<T[]>([]);
   const rafRef = useRef(0);
+  const batchStartRef = useRef(0);
 
   const flushBatch = () => {
     rafRef.current = 0;
@@ -20,6 +21,7 @@ export function useLogBuffer<T extends { timestamp: string }>(
     if (batch.length === 0) return;
     batchRef.current = [];
     setLogs((prev) => {
+      batchStartRef.current = prev.length;
       const next = prev.concat(batch);
       if (
         sortByTimestamp &&
@@ -27,8 +29,18 @@ export function useLogBuffer<T extends { timestamp: string }>(
         batch.some((e) => e.timestamp < prev[prev.length - 1].timestamp)
       ) {
         next.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+        // When sorted, batch boundary is meaningless — disable animation
+        batchStartRef.current = next.length;
       }
-      return next.length > maxLines ? next.slice(-maxLines) : next;
+      if (next.length > maxLines) {
+        const trimmed = next.slice(-maxLines);
+        batchStartRef.current = Math.max(
+          0,
+          batchStartRef.current - (next.length - maxLines),
+        );
+        return trimmed;
+      }
+      return next;
     });
   };
 
@@ -41,6 +53,7 @@ export function useLogBuffer<T extends { timestamp: string }>(
 
   const clearLogs = () => {
     batchRef.current = [];
+    batchStartRef.current = 0;
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
@@ -55,5 +68,5 @@ export function useLogBuffer<T extends { timestamp: string }>(
     [],
   );
 
-  return { logs, addLog, clearLogs, lineCount: logs.length };
+  return { logs, addLog, clearLogs, lineCount: logs.length, batchStartIndex: batchStartRef.current };
 }
