@@ -1,11 +1,10 @@
 import { useSubscription } from '@apollo/client/react';
-import { useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry } from '../graphql';
 import { LogRow } from './LogRow';
 import { useLogBuffer } from '@/hooks/useLogBuffer';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useLogFilter } from '@/hooks/useLogFilter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, X } from 'lucide-react';
@@ -17,16 +16,7 @@ interface Props {
 
 export default function LogViewer({ containerId, containerName }: Props) {
   const { logs, addLog, clearLogs, lineCount } = useLogBuffer<LogEntry>();
-  const [grepQuery, setGrepQuery] = useState('');
-
-  const debouncedGrep = useDebouncedValue(grepQuery, 300);
-  const isGrepping = debouncedGrep.trim().length > 0;
-
-  const filteredLogs = isGrepping
-    ? logs.filter((log) =>
-        log.message.toLowerCase().includes(debouncedGrep.trim().toLowerCase()),
-      )
-    : logs;
+  const { grepQuery, setGrepQuery, filteredLogs, isGrepping } = useLogFilter(logs);
 
   const virtualizer = useVirtualizer({
     count: filteredLogs.length,
