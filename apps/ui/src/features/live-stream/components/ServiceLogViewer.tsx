@@ -1,13 +1,9 @@
 import { useSubscription } from '@apollo/client/react';
 import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import {
-  CONTAINER_LOG_SUBSCRIPTION,
-  LogEntry,
-  MAX_LOG_LINES,
-  ServiceGroup,
-} from '../graphql';
+import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, ServiceGroup } from '../graphql';
 import { ServiceLogRow } from './LogRow';
+import { useLogBuffer } from '@/hooks/useLogBuffer';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,7 +43,9 @@ const REPLICA_COLORS = [
 ];
 
 export default function ServiceLogViewer({ service }: Props) {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const { logs, addLog, clearLogs, lineCount } = useLogBuffer<LogEntry>({
+    sortByTimestamp: true,
+  });
   const [autoScroll, setAutoScroll] = useState(true);
   const [grepQuery, setGrepQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -65,9 +63,6 @@ export default function ServiceLogViewer({ service }: Props) {
     service.containers.map((c) => [c.id, c.nodeName ?? '']),
   );
 
-  const batchRef = useRef<LogEntry[]>([]);
-  const rafRef = useRef(0);
-
   const debouncedGrep = useDebouncedValue(grepQuery, 300);
   const isGrepping = debouncedGrep.trim().length > 0;
 
@@ -84,37 +79,6 @@ export default function ServiceLogViewer({ service }: Props) {
     overscan: 20,
     measureElement: (el) => el.getBoundingClientRect().height,
   });
-
-  const flushBatch = () => {
-    rafRef.current = 0;
-    const batch = batchRef.current;
-    if (batch.length === 0) return;
-    batchRef.current = [];
-    setLogs((prev) => {
-      const next = prev.concat(batch);
-      if (
-        prev.length > 0 &&
-        batch.some((e) => e.timestamp < prev[prev.length - 1].timestamp)
-      ) {
-        next.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-      }
-      return next.length > MAX_LOG_LINES ? next.slice(-MAX_LOG_LINES) : next;
-    });
-  };
-
-  const handleLog = (entry: LogEntry) => {
-    batchRef.current.push(entry);
-    if (rafRef.current === 0) {
-      rafRef.current = requestAnimationFrame(flushBatch);
-    }
-  };
-
-  useEffect(
-    () => () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    },
-    [],
-  );
 
   useEffect(() => {
     if (autoScroll && !isGrepping && filteredLogs.length > 0) {
@@ -161,8 +125,8 @@ export default function ServiceLogViewer({ service }: Props) {
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">
             {isGrepping
-              ? `${filteredLogs.length}/${logs.length} lines`
-              : `${logs.length} lines`}
+              ? `${filteredLogs.length}/${lineCount} lines`
+              : `${lineCount} lines`}
           </span>
           {!autoScroll && (
             <Button
@@ -183,7 +147,7 @@ export default function ServiceLogViewer({ service }: Props) {
             variant="ghost"
             size="sm"
             className="h-auto p-0"
-            onClick={() => setLogs([])}
+            onClick={clearLogs}
           >
             Clear
           </Button>
@@ -204,7 +168,7 @@ export default function ServiceLogViewer({ service }: Props) {
 
       {/* Hidden subscription components */}
       {containerIds.map((id) => (
-        <ContainerSubscription key={id} containerId={id} onLog={handleLog} />
+        <ContainerSubscription key={id} containerId={id} onLog={addLog} />
       ))}
 
       <div

@@ -1,8 +1,9 @@
 import { useSubscription } from '@apollo/client/react';
 import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, MAX_LOG_LINES } from '../graphql';
+import { CONTAINER_LOG_SUBSCRIPTION, LogEntry } from '../graphql';
 import { LogRow } from './LogRow';
+import { useLogBuffer } from '@/hooks/useLogBuffer';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,13 +15,10 @@ interface Props {
 }
 
 export default function LogViewer({ containerId, containerName }: Props) {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const { logs, addLog, clearLogs, lineCount } = useLogBuffer<LogEntry>();
   const [autoScroll, setAutoScroll] = useState(true);
   const [grepQuery, setGrepQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const batchRef = useRef<LogEntry[]>([]);
-  const rafRef = useRef(0);
 
   const debouncedGrep = useDebouncedValue(grepQuery, 300);
   const isGrepping = debouncedGrep.trim().length > 0;
@@ -39,37 +37,16 @@ export default function LogViewer({ containerId, containerName }: Props) {
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  const flushBatch = () => {
-    rafRef.current = 0;
-    const batch = batchRef.current;
-    if (batch.length === 0) return;
-    batchRef.current = [];
-    setLogs((prev) => {
-      const next = prev.concat(batch);
-      return next.length > MAX_LOG_LINES ? next.slice(-MAX_LOG_LINES) : next;
-    });
-  };
-
   const { error } = useSubscription<{ containerLog: LogEntry }>(
     CONTAINER_LOG_SUBSCRIPTION,
     {
       variables: { containerId },
       onData: ({ data }) => {
         if (data.data?.containerLog) {
-          batchRef.current.push(data.data.containerLog);
-          if (rafRef.current === 0) {
-            rafRef.current = requestAnimationFrame(flushBatch);
-          }
+          addLog(data.data.containerLog);
         }
       },
     },
-  );
-
-  useEffect(
-    () => () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    },
-    [],
   );
 
   useEffect(() => {
@@ -116,8 +93,8 @@ export default function LogViewer({ containerId, containerName }: Props) {
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">
             {isGrepping
-              ? `${filteredLogs.length}/${logs.length} lines`
-              : `${logs.length} lines`}
+              ? `${filteredLogs.length}/${lineCount} lines`
+              : `${lineCount} lines`}
           </span>
           {!autoScroll && (
             <Button
@@ -138,7 +115,7 @@ export default function LogViewer({ containerId, containerName }: Props) {
             variant="ghost"
             size="sm"
             className="h-auto p-0"
-            onClick={() => setLogs([])}
+            onClick={clearLogs}
           >
             Clear
           </Button>
