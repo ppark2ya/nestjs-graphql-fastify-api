@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import { motion } from 'framer-motion';
 import { ApolloProvider } from '@apollo/client/react';
 import {
   BrowserRouter,
@@ -28,17 +29,34 @@ function AuthenticatedApp() {
     <AuthGuard>
       <div className="h-screen flex flex-col bg-card text-foreground">
         <Navigation />
-        <div
-          className="flex-1 flex flex-col overflow-hidden"
-          style={{ display: pathname === '/admin/live-stream' ? 'flex' : 'none' }}
-        >
-          <LiveStreamPage />
-        </div>
-        <div
-          className="flex-1 flex flex-col overflow-hidden"
-          style={{ display: pathname === '/admin/history' ? 'flex' : 'none' }}
-        >
-          <HistoryPage />
+        <div className="flex-1 relative overflow-hidden">
+          <motion.div
+            className="absolute inset-0 flex flex-col overflow-hidden"
+            animate={{
+              opacity: pathname === '/admin/live-stream' ? 1 : 0,
+              scale: pathname === '/admin/live-stream' ? 1 : 0.98,
+            }}
+            transition={{ duration: 0.15 }}
+            style={{
+              pointerEvents:
+                pathname === '/admin/live-stream' ? 'auto' : 'none',
+            }}
+          >
+            <LiveStreamPage />
+          </motion.div>
+          <motion.div
+            className="absolute inset-0 flex flex-col overflow-hidden"
+            animate={{
+              opacity: pathname === '/admin/history' ? 1 : 0,
+              scale: pathname === '/admin/history' ? 1 : 0.98,
+            }}
+            transition={{ duration: 0.15 }}
+            style={{
+              pointerEvents: pathname === '/admin/history' ? 'auto' : 'none',
+            }}
+          >
+            <HistoryPage />
+          </motion.div>
         </div>
       </div>
     </AuthGuard>
