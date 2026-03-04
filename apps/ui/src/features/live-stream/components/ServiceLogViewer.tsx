@@ -1,9 +1,10 @@
 import { useSubscription } from '@apollo/client/react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, ServiceGroup } from '../graphql';
 import { ServiceLogRow } from './LogRow';
 import { useLogBuffer } from '@/hooks/useLogBuffer';
+import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,9 +47,7 @@ export default function ServiceLogViewer({ service }: Props) {
   const { logs, addLog, clearLogs, lineCount } = useLogBuffer<LogEntry>({
     sortByTimestamp: true,
   });
-  const [autoScroll, setAutoScroll] = useState(true);
   const [grepQuery, setGrepQuery] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const containerIds = service.containers.map((c) => c.id);
 
@@ -80,18 +79,11 @@ export default function ServiceLogViewer({ service }: Props) {
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  useEffect(() => {
-    if (autoScroll && !isGrepping && filteredLogs.length > 0) {
-      virtualizer.scrollToIndex(filteredLogs.length - 1, { align: 'end' });
-    }
-  }, [filteredLogs.length, autoScroll, isGrepping, virtualizer]);
-
-  const handleScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-    setAutoScroll((prev) => (prev === isAtBottom ? prev : isAtBottom));
-  };
+  const { scrollRef, isFollowing, handleScroll, scrollToBottom } = useAutoScroll({
+    virtualizer,
+    itemCount: filteredLogs.length,
+    enabled: !isGrepping,
+  });
 
   return (
     <div className="flex flex-col h-full">
@@ -128,17 +120,12 @@ export default function ServiceLogViewer({ service }: Props) {
               ? `${filteredLogs.length}/${lineCount} lines`
               : `${lineCount} lines`}
           </span>
-          {!autoScroll && (
+          {!isFollowing && (
             <Button
               variant="link"
               size="sm"
               className="h-auto p-0"
-              onClick={() => {
-                setAutoScroll(true);
-                virtualizer.scrollToIndex(filteredLogs.length - 1, {
-                  align: 'end',
-                });
-              }}
+              onClick={scrollToBottom}
             >
               Follow
             </Button>
