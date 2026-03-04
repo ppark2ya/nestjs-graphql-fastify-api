@@ -1,7 +1,7 @@
 import { useSubscription } from '@apollo/client/react';
 import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, MAX_LOG_LINES } from './graphql';
+import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, MAX_LOG_LINES } from '../graphql';
 import { LogRow } from './LogRow';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Button } from '@/components/ui/button';

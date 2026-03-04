@@ -1,23 +1,23 @@
-import { Plus, Search, X } from 'lucide-react';
-import { SearchTab, MAX_SEARCH_TABS } from './graphql';
+import { X } from 'lucide-react';
+import { Tab } from '../graphql';
 
 interface Props {
-  tabs: SearchTab[];
-  activeTabId: string;
+  tabs: Tab[];
+  activeTabId: string | null;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
-  onNewTab: () => void;
 }
 
-export default function HistoryTabBar({
+export default function TabBar({
   tabs,
   activeTabId,
   onSelectTab,
   onCloseTab,
-  onNewTab,
 }: Props) {
+  if (tabs.length === 0) return null;
+
   return (
-    <div data-testid="history-tab-bar" className="flex items-center border-b border-border overflow-x-auto bg-card/50">
+    <div className="flex items-center border-b border-border overflow-x-auto bg-card/50">
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         return (
@@ -30,8 +30,12 @@ export default function HistoryTabBar({
                 : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
             }`}
           >
-            <Search className="h-3 w-3 shrink-0 text-blue-400" />
-            <span className="max-w-[200px] truncate">{tab.label}</span>
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                tab.type === 'service' ? 'bg-purple-500' : 'bg-green-500'
+              }`}
+            />
+            <span className="max-w-[180px] truncate">{tab.label}</span>
             <span
               role="button"
               onClick={(e) => {
@@ -49,13 +53,6 @@ export default function HistoryTabBar({
           </button>
         );
       })}
-      <button
-        onClick={onNewTab}
-        disabled={tabs.length >= MAX_SEARCH_TABS}
-        className="flex items-center gap-1 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
-      >
-        <Plus className="h-3 w-3" />
-      </button>
     </div>
   );
 }

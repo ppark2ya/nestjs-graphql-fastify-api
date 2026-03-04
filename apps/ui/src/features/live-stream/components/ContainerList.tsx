@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@apollo/client/react';
-import { CONTAINERS_QUERY, Container, ServiceGroup } from './graphql';
+import { CONTAINERS_QUERY, Container, ServiceGroup } from '../graphql';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';

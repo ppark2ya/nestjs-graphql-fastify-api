@@ -1,10 +1,10 @@
-import { useAuth } from '@/auth/AuthContext';
+import { useAuth } from '@/features/auth/AuthContext';
 import {
   LOGIN_MUTATION,
   VERIFY_TWO_FACTOR_MUTATION,
   type LoginResponse,
   type VerifyTwoFactorResponse,
-} from '@/auth/graphql';
+} from '@/features/auth/graphql';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

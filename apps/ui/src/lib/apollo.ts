@@ -4,7 +4,7 @@ import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { Kind, OperationTypeNode } from 'graphql';
 import { createClient } from 'graphql-ws';
-import { getAccessToken } from '@/auth/token';
+import { getAccessToken } from '@/features/auth/token';
 
 const API_KEY = import.meta.env.VITE_API_KEY ?? 'test-api-key';
 

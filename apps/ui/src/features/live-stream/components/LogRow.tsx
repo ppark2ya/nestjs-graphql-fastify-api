@@ -1,6 +1,6 @@
 import { AnsiText } from '@/components/AnsiText';
 import { formatTime } from '@/lib/utils';
-import type { LogEntry } from './graphql';
+import type { LogEntry } from '../graphql';
 
 interface LogRowProps {
   log: LogEntry;

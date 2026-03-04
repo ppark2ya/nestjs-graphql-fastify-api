@@ -7,13 +7,13 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { client } from './lib/apollo';
-import { AuthProvider, useAuth } from './auth/AuthContext';
-import AuthGuard from './auth/AuthGuard';
+import { AuthProvider, useAuth } from './features/auth/AuthContext';
+import AuthGuard from './features/auth/AuthGuard';
 import Navigation from './components/Navigation';
-import LoginPage from './pages/LoginPage';
-import LiveStreamPage from './pages/live-stream/LiveStreamPage';
-import HistoryPage from './pages/history/HistoryPage';
-import NotFoundPage from './pages/NotFoundPage';
+import LoginPage from './features/auth/LoginPage';
+import LiveStreamPage from './features/live-stream/LiveStreamPage';
+import HistoryPage from './features/history/HistoryPage';
+import NotFoundPage from './components/NotFoundPage';
 
 const AUTHENTICATED_PATHS = ['/admin/live-stream', '/admin/history'];
 

@@ -3,8 +3,8 @@ import { useQuery } from '@apollo/client/react';
 import { Search, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LOG_APPS_QUERY, LogApp, SearchTab, MAX_SEARCH_TABS } from './graphql';
-import HistoryTabBar from './HistoryTabBar';
-import SearchPanel from './SearchPanel';
+import HistoryTabBar from './components/HistoryTabBar';
+import SearchPanel from './components/SearchPanel';
 
 function createTab(): SearchTab {
   return {

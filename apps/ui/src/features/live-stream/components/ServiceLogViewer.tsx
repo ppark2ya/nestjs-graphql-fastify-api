@@ -6,7 +6,7 @@ import {
   LogEntry,
   MAX_LOG_LINES,
   ServiceGroup,
-} from './graphql';
+} from '../graphql';
 import { ServiceLogRow } from './LogRow';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Button } from '@/components/ui/button';

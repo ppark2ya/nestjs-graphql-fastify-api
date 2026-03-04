@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import ContainerList from './ContainerList';
-import LogViewer from './LogViewer';
-import ServiceLogViewer from './ServiceLogViewer';
-import TabBar from './TabBar';
+import ContainerList from './components/ContainerList';
+import LogViewer from './components/LogViewer';
+import ServiceLogViewer from './components/ServiceLogViewer';
+import TabBar from './components/TabBar';
 import { Container, MAX_TABS, ServiceGroup, Tab } from './graphql';
 import { Button } from '@/components/ui/button';
 import {
