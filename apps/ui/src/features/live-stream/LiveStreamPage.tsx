@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import ContainerList from './components/ContainerList';
 import LogViewer from './components/LogViewer';
 import ServiceLogViewer from './components/ServiceLogViewer';
@@ -101,11 +102,16 @@ export default function LiveStreamPage() {
       ) : (
         <div className="flex-1 relative overflow-hidden">
           {tabs.map((tab) => (
-            <div
+            <motion.div
               key={tab.id}
-              className="absolute inset-0 flex-col"
+              className="absolute inset-0 flex flex-col"
+              animate={{
+                opacity: tab.id === activeTabId ? 1 : 0,
+                scale: tab.id === activeTabId ? 1 : 0.98,
+              }}
+              transition={{ duration: 0.15 }}
               style={{
-                display: tab.id === activeTabId ? 'flex' : 'none',
+                pointerEvents: tab.id === activeTabId ? 'auto' : 'none',
               }}
             >
               {tab.data.type === 'service' ? (
@@ -116,7 +122,7 @@ export default function LiveStreamPage() {
                   containerName={tab.data.container.name}
                 />
               )}
-            </div>
+            </motion.div>
           ))}
         </div>
       )}
