@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { ApolloProvider } from '@apollo/client/react';
 import {
   BrowserRouter,
@@ -10,10 +11,13 @@ import { client } from './lib/apollo';
 import { AuthProvider, useAuth } from './features/auth/AuthContext';
 import AuthGuard from './features/auth/AuthGuard';
 import Navigation from './components/Navigation';
-import LoginPage from './features/auth/LoginPage';
-import LiveStreamPage from './features/live-stream/LiveStreamPage';
-import HistoryPage from './features/history/HistoryPage';
 import NotFoundPage from './components/NotFoundPage';
+
+const LoginPage = lazy(() => import('./features/auth/LoginPage'));
+const LiveStreamPage = lazy(
+  () => import('./features/live-stream/LiveStreamPage'),
+);
+const HistoryPage = lazy(() => import('./features/history/HistoryPage'));
 
 const AUTHENTICATED_PATHS = ['/admin/live-stream', '/admin/history'];
 
@@ -48,7 +52,7 @@ function AppRoutes() {
   const isAuthenticatedPath = AUTHENTICATED_PATHS.includes(pathname);
 
   return (
-    <>
+    <Suspense fallback={null}>
       <Routes>
         <Route
           path="/admin/login"
@@ -67,7 +71,7 @@ function AppRoutes() {
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
       {isAuthenticatedPath && <AuthenticatedApp />}
-    </>
+    </Suspense>
   );
 }
 
