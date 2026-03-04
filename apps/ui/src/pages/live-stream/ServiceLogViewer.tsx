@@ -1,5 +1,5 @@
 import { useSubscription } from '@apollo/client/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   CONTAINER_LOG_SUBSCRIPTION,
@@ -54,20 +54,15 @@ export default function ServiceLogViewer({ service }: Props) {
 
   const containerIds = service.containers.map((c) => c.id);
 
-  const containerColorMap = useMemo(
-    () =>
-      new Map(
-        service.containers.map((c, i) => [
-          c.id,
-          REPLICA_COLORS[i % REPLICA_COLORS.length],
-        ]),
-      ),
-    [service.containers],
+  const containerColorMap = new Map(
+    service.containers.map((c, i) => [
+      c.id,
+      REPLICA_COLORS[i % REPLICA_COLORS.length],
+    ]),
   );
 
-  const containerNodeMap = useMemo(
-    () => new Map(service.containers.map((c) => [c.id, c.nodeName ?? ''])),
-    [service.containers],
+  const containerNodeMap = new Map(
+    service.containers.map((c) => [c.id, c.nodeName ?? '']),
   );
 
   const batchRef = useRef<LogEntry[]>([]);
@@ -76,11 +71,11 @@ export default function ServiceLogViewer({ service }: Props) {
   const debouncedGrep = useDebouncedValue(grepQuery, 300);
   const isGrepping = debouncedGrep.trim().length > 0;
 
-  const filteredLogs = useMemo(() => {
-    if (!isGrepping) return logs;
-    const q = debouncedGrep.trim().toLowerCase();
-    return logs.filter((log) => log.message.toLowerCase().includes(q));
-  }, [logs, debouncedGrep, isGrepping]);
+  const filteredLogs = isGrepping
+    ? logs.filter((log) =>
+        log.message.toLowerCase().includes(debouncedGrep.trim().toLowerCase()),
+      )
+    : logs;
 
   const virtualizer = useVirtualizer({
     count: filteredLogs.length,
@@ -90,7 +85,7 @@ export default function ServiceLogViewer({ service }: Props) {
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  const flushBatch = useCallback(() => {
+  const flushBatch = () => {
     rafRef.current = 0;
     const batch = batchRef.current;
     if (batch.length === 0) return;
@@ -105,17 +100,14 @@ export default function ServiceLogViewer({ service }: Props) {
       }
       return next.length > MAX_LOG_LINES ? next.slice(-MAX_LOG_LINES) : next;
     });
-  }, []);
+  };
 
-  const handleLog = useCallback(
-    (entry: LogEntry) => {
-      batchRef.current.push(entry);
-      if (rafRef.current === 0) {
-        rafRef.current = requestAnimationFrame(flushBatch);
-      }
-    },
-    [flushBatch],
-  );
+  const handleLog = (entry: LogEntry) => {
+    batchRef.current.push(entry);
+    if (rafRef.current === 0) {
+      rafRef.current = requestAnimationFrame(flushBatch);
+    }
+  };
 
   useEffect(
     () => () => {

@@ -1,4 +1,3 @@
-import { memo } from 'react';
 import { AnsiText } from '@/components/AnsiText';
 import { formatTime } from '@/lib/utils';
 import type { LogEntry } from './graphql';
@@ -8,7 +7,7 @@ interface LogRowProps {
   measureRef: (node: HTMLElement | null) => void;
 }
 
-export const LogRow = memo(function LogRow({ log, measureRef }: LogRowProps) {
+export function LogRow({ log, measureRef }: LogRowProps) {
   return (
     <div
       ref={measureRef}
@@ -29,7 +28,7 @@ export const LogRow = memo(function LogRow({ log, measureRef }: LogRowProps) {
       <AnsiText text={log.message} className="whitespace-pre-wrap break-all" />
     </div>
   );
-});
+}
 
 interface ServiceLogRowProps {
   log: LogEntry;
@@ -38,7 +37,7 @@ interface ServiceLogRowProps {
   measureRef: (node: HTMLElement | null) => void;
 }
 
-export const ServiceLogRow = memo(function ServiceLogRow({
+export function ServiceLogRow({
   log,
   replicaColor,
   nodeName,
@@ -70,4 +69,4 @@ export const ServiceLogRow = memo(function ServiceLogRow({
       <AnsiText text={log.message} className="whitespace-pre-wrap break-all" />
     </div>
   );
-});
+}

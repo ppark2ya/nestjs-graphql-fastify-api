@@ -1,5 +1,5 @@
 import { useSubscription } from '@apollo/client/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, MAX_LOG_LINES } from './graphql';
 import { LogRow } from './LogRow';
@@ -25,11 +25,11 @@ export default function LogViewer({ containerId, containerName }: Props) {
   const debouncedGrep = useDebouncedValue(grepQuery, 300);
   const isGrepping = debouncedGrep.trim().length > 0;
 
-  const filteredLogs = useMemo(() => {
-    if (!isGrepping) return logs;
-    const q = debouncedGrep.trim().toLowerCase();
-    return logs.filter((log) => log.message.toLowerCase().includes(q));
-  }, [logs, debouncedGrep, isGrepping]);
+  const filteredLogs = isGrepping
+    ? logs.filter((log) =>
+        log.message.toLowerCase().includes(debouncedGrep.trim().toLowerCase()),
+      )
+    : logs;
 
   const virtualizer = useVirtualizer({
     count: filteredLogs.length,
@@ -39,7 +39,7 @@ export default function LogViewer({ containerId, containerName }: Props) {
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  const flushBatch = useCallback(() => {
+  const flushBatch = () => {
     rafRef.current = 0;
     const batch = batchRef.current;
     if (batch.length === 0) return;
@@ -48,7 +48,7 @@ export default function LogViewer({ containerId, containerName }: Props) {
       const next = prev.concat(batch);
       return next.length > MAX_LOG_LINES ? next.slice(-MAX_LOG_LINES) : next;
     });
-  }, []);
+  };
 
   const { error } = useSubscription<{ containerLog: LogEntry }>(
     CONTAINER_LOG_SUBSCRIPTION,
