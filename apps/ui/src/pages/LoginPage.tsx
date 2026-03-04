@@ -1,6 +1,3 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { useMutation } from '@apollo/client/react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext';
 import {
   LOGIN_MUTATION,
@@ -8,17 +5,20 @@ import {
   type LoginResponse,
   type VerifyTwoFactorResponse,
 } from '@/auth/graphql';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   InputOTP,
   InputOTPGroup,
-  InputOTPSlot,
   InputOTPSeparator,
+  InputOTPSlot,
 } from '@/components/ui/input-otp';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Lock, ShieldCheck, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useMutation } from '@apollo/client/react';
+import { Eye, EyeOff, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 type Step = 'credentials' | 'otp';
 
@@ -28,7 +28,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [otpCode, setOtpCode] = useState('');
-  const [twoFactorToken, setTwoFactorToken] = useState('');
+  const [, setTwoFactorToken] = useState('');
   const [error, setError] = useState('');
 
   const otpContainerRef = useRef<HTMLDivElement>(null);
@@ -42,7 +42,9 @@ export default function LoginPage() {
   useEffect(() => {
     if (step === 'otp') {
       const timer = setTimeout(() => {
-        otpContainerRef.current?.querySelector<HTMLInputElement>('input')?.focus();
+        otpContainerRef.current
+          ?.querySelector<HTMLInputElement>('input')
+          ?.focus();
       }, 300);
       return () => clearTimeout(timer);
     }
@@ -53,7 +55,7 @@ export default function LoginPage() {
   const [verifyMutation, { loading: verifyLoading }] =
     useMutation<VerifyTwoFactorResponse>(VERIFY_TWO_FACTOR_MUTATION);
 
-  const handleLogin = async (e: FormEvent) => {
+  const handleLogin = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     try {
@@ -79,7 +81,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleVerifyOtp = async (e: FormEvent) => {
+  const handleVerifyOtp = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     try {
@@ -244,9 +246,7 @@ export default function LoginPage() {
 
                   <Button
                     type="submit"
-                    disabled={
-                      verifyLoading || otpCode.length < 6
-                    }
+                    disabled={verifyLoading || otpCode.length < 6}
                     className="w-full"
                   >
                     {verifyLoading && (
