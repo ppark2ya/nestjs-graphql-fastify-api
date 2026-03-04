@@ -40,6 +40,7 @@ function AuthenticatedApp() {
             style={{
               pointerEvents:
                 pathname === '/admin/live-stream' ? 'auto' : 'none',
+              zIndex: pathname === '/admin/live-stream' ? 1 : 0,
             }}
           >
             <LiveStreamPage />
@@ -53,6 +54,7 @@ function AuthenticatedApp() {
             transition={{ duration: 0.15 }}
             style={{
               pointerEvents: pathname === '/admin/history' ? 'auto' : 'none',
+              zIndex: pathname === '/admin/history' ? 1 : 0,
             }}
           >
             <HistoryPage />
