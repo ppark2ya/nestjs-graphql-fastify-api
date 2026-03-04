@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useLazyQuery } from '@apollo/client/react';
 import { AnsiText } from '@/components/AnsiText';
 import { cn } from '@/lib/utils';
@@ -294,14 +294,14 @@ function LogRow({ line }: { line: HistoryLogLine }) {
   const [expanded, setExpanded] = useState(false);
   const levelColor = line.level ? LEVEL_COLORS[line.level] : '';
 
-  const parsedMetadata = useMemo(() => {
+  const parsedMetadata = (() => {
     if (!line.metadata) return null;
     try {
       return JSON.parse(line.metadata) as Record<string, unknown>;
     } catch {
       return null;
     }
-  }, [line.metadata]);
+  })();
 
   const hasMetadata = parsedMetadata !== null;
 

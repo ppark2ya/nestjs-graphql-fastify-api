@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ContainerList from './ContainerList';
 import LogViewer from './LogViewer';
 import ServiceLogViewer from './ServiceLogViewer';
@@ -65,44 +65,38 @@ export default function LiveStreamPage() {
     saveTabState(tabs, activeTabId);
   }, [tabs, activeTabId]);
 
-  const openTab = useCallback(
-    (tab: Tab) => {
-      setTabs((prev) => {
-        const existing = prev.find((t) => t.id === tab.id);
-        if (existing) {
-          setActiveTabId(tab.id);
-          return prev;
-        }
-        let next = [...prev, tab];
-        if (next.length > MAX_TABS) {
-          const oldestInactive = next.find((t) => t.id !== activeTabId);
-          if (oldestInactive) {
-            next = next.filter((t) => t.id !== oldestInactive.id);
-          }
-        }
+  const openTab = (tab: Tab) => {
+    setTabs((prev) => {
+      const existing = prev.find((t) => t.id === tab.id);
+      if (existing) {
         setActiveTabId(tab.id);
-        return next;
-      });
-    },
-    [activeTabId],
-  );
-
-  const closeTab = useCallback(
-    (tabId: string) => {
-      setTabs((prev) => {
-        const idx = prev.findIndex((t) => t.id === tabId);
-        const next = prev.filter((t) => t.id !== tabId);
-        if (tabId === activeTabId && next.length > 0) {
-          const newIdx = Math.min(idx, next.length - 1);
-          setActiveTabId(next[newIdx].id);
-        } else if (next.length === 0) {
-          setActiveTabId(null);
+        return prev;
+      }
+      let next = [...prev, tab];
+      if (next.length > MAX_TABS) {
+        const oldestInactive = next.find((t) => t.id !== activeTabId);
+        if (oldestInactive) {
+          next = next.filter((t) => t.id !== oldestInactive.id);
         }
-        return next;
-      });
-    },
-    [activeTabId],
-  );
+      }
+      setActiveTabId(tab.id);
+      return next;
+    });
+  };
+
+  const closeTab = (tabId: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === tabId);
+      const next = prev.filter((t) => t.id !== tabId);
+      if (tabId === activeTabId && next.length > 0) {
+        const newIdx = Math.min(idx, next.length - 1);
+        setActiveTabId(next[newIdx].id);
+      } else if (next.length === 0) {
+        setActiveTabId(null);
+      }
+      return next;
+    });
+  };
 
   const handleSelectContainer = (c: Container, closeSheet?: boolean) => {
     openTab({

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@apollo/client/react';
 import { Search, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ export default function HistoryPage() {
   const { data: appsData } = useQuery<{ logApps: LogApp[] }>(LOG_APPS_QUERY);
   const apps = appsData?.logApps ?? [];
 
-  const addTab = useCallback(() => {
+  const addTab = () => {
     const newTab = createTab();
     setTabs((prev) => {
       if (prev.length >= MAX_SEARCH_TABS) {
@@ -35,31 +35,28 @@ export default function HistoryPage() {
       return [...prev, newTab];
     });
     setActiveTabId(newTab.id);
-  }, [activeTabId]);
+  };
 
-  const closeTab = useCallback(
-    (tabId: string) => {
-      setTabs((prev) => {
-        const idx = prev.findIndex((t) => t.id === tabId);
-        const next = prev.filter((t) => t.id !== tabId);
+  const closeTab = (tabId: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === tabId);
+      const next = prev.filter((t) => t.id !== tabId);
 
-        if (tabId === activeTabId && next.length > 0) {
-          // Activate adjacent tab
-          const newIdx = Math.min(idx, next.length - 1);
-          setActiveTabId(next[newIdx].id);
-        }
+      if (tabId === activeTabId && next.length > 0) {
+        // Activate adjacent tab
+        const newIdx = Math.min(idx, next.length - 1);
+        setActiveTabId(next[newIdx].id);
+      }
 
-        return next;
-      });
-    },
-    [activeTabId],
-  );
+      return next;
+    });
+  };
 
-  const updateTabLabel = useCallback((tabId: string, label: string) => {
+  const updateTabLabel = (tabId: string, label: string) => {
     setTabs((prev) =>
       prev.map((t) => (t.id === tabId ? { ...t, label } : t)),
     );
-  }, []);
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">

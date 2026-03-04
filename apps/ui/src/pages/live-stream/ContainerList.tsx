@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@apollo/client/react';
 import { CONTAINERS_QUERY, Container, ServiceGroup } from './graphql';
 import { Button } from '@/components/ui/button';
@@ -51,7 +51,7 @@ export default function ContainerList({
 
   const containers = data?.containers ?? [];
 
-  const filtered = useMemo(() => {
+  const filtered = (() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return containers;
     return containers.filter((c) => {
@@ -59,7 +59,7 @@ export default function ContainerList({
       if (c.serviceName?.toLowerCase().includes(q)) return true;
       return false;
     });
-  }, [containers, searchQuery]);
+  })();
 
   if (loading) {
     return (
