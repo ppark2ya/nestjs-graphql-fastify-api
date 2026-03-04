@@ -1,4 +1,5 @@
 import { useQuery } from '@apollo/client/react';
+import { motion } from 'framer-motion';
 import { Search, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LOG_APPS_QUERY, LogApp, MAX_SEARCH_TABS } from './graphql';
@@ -57,16 +58,23 @@ export default function HistoryPage() {
       ) : (
         <div className="flex-1 relative overflow-hidden">
           {tabs.map((tab) => (
-            <div
+            <motion.div
               key={tab.id}
-              className="absolute inset-0 flex-col"
-              style={{ display: tab.id === activeTabId ? 'flex' : 'none' }}
+              className="absolute inset-0 flex flex-col"
+              animate={{
+                opacity: tab.id === activeTabId ? 1 : 0,
+                scale: tab.id === activeTabId ? 1 : 0.98,
+              }}
+              transition={{ duration: 0.15 }}
+              style={{
+                pointerEvents: tab.id === activeTabId ? 'auto' : 'none',
+              }}
             >
               <SearchPanel
                 appsData={apps}
                 onLabelChange={(label) => updateTabLabel(tab.id, label)}
               />
-            </div>
+            </motion.div>
           ))}
         </div>
       )}
