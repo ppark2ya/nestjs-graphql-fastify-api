@@ -68,5 +68,11 @@ export function useLogBuffer<T extends { timestamp: string }>(
     [],
   );
 
-  return { logs, addLog, clearLogs, lineCount: logs.length, batchStartIndex: batchStartRef.current };
+  return {
+    logs,
+    addLog,
+    clearLogs,
+    lineCount: logs.length,
+    batchStartIndex: batchStartRef.current,
+  };
 }
