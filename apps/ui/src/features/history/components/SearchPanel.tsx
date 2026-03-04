@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -213,6 +214,18 @@ export default function SearchPanel({
         </Button>
       </div>
 
+      {/* Loading Progress */}
+      {loading && (
+        <div className="h-0.5 w-full overflow-hidden bg-secondary">
+          <div
+            className="h-full w-1/4 bg-primary rounded-full"
+            style={{
+              animation: 'progress-indeterminate 1.5s ease-in-out infinite',
+            }}
+          />
+        </div>
+      )}
+
       {/* Summary Bar */}
       {result && (
         <div className="px-4 py-2 border-b border-border flex gap-4 text-xs">
@@ -240,6 +253,21 @@ export default function SearchPanel({
 
       {/* Log Table */}
       <div className="flex-1 overflow-y-auto">
+        {loading && !result && (
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex gap-3 items-center">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-14" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-28" />
+              </div>
+            ))}
+          </div>
+        )}
+
         {!result && !loading && (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <p>Select an app and date range to search logs</p>
