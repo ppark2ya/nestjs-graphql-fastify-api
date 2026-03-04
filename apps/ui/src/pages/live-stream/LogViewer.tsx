@@ -1,8 +1,9 @@
 import { useSubscription } from '@apollo/client/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, MAX_LOG_LINES } from './graphql';
-import { AnsiText } from '@/components/AnsiText';
-import { formatTime } from '@/lib/utils';
+import { LogRow } from './LogRow';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, X } from 'lucide-react';
@@ -16,19 +17,27 @@ export default function LogViewer({ containerId, containerName }: Props) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const [grepQuery, setGrepQuery] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const batchRef = useRef<LogEntry[]>([]);
   const rafRef = useRef(0);
 
-  const isGrepping = grepQuery.trim().length > 0;
+  const debouncedGrep = useDebouncedValue(grepQuery, 300);
+  const isGrepping = debouncedGrep.trim().length > 0;
 
   const filteredLogs = useMemo(() => {
     if (!isGrepping) return logs;
-    const q = grepQuery.trim().toLowerCase();
+    const q = debouncedGrep.trim().toLowerCase();
     return logs.filter((log) => log.message.toLowerCase().includes(q));
-  }, [logs, grepQuery, isGrepping]);
+  }, [logs, debouncedGrep, isGrepping]);
+
+  const virtualizer = useVirtualizer({
+    count: filteredLogs.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 24,
+    overscan: 20,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
 
   const flushBatch = useCallback(() => {
     rafRef.current = 0;
@@ -64,16 +73,16 @@ export default function LogViewer({ containerId, containerName }: Props) {
   );
 
   useEffect(() => {
-    if (autoScroll && !isGrepping) {
-      bottomRef.current?.scrollIntoView();
+    if (autoScroll && !isGrepping && filteredLogs.length > 0) {
+      virtualizer.scrollToIndex(filteredLogs.length - 1, { align: 'end' });
     }
-  }, [logs, autoScroll, isGrepping]);
+  }, [filteredLogs.length, autoScroll, isGrepping, virtualizer]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-    setAutoScroll(isAtBottom);
+    setAutoScroll((prev) => (prev === isAtBottom ? prev : isAtBottom));
   };
 
   return (
@@ -117,7 +126,9 @@ export default function LogViewer({ containerId, containerName }: Props) {
               className="h-auto p-0"
               onClick={() => {
                 setAutoScroll(true);
-                bottomRef.current?.scrollIntoView();
+                virtualizer.scrollToIndex(filteredLogs.length - 1, {
+                  align: 'end',
+                });
               }}
             >
               Follow
@@ -150,31 +161,33 @@ export default function LogViewer({ containerId, containerName }: Props) {
             {isGrepping ? 'No matching logs' : 'Waiting for logs...'}
           </p>
         ) : (
-          filteredLogs.map((log, i) => (
-            <div
-              key={i}
-              className={`flex gap-2 py-0.5 px-2 hover:bg-secondary/50 ${
-                log.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'
-              }`}
-            >
-              <span className="text-muted-foreground shrink-0">
-                {formatTime(log.timestamp)}
-              </span>
-              <span
-                className={`shrink-0 w-12 ${
-                  log.stream === 'stderr' ? 'text-red-500' : 'text-blue-500'
-                }`}
+          <div
+            style={{
+              height: virtualizer.getTotalSize(),
+              position: 'relative',
+              width: '100%',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => (
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
               >
-                {log.stream}
-              </span>
-              <AnsiText
-                text={log.message}
-                className="whitespace-pre-wrap break-all"
-              />
-            </div>
-          ))
+                <LogRow
+                  log={filteredLogs[virtualRow.index]}
+                  measureRef={virtualizer.measureElement}
+                />
+              </div>
+            ))}
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
     </div>
   );

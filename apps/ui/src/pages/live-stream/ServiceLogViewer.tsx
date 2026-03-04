@@ -1,13 +1,14 @@
 import { useSubscription } from '@apollo/client/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   CONTAINER_LOG_SUBSCRIPTION,
   LogEntry,
   MAX_LOG_LINES,
   ServiceGroup,
 } from './graphql';
-import { AnsiText } from '@/components/AnsiText';
-import { formatTime } from '@/lib/utils';
+import { ServiceLogRow } from './LogRow';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -49,30 +50,45 @@ export default function ServiceLogViewer({ service }: Props) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const [grepQuery, setGrepQuery] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const containerIds = service.containers.map((c) => c.id);
-  const containerColorMap = new Map(
-    service.containers.map((c, i) => [
-      c.id,
-      REPLICA_COLORS[i % REPLICA_COLORS.length],
-    ]),
+
+  const containerColorMap = useMemo(
+    () =>
+      new Map(
+        service.containers.map((c, i) => [
+          c.id,
+          REPLICA_COLORS[i % REPLICA_COLORS.length],
+        ]),
+      ),
+    [service.containers],
   );
-  const containerNodeMap = new Map(
-    service.containers.map((c) => [c.id, c.nodeName ?? '']),
+
+  const containerNodeMap = useMemo(
+    () => new Map(service.containers.map((c) => [c.id, c.nodeName ?? ''])),
+    [service.containers],
   );
 
   const batchRef = useRef<LogEntry[]>([]);
   const rafRef = useRef(0);
 
-  const isGrepping = grepQuery.trim().length > 0;
+  const debouncedGrep = useDebouncedValue(grepQuery, 300);
+  const isGrepping = debouncedGrep.trim().length > 0;
 
   const filteredLogs = useMemo(() => {
     if (!isGrepping) return logs;
-    const q = grepQuery.trim().toLowerCase();
+    const q = debouncedGrep.trim().toLowerCase();
     return logs.filter((log) => log.message.toLowerCase().includes(q));
-  }, [logs, grepQuery, isGrepping]);
+  }, [logs, debouncedGrep, isGrepping]);
+
+  const virtualizer = useVirtualizer({
+    count: filteredLogs.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 24,
+    overscan: 20,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
 
   const flushBatch = useCallback(() => {
     rafRef.current = 0;
@@ -109,16 +125,16 @@ export default function ServiceLogViewer({ service }: Props) {
   );
 
   useEffect(() => {
-    if (autoScroll && !isGrepping) {
-      bottomRef.current?.scrollIntoView();
+    if (autoScroll && !isGrepping && filteredLogs.length > 0) {
+      virtualizer.scrollToIndex(filteredLogs.length - 1, { align: 'end' });
     }
-  }, [logs, autoScroll, isGrepping]);
+  }, [filteredLogs.length, autoScroll, isGrepping, virtualizer]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-    setAutoScroll(isAtBottom);
+    setAutoScroll((prev) => (prev === isAtBottom ? prev : isAtBottom));
   };
 
   return (
@@ -163,7 +179,9 @@ export default function ServiceLogViewer({ service }: Props) {
               className="h-auto p-0"
               onClick={() => {
                 setAutoScroll(true);
-                bottomRef.current?.scrollIntoView();
+                virtualizer.scrollToIndex(filteredLogs.length - 1, {
+                  align: 'end',
+                });
               }}
             >
               Follow
@@ -209,41 +227,41 @@ export default function ServiceLogViewer({ service }: Props) {
               : `Waiting for logs from ${containerIds.length} replicas...`}
           </p>
         ) : (
-          filteredLogs.map((log, i) => (
-            <div
-              key={i}
-              className={`flex gap-2 py-0.5 px-2 hover:bg-secondary/50 ${
-                log.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'
-              }`}
-            >
-              <span className="text-muted-foreground shrink-0">
-                {formatTime(log.timestamp)}
-              </span>
-              <span
-                className={`shrink-0 truncate ${containerColorMap.get(log.containerId) ?? 'text-muted-foreground'}`}
-              >
-                {log.containerId.slice(0, 8)}
-                {containerNodeMap.get(log.containerId) && (
-                  <span className="text-muted-foreground">
-                    @{containerNodeMap.get(log.containerId)}
-                  </span>
-                )}
-              </span>
-              <span
-                className={`shrink-0 w-12 ${
-                  log.stream === 'stderr' ? 'text-red-500' : 'text-blue-500'
-                }`}
-              >
-                {log.stream}
-              </span>
-              <AnsiText
-                text={log.message}
-                className="whitespace-pre-wrap break-all"
-              />
-            </div>
-          ))
+          <div
+            style={{
+              height: virtualizer.getTotalSize(),
+              position: 'relative',
+              width: '100%',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const log = filteredLogs[virtualRow.index];
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <ServiceLogRow
+                    log={log}
+                    replicaColor={
+                      containerColorMap.get(log.containerId) ??
+                      'text-muted-foreground'
+                    }
+                    nodeName={containerNodeMap.get(log.containerId) ?? ''}
+                    measureRef={virtualizer.measureElement}
+                  />
+                </div>
+              );
+            })}
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
     </div>
   );
