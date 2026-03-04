@@ -14,10 +14,12 @@ import { PUB_SUB } from '../pubsub/pubsub.provider';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
 import WebSocket from 'ws';
 import { Container } from './models/container.model';
+import { discoverLogStreamers } from '../common/discover-log-streamers';
 
 const LOG_STREAM_TOPIC = 'CONTAINER_LOG';
 const BASE_RECONNECT_MS = 1_000;
 const MAX_RECONNECT_MS = 30_000;
+const DNS_REFRESH_MS = 30_000;
 
 interface WSLogMessage {
   type: string;
@@ -27,15 +29,29 @@ interface WSLogMessage {
   stream?: string;
 }
 
+class LogStreamerConnection {
+  readonly host: string;
+  readonly wsUrl: string;
+  readonly httpUrl: string;
+  ws: WebSocket | null = null;
+  reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  reconnectAttempts = 0;
+
+  constructor(host: string, port: number) {
+    this.host = host;
+    this.httpUrl = `http://${host}:${port}`;
+    this.wsUrl = `ws://${host}:${port}/ws/logs`;
+  }
+}
+
 @Injectable()
 export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(LogStreamerProxyService.name);
-  private readonly logStreamerWsUrl: string;
-  private readonly logStreamerUrl: string;
-  private ws: WebSocket | null = null;
-  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly logStreamerPort: number;
+  private readonly logStreamerBaseUrl: string;
+  private readonly connections = new Map<string, LogStreamerConnection>();
+  private dnsRefreshInterval: ReturnType<typeof setInterval> | null = null;
   private isShuttingDown = false;
-  private reconnectAttempts = 0;
   private activeSubscriptions = new Set<string>();
 
   constructor(
@@ -44,57 +60,89 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     @Inject(PUB_SUB) private readonly pubSub: RedisPubSub,
     private readonly configService: ConfigService<Env>,
   ) {
-    this.logStreamerWsUrl = this.configService.getOrThrow(
-      'LOG_STREAMER_WS_URL',
-      {
-        infer: true,
-      },
-    );
-    this.logStreamerUrl = this.configService.getOrThrow('LOG_STREAMER_URL', {
+    this.logStreamerPort = this.configService.getOrThrow('LOG_STREAMER_PORT', {
+      infer: true,
+    });
+    this.logStreamerBaseUrl = this.configService.getOrThrow('LOG_STREAMER_URL', {
       infer: true,
     });
   }
 
-  onModuleInit() {
-    this.connectWebSocket();
+  async onModuleInit() {
+    await this.reconcileConnections();
+    this.dnsRefreshInterval = setInterval(
+      () => void this.reconcileConnections(),
+      DNS_REFRESH_MS,
+    );
   }
 
   onModuleDestroy() {
     this.isShuttingDown = true;
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
+    if (this.dnsRefreshInterval) {
+      clearInterval(this.dnsRefreshInterval);
     }
-    if (this.ws) {
-      this.ws.close();
+    for (const conn of this.connections.values()) {
+      this.closeConnection(conn);
+    }
+    this.connections.clear();
+  }
+
+  private async reconcileConnections() {
+    if (this.isShuttingDown) return;
+
+    const hosts = await discoverLogStreamers(this.logStreamerBaseUrl);
+    const currentHosts = new Set(this.connections.keys());
+    const discoveredHosts = new Set(hosts);
+
+    // Remove connections for hosts that are no longer discovered
+    for (const host of currentHosts) {
+      if (!discoveredHosts.has(host)) {
+        this.logger.log(`Removing stale log-streamer connection: ${host}`);
+        const conn = this.connections.get(host)!;
+        this.closeConnection(conn);
+        this.connections.delete(host);
+      }
+    }
+
+    // Add connections for newly discovered hosts
+    for (const host of discoveredHosts) {
+      if (!currentHosts.has(host)) {
+        this.logger.log(`Adding new log-streamer connection: ${host}`);
+        const conn = new LogStreamerConnection(host, this.logStreamerPort);
+        this.connections.set(host, conn);
+        this.connectWebSocket(conn);
+      }
     }
   }
 
-  private connectWebSocket() {
+  private connectWebSocket(conn: LogStreamerConnection) {
     if (this.isShuttingDown) return;
 
-    const wsUrl = this.logStreamerWsUrl;
-
-    this.logger.log(`Connecting to log-streamer WebSocket at ${wsUrl}`);
+    this.logger.log(
+      `Connecting to log-streamer WebSocket at ${conn.wsUrl}`,
+    );
 
     try {
-      this.ws = new WebSocket(wsUrl);
+      conn.ws = new WebSocket(conn.wsUrl);
 
-      this.ws.on('open', () => {
-        this.reconnectAttempts = 0;
-        this.logger.log('Connected to log-streamer WebSocket');
+      conn.ws.on('open', () => {
+        conn.reconnectAttempts = 0;
+        this.logger.log(
+          `Connected to log-streamer WebSocket [${conn.host}]`,
+        );
         if (this.activeSubscriptions.size > 0) {
           this.logger.log(
-            `Re-subscribing ${this.activeSubscriptions.size} active container(s)`,
+            `Re-subscribing ${this.activeSubscriptions.size} active container(s) on [${conn.host}]`,
           );
           for (const id of this.activeSubscriptions) {
-            this.ws!.send(
+            conn.ws!.send(
               JSON.stringify({ type: 'subscribe', containerId: id }),
             );
           }
         }
       });
 
-      this.ws.on('message', (data: Buffer) => {
+      conn.ws.on('message', (data: Buffer) => {
         try {
           const message = JSON.parse(data.toString()) as WSLogMessage;
           if (message.type === 'log' && message.containerId) {
@@ -111,43 +159,72 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
             );
           } else if (message.type === 'error') {
             this.logger.warn(
-              `Log-streamer error${message.containerId ? ` [container=${message.containerId}]` : ''}: ${message.message}`,
+              `Log-streamer error [${conn.host}]${message.containerId ? ` [container=${message.containerId}]` : ''}: ${message.message}`,
             );
           }
         } catch (error) {
-          this.logger.error('Failed to parse WebSocket message', error);
+          this.logger.error(
+            `Failed to parse WebSocket message [${conn.host}]`,
+            error,
+          );
         }
       });
 
-      this.ws.on('close', () => {
-        this.logger.warn('WebSocket connection closed');
-        this.scheduleReconnect();
+      conn.ws.on('close', () => {
+        this.logger.warn(
+          `WebSocket connection closed [${conn.host}]`,
+        );
+        this.scheduleReconnect(conn);
       });
 
-      this.ws.on('error', (error) => {
-        this.logger.error('WebSocket error', error);
+      conn.ws.on('error', (error) => {
+        this.logger.error(`WebSocket error [${conn.host}]`, error);
       });
     } catch (error) {
-      this.logger.error('Failed to create WebSocket connection', error);
-      this.scheduleReconnect();
+      this.logger.error(
+        `Failed to create WebSocket connection [${conn.host}]`,
+        error,
+      );
+      this.scheduleReconnect(conn);
     }
   }
 
-  private scheduleReconnect() {
+  private scheduleReconnect(conn: LogStreamerConnection) {
     if (this.isShuttingDown) return;
+    // Skip reconnect if the connection was removed during reconciliation
+    if (!this.connections.has(conn.host)) return;
 
-    this.reconnectAttempts++;
+    conn.reconnectAttempts++;
     const delay = Math.min(
-      BASE_RECONNECT_MS * 2 ** (this.reconnectAttempts - 1),
+      BASE_RECONNECT_MS * 2 ** (conn.reconnectAttempts - 1),
       MAX_RECONNECT_MS,
     );
 
-    this.reconnectTimeout = setTimeout(() => {
+    conn.reconnectTimeout = setTimeout(() => {
       this.logger.log(
-        `Attempting to reconnect to log-streamer (attempt ${this.reconnectAttempts}, next delay ${delay}ms)...`,
+        `Attempting to reconnect to log-streamer [${conn.host}] (attempt ${conn.reconnectAttempts}, delay ${delay}ms)...`,
       );
-      this.connectWebSocket();
+      this.connectWebSocket(conn);
     }, delay);
+  }
+
+  private closeConnection(conn: LogStreamerConnection) {
+    if (conn.reconnectTimeout) {
+      clearTimeout(conn.reconnectTimeout);
+      conn.reconnectTimeout = null;
+    }
+    if (conn.ws) {
+      conn.ws.close();
+      conn.ws = null;
+    }
+  }
+
+  private broadcastToAll(message: string) {
+    for (const conn of this.connections.values()) {
+      if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+        conn.ws.send(message);
+      }
+    }
   }
 
   async subscribeToLogs(containerId: string) {
@@ -167,11 +244,14 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
       };
     }>(topic);
 
-    // 3. Now request data from Log Streamer (Redis is ready to receive)
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'subscribe', containerId }));
-    } else {
-      this.logger.warn('WebSocket not connected, subscription may be delayed');
+    // 3. Now request data from all Log Streamer instances (Redis is ready to receive)
+    const subscribeMsg = JSON.stringify({ type: 'subscribe', containerId });
+    this.broadcastToAll(subscribeMsg);
+
+    if (this.connections.size === 0) {
+      this.logger.warn(
+        'No log-streamer connections available, subscription may be delayed',
+      );
     }
 
     // 4. Wrap iterator to cleanup on subscription end
@@ -196,18 +276,33 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   }
 
   unsubscribeFromLogs(containerId: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'unsubscribe', containerId }));
-    }
+    const unsubscribeMsg = JSON.stringify({
+      type: 'unsubscribe',
+      containerId,
+    });
+    this.broadcastToAll(unsubscribeMsg);
   }
 
   async listContainers(): Promise<Container[]> {
-    return this.circuitBreaker.fire('log-streamer', async () => {
-      const baseUrl = this.logStreamerUrl;
-      const response = await firstValueFrom(
-        this.httpService.get<Container[]>(`${baseUrl}/api/containers`),
-      );
-      return response.data;
-    });
+    const hosts = await discoverLogStreamers(this.logStreamerBaseUrl);
+    const results = await Promise.allSettled(
+      hosts.map((host) =>
+        this.circuitBreaker.fire('log-streamer', async () => {
+          const url = `http://${host}:${this.logStreamerPort}`;
+          const response = await firstValueFrom(
+            this.httpService.get<Container[]>(`${url}/api/containers`),
+          );
+          return response.data;
+        }),
+      ),
+    );
+
+    const containers: Container[] = [];
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        containers.push(...result.value);
+      }
+    }
+    return containers;
   }
 }
