@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { promises as dns } from 'dns';
 import { CircuitBreakerService } from '../circuit-breaker/circuit-breaker.service';
 import { Env } from '../env.schema';
+import { discoverLogStreamers } from '../common/discover-log-streamers';
 import { LogSearchInput } from './dto/log-search.input';
 import { LogSearchResult } from './models/log-search-result.model';
 import { LogApp } from './models/log-app.model';
@@ -54,7 +54,7 @@ export class LogHistoryService {
   }
 
   async listApps(): Promise<LogApp[]> {
-    const hosts = await this.discoverLogStreamers();
+    const hosts = await this.discoverLogStreamerUrls();
     const results = await Promise.allSettled(
       hosts.map((host) =>
         this.circuitBreaker.fire('log-history', async () => {
@@ -84,7 +84,7 @@ export class LogHistoryService {
   }
 
   async search(input: LogSearchInput): Promise<LogSearchResult> {
-    const hosts = await this.discoverLogStreamers();
+    const hosts = await this.discoverLogStreamerUrls();
 
     const searchPromises = hosts.map((host) =>
       this.circuitBreaker.fire('log-history', async () => {
@@ -161,16 +161,9 @@ export class LogHistoryService {
     return { lines: allLines, hasMore, summary };
   }
 
-  private async discoverLogStreamers(): Promise<string[]> {
-    try {
-      const addresses = await dns.resolve4('tasks.log-streamer');
-      this.logger.debug(
-        `Discovered ${addresses.length} log-streamer instances`,
-      );
-      return addresses.map((ip) => `http://${ip}:${this.logStreamerPort}`);
-    } catch {
-      return [this.logStreamerBaseUrl];
-    }
+  private async discoverLogStreamerUrls(): Promise<string[]> {
+    const hosts = await discoverLogStreamers(this.logStreamerBaseUrl);
+    return hosts.map((ip) => `http://${ip}:${this.logStreamerPort}`);
   }
 
   private mergeStats(
