@@ -51,21 +51,12 @@ export function useTabs<T = unknown>(options: UseTabsOptions<T>) {
     initialActiveTabId = null,
   } = options;
 
-  const [tabs, setTabs] = useState<Tab<T>[]>(() => {
-    if (storageKey) {
-      const persisted = loadState<T>(storageKey);
-      if (persisted) return persisted.tabs;
-    }
-    return initialTabs;
-  });
+  const initial = storageKey ? loadState<T>(storageKey) : null;
 
-  const [activeTabId, setActiveTabId] = useState<string | null>(() => {
-    if (storageKey) {
-      const persisted = loadState<T>(storageKey);
-      if (persisted) return persisted.activeTabId;
-    }
-    return initialActiveTabId;
-  });
+  const [tabs, setTabs] = useState<Tab<T>[]>(initial?.tabs ?? initialTabs);
+  const [activeTabId, setActiveTabId] = useState<string | null>(
+    initial?.activeTabId ?? initialActiveTabId,
+  );
 
   useEffect(() => {
     if (storageKey) {
