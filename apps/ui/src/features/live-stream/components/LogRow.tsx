@@ -4,13 +4,11 @@ import type { LogEntry } from '../graphql';
 
 interface LogRowProps {
   log: LogEntry;
-  measureRef: (node: HTMLElement | null) => void;
 }
 
-export function LogRow({ log, measureRef }: LogRowProps) {
+export function LogRow({ log }: LogRowProps) {
   return (
     <div
-      ref={measureRef}
       className={`flex gap-2 py-0.5 px-2 hover:bg-secondary/50 ${
         log.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'
       }`}
@@ -34,18 +32,15 @@ interface ServiceLogRowProps {
   log: LogEntry;
   replicaColor: string;
   nodeName: string;
-  measureRef: (node: HTMLElement | null) => void;
 }
 
 export function ServiceLogRow({
   log,
   replicaColor,
   nodeName,
-  measureRef,
 }: ServiceLogRowProps) {
   return (
     <div
-      ref={measureRef}
       className={`flex gap-2 py-0.5 px-2 hover:bg-secondary/50 ${
         log.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'
       }`}

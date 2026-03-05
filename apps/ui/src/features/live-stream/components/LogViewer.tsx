@@ -24,7 +24,6 @@ export default function LogViewer({ containerId, containerName }: Props) {
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 24,
     overscan: 20,
-    measureElement: (el) => el.getBoundingClientRect().height,
   });
 
   const { scrollRef, isFollowing, handleScroll, scrollToBottom } =
@@ -127,6 +126,7 @@ export default function LogViewer({ containerId, containerName }: Props) {
             {virtualizer.getVirtualItems().map((virtualRow) => (
               <div
                 key={virtualRow.key}
+                ref={virtualizer.measureElement}
                 data-index={virtualRow.index}
                 className={
                   isFollowing && !isGrepping && virtualRow.index >= batchStartIndex
@@ -141,10 +141,7 @@ export default function LogViewer({ containerId, containerName }: Props) {
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <LogRow
-                  log={filteredLogs[virtualRow.index]}
-                  measureRef={virtualizer.measureElement}
-                />
+                <LogRow log={filteredLogs[virtualRow.index]} />
               </div>
             ))}
           </div>

@@ -83,15 +83,14 @@
     background: transparent;
   }
 
-  /* Log row enter animation */
+  /* Log row enter animation (opacity only — transform would override
+     the inline translateY used by the virtualizer for positioning) */
   @keyframes log-enter {
     from {
       opacity: 0;
-      transform: translateY(8px);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
     }
   }
 
