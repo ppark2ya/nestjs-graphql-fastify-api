@@ -15,6 +15,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
   Table,
   TableBody,
   TableCell,
@@ -22,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, ChevronRight, ChevronDown } from 'lucide-react';
+import { Search, Check, ChevronRight, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import {
   LOG_SEARCH_QUERY,
   LogApp,
@@ -53,6 +62,7 @@ export default function SearchPanel({
   onLabelChange,
 }: SearchPanelProps) {
   const [app, setApp] = useState('');
+  const [appOpen, setAppOpen] = useState(false);
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [level, setLevel] = useState('');
@@ -105,18 +115,47 @@ export default function SearchPanel({
       <div className="px-4 py-3 border-b border-border flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <Label className="text-xs text-muted-foreground">App</Label>
-          <Select value={app || undefined} onValueChange={setApp}>
-            <SelectTrigger className="bg-secondary h-8 text-sm min-w-[160px]">
-              <SelectValue placeholder="Select app..." />
-            </SelectTrigger>
-            <SelectContent>
-              {apps.map((a) => (
-                <SelectItem key={a} value={a}>
-                  {a}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={appOpen} onOpenChange={setAppOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={appOpen}
+                className="bg-secondary h-8 text-sm w-[280px] justify-between font-normal"
+              >
+                {app || 'Select app...'}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[280px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search app..." />
+                <CommandList>
+                  <CommandEmpty>No app found.</CommandEmpty>
+                  <CommandGroup>
+                    {apps.map((a) => (
+                      <CommandItem
+                        key={a}
+                        value={a}
+                        onSelect={(value) => {
+                          setApp(value === app ? '' : value);
+                          setAppOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            'mr-2 h-4 w-4',
+                            app === a ? 'opacity-100' : 'opacity-0',
+                          )}
+                        />
+                        {a}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="flex flex-col gap-1">
