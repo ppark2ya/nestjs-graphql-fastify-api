@@ -28,6 +28,19 @@ export const CONTAINER_LOG_SUBSCRIPTION = gql`
   }
 `;
 
+export const SERVICE_LOG_SUBSCRIPTION = gql`
+  subscription ServiceLog($serviceName: String!) {
+    serviceLog(serviceName: $serviceName) {
+      containerId
+      serviceName
+      timestamp
+      message
+      stream
+      event
+    }
+  }
+`;
+
 export interface Container {
   id: string;
   name: string;
@@ -46,6 +59,11 @@ export interface LogEntry {
   timestamp: string;
   message: string;
   stream: string;
+}
+
+export interface ServiceLogEntry extends LogEntry {
+  serviceName: string;
+  event?: string | null;
 }
 
 export interface ServiceGroup {

@@ -1,7 +1,12 @@
+import { useRef, useState, useCallback } from 'react';
 import { useSubscription } from '@apollo/client/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { CONTAINER_LOG_SUBSCRIPTION, LogEntry, ServiceGroup } from '../graphql';
-import { ServiceLogRow } from './LogRow';
+import {
+  SERVICE_LOG_SUBSCRIPTION,
+  ServiceLogEntry,
+  ServiceGroup,
+} from '../graphql';
+import { ServiceLogRow, ServiceEventRow } from './LogRow';
 import { useLogBuffer } from '@/hooks/useLogBuffer';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { useLogFilter } from '@/hooks/useLogFilter';
@@ -12,24 +17,6 @@ import { Search, X } from 'lucide-react';
 
 interface Props {
   service: ServiceGroup;
-}
-
-function ContainerSubscription({
-  containerId,
-  onLog,
-}: {
-  containerId: string;
-  onLog: (entry: LogEntry) => void;
-}) {
-  useSubscription<{ containerLog: LogEntry }>(CONTAINER_LOG_SUBSCRIPTION, {
-    variables: { containerId },
-    onData: ({ data }) => {
-      if (data.data?.containerLog) {
-        onLog(data.data.containerLog);
-      }
-    },
-  });
-  return null;
 }
 
 // Short container ID → color mapping for visual distinction
@@ -43,23 +30,74 @@ const REPLICA_COLORS = [
 ];
 
 export default function ServiceLogViewer({ service }: Props) {
-  const { logs, addLog, clearLogs, lineCount, batchStartIndex } = useLogBuffer<LogEntry>({
-    sortByTimestamp: true,
-  });
+  const { logs, addLog, clearLogs, lineCount, batchStartIndex } =
+    useLogBuffer<ServiceLogEntry>({
+      sortByTimestamp: true,
+    });
   const { grepQuery, setGrepQuery, filteredLogs, isGrepping } =
     useLogFilter(logs);
 
-  const containerIds = service.containers.map((c) => c.id);
+  // Track active containers dynamically via service events
+  const [activeContainers, setActiveContainers] = useState<
+    Map<string, { nodeName?: string }>
+  >(() => {
+    const initial = new Map<string, { nodeName?: string }>();
+    for (const c of service.containers) {
+      initial.set(c.id, { nodeName: c.nodeName });
+    }
+    return initial;
+  });
 
-  const containerColorMap = new Map(
-    service.containers.map((c, i) => [
-      c.id,
-      REPLICA_COLORS[i % REPLICA_COLORS.length],
-    ]),
+  // Stable color assignment: use ref so new containers get next color
+  const containerColorMapRef = useRef(
+    new Map(
+      service.containers.map((c, i) => [
+        c.id,
+        REPLICA_COLORS[i % REPLICA_COLORS.length],
+      ]),
+    ),
   );
+  const colorIndexRef = useRef(service.containers.length);
 
-  const containerNodeMap = new Map(
-    service.containers.map((c) => [c.id, c.nodeName ?? '']),
+  const getContainerColor = useCallback((containerId: string) => {
+    const map = containerColorMapRef.current;
+    if (!map.has(containerId)) {
+      map.set(
+        containerId,
+        REPLICA_COLORS[colorIndexRef.current % REPLICA_COLORS.length],
+      );
+      colorIndexRef.current++;
+    }
+    return map.get(containerId)!;
+  }, []);
+
+  useSubscription<{ serviceLog: ServiceLogEntry }>(
+    SERVICE_LOG_SUBSCRIPTION,
+    {
+      variables: { serviceName: service.serviceName },
+      onData: ({ data }) => {
+        const entry = data.data?.serviceLog;
+        if (!entry) return;
+
+        if (entry.event === 'container_started') {
+          setActiveContainers((prev) => {
+            const next = new Map(prev);
+            next.set(entry.containerId, {});
+            return next;
+          });
+          // Ensure color is assigned
+          getContainerColor(entry.containerId);
+        } else if (entry.event === 'container_stopped') {
+          setActiveContainers((prev) => {
+            const next = new Map(prev);
+            next.delete(entry.containerId);
+            return next;
+          });
+        }
+
+        addLog(entry);
+      },
+    },
   );
 
   const virtualizer = useVirtualizer({
@@ -85,7 +123,7 @@ export default function ServiceLogViewer({ service }: Props) {
             {service.serviceName}
           </h2>
           <Badge variant="secondary" className="text-purple-400">
-            {containerIds.length} replicas
+            {activeContainers.size} replicas
           </Badge>
         </div>
         <div className="relative flex items-center">
@@ -132,22 +170,24 @@ export default function ServiceLogViewer({ service }: Props) {
         </div>
       </div>
 
-      {/* Replica legend */}
+      {/* Replica legend — dynamically reflects active containers */}
       <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-card/50 flex-wrap">
-        {service.containers.map((c) => (
-          <span key={c.id} className={`text-xs ${containerColorMap.get(c.id)}`}>
-            {c.id.slice(0, 8)}
-            {c.nodeName && (
-              <span className="text-muted-foreground ml-1">@{c.nodeName}</span>
+        {[...activeContainers.entries()].map(([id, info]) => (
+          <span key={id} className={`text-xs ${getContainerColor(id)}`}>
+            {id.slice(0, 8)}
+            {info.nodeName && (
+              <span className="text-muted-foreground ml-1">
+                @{info.nodeName}
+              </span>
             )}
           </span>
         ))}
+        {activeContainers.size === 0 && (
+          <span className="text-xs text-muted-foreground italic">
+            No active replicas
+          </span>
+        )}
       </div>
-
-      {/* Hidden subscription components */}
-      {containerIds.map((id) => (
-        <ContainerSubscription key={id} containerId={id} onLog={addLog} />
-      ))}
 
       <div
         ref={scrollRef}
@@ -158,7 +198,7 @@ export default function ServiceLogViewer({ service }: Props) {
           <p className="text-muted-foreground p-2">
             {isGrepping
               ? 'No matching logs'
-              : `Waiting for logs from ${containerIds.length} replicas...`}
+              : `Waiting for logs from ${service.serviceName}...`}
           </p>
         ) : (
           <div
@@ -169,14 +209,17 @@ export default function ServiceLogViewer({ service }: Props) {
             }}
           >
             {virtualizer.getVirtualItems().map((virtualRow) => {
-              const log = filteredLogs[virtualRow.index];
+              const log = filteredLogs[virtualRow.index] as ServiceLogEntry;
+              const isEvent = log.stream === 'event';
               return (
                 <div
                   key={virtualRow.key}
                   ref={virtualizer.measureElement}
                   data-index={virtualRow.index}
                   className={
-                    isFollowing && !isGrepping && virtualRow.index >= batchStartIndex
+                    isFollowing &&
+                    !isGrepping &&
+                    virtualRow.index >= batchStartIndex
                       ? 'animate-log-enter'
                       : undefined
                   }
@@ -188,14 +231,20 @@ export default function ServiceLogViewer({ service }: Props) {
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  <ServiceLogRow
-                    log={log}
-                    replicaColor={
-                      containerColorMap.get(log.containerId) ??
-                      'text-muted-foreground'
-                    }
-                    nodeName={containerNodeMap.get(log.containerId) ?? ''}
-                  />
+                  {isEvent ? (
+                    <ServiceEventRow log={log} />
+                  ) : (
+                    <ServiceLogRow
+                      log={log}
+                      replicaColor={
+                        getContainerColor(log.containerId) ??
+                        'text-muted-foreground'
+                      }
+                      nodeName={
+                        activeContainers.get(log.containerId)?.nodeName ?? ''
+                      }
+                    />
+                  )}
                 </div>
               );
             })}

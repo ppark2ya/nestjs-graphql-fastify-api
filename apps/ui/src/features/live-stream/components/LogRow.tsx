@@ -1,6 +1,6 @@
 import { AnsiText } from '@/components/AnsiText';
 import { formatTime } from '@/lib/utils';
-import type { LogEntry } from '../graphql';
+import type { LogEntry, ServiceLogEntry } from '../graphql';
 
 interface LogRowProps {
   log: LogEntry;
@@ -60,6 +60,23 @@ export function ServiceLogRow({
         {log.stream}
       </span>
       <AnsiText text={log.message} className="whitespace-pre-wrap break-all" />
+    </div>
+  );
+}
+
+interface ServiceEventRowProps {
+  log: ServiceLogEntry;
+}
+
+export function ServiceEventRow({ log }: ServiceEventRowProps) {
+  return (
+    <div className="flex items-center gap-2 py-1 px-2 border-y border-yellow-500/20">
+      <span className="text-muted-foreground shrink-0 text-xs">
+        {formatTime(log.timestamp)}
+      </span>
+      <span className="flex-1 text-center text-yellow-400 italic text-xs">
+        --- {log.message} ---
+      </span>
     </div>
   );
 }

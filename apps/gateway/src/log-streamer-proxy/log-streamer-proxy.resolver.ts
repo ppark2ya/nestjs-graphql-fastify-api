@@ -2,6 +2,7 @@ import { Resolver, Query, Subscription, Args } from '@nestjs/graphql';
 import { LogStreamerProxyService } from './log-streamer-proxy.service';
 import { Container } from './models/container.model';
 import { LogEntry } from './models/log-entry.model';
+import { ServiceLogEntry } from './models/service-log-entry.model';
 import { Public } from '../auth/public.decorator';
 
 @Resolver()
@@ -19,5 +20,14 @@ export class LogStreamerProxyResolver {
   })
   async containerLog(@Args('containerId') containerId: string) {
     return this.service.subscribeToLogs(containerId);
+  }
+
+  @Public()
+  @Subscription(() => ServiceLogEntry, {
+    description:
+      'Subscribe to all logs from a service (auto-recovers on container restart)',
+  })
+  async serviceLog(@Args('serviceName') serviceName: string) {
+    return this.service.subscribeToServiceLogs(serviceName);
   }
 }

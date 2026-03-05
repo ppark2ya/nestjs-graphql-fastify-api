@@ -16,6 +16,8 @@ type subscriptionManager struct {
 	writeMu      sync.Mutex
 	subs         map[string]chan struct{}
 	subsMu       sync.Mutex
+	serviceSubs  map[string]*serviceSubscription
+	serviceSubMu sync.Mutex
 }
 
 func newSubscriptionManager(dockerClient *docker.Client, conn *websocket.Conn) *subscriptionManager {
@@ -23,6 +25,7 @@ func newSubscriptionManager(dockerClient *docker.Client, conn *websocket.Conn) *
 		dockerClient: dockerClient,
 		conn:         conn,
 		subs:         make(map[string]chan struct{}),
+		serviceSubs:  make(map[string]*serviceSubscription),
 	}
 }
 
@@ -58,18 +61,52 @@ func (m *subscriptionManager) Unsubscribe(containerID string) {
 	}
 }
 
-// CloseAll cancels all active subscriptions.
+// SubscribeService starts streaming logs for all containers in a Swarm service.
+func (m *subscriptionManager) SubscribeService(ctx context.Context, serviceName string) {
+	m.serviceSubMu.Lock()
+	if _, exists := m.serviceSubs[serviceName]; exists {
+		m.serviceSubMu.Unlock()
+		return
+	}
+
+	sub := newServiceSubscription(ctx, serviceName, m.dockerClient, m)
+	m.serviceSubs[serviceName] = sub
+	m.serviceSubMu.Unlock()
+
+	sub.Start()
+}
+
+// UnsubscribeService stops streaming logs for a service.
+func (m *subscriptionManager) UnsubscribeService(serviceName string) {
+	m.serviceSubMu.Lock()
+	defer m.serviceSubMu.Unlock()
+
+	if sub, exists := m.serviceSubs[serviceName]; exists {
+		sub.Stop()
+		delete(m.serviceSubs, serviceName)
+	}
+}
+
+// CloseAll cancels all active subscriptions (both container and service).
 func (m *subscriptionManager) CloseAll() {
 	m.subsMu.Lock()
-	defer m.subsMu.Unlock()
-
 	count := len(m.subs)
 	for id, cancel := range m.subs {
 		close(cancel)
 		delete(m.subs, id)
 	}
-	if count > 0 {
-		slog.Debug("websocket close all subscriptions", "count", count)
+	m.subsMu.Unlock()
+
+	m.serviceSubMu.Lock()
+	svcCount := len(m.serviceSubs)
+	for name, sub := range m.serviceSubs {
+		sub.Stop()
+		delete(m.serviceSubs, name)
+	}
+	m.serviceSubMu.Unlock()
+
+	if count > 0 || svcCount > 0 {
+		slog.Debug("websocket close all subscriptions", "containers", count, "services", svcCount)
 	}
 }
 

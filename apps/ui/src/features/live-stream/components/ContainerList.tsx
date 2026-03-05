@@ -48,7 +48,7 @@ export default function ContainerList({
   const [searchQuery, setSearchQuery] = useState('');
   const { data, loading, error, refetch } = useQuery<{
     containers: Container[];
-  }>(CONTAINERS_QUERY);
+  }>(CONTAINERS_QUERY, { pollInterval: 30_000 });
 
   const containers = data?.containers ?? [];
 

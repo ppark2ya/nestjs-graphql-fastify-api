@@ -17,6 +17,7 @@ import { Container } from './models/container.model';
 import { discoverLogStreamers } from '../common/discover-log-streamers';
 
 const LOG_STREAM_TOPIC = 'CONTAINER_LOG';
+const SERVICE_LOG_TOPIC = 'SERVICE_LOG';
 const BASE_RECONNECT_MS = 1_000;
 const MAX_RECONNECT_MS = 30_000;
 const DNS_REFRESH_MS = 30_000;
@@ -24,17 +25,30 @@ const DNS_REFRESH_MS = 30_000;
 interface WSLogMessage {
   type: string;
   containerId?: string;
+  serviceName?: string;
   timestamp?: string;
   message?: string;
   stream?: string;
+  event?: string;
 }
 
-interface ContainerLogPayload {
+export interface ContainerLogPayload {
   containerLog: {
     containerId: string;
     timestamp: string;
     message: string;
     stream: string;
+  };
+}
+
+export interface ServiceLogPayload {
+  serviceLog: {
+    containerId: string;
+    serviceName: string;
+    timestamp: string;
+    message: string;
+    stream: string;
+    event: string | null;
   };
 }
 
@@ -62,6 +76,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private dnsRefreshInterval: ReturnType<typeof setInterval> | null = null;
   private isShuttingDown = false;
   private activeSubscriptions = new Set<string>();
+  private activeServiceSubscriptions = new Set<string>();
 
   constructor(
     private readonly httpService: HttpService,
@@ -148,12 +163,24 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
             );
           }
         }
+        if (this.activeServiceSubscriptions.size > 0) {
+          this.logger.log(
+            `Re-subscribing ${this.activeServiceSubscriptions.size} active service(s) on [${conn.host}]`,
+          );
+          for (const svc of this.activeServiceSubscriptions) {
+            conn.ws!.send(
+              JSON.stringify({ type: 'subscribe_service', serviceName: svc }),
+            );
+          }
+        }
       });
 
       conn.ws.on('message', (data: Buffer) => {
         try {
           const message = JSON.parse(data.toString()) as WSLogMessage;
+
           if (message.type === 'log' && message.containerId) {
+            // Publish to container-specific topic (existing behavior)
             void this.pubSub.publish(
               `${LOG_STREAM_TOPIC}.${message.containerId}`,
               {
@@ -165,9 +192,40 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
                 },
               },
             );
+
+            // If this log belongs to a service subscription, also publish to service topic
+            if (message.serviceName) {
+              void this.pubSub.publish(
+                `${SERVICE_LOG_TOPIC}.${message.serviceName}`,
+                {
+                  serviceLog: {
+                    containerId: message.containerId,
+                    serviceName: message.serviceName,
+                    timestamp: message.timestamp,
+                    message: message.message,
+                    stream: message.stream,
+                    event: null,
+                  },
+                },
+              );
+            }
+          } else if (message.type === 'service_event' && message.serviceName) {
+            void this.pubSub.publish(
+              `${SERVICE_LOG_TOPIC}.${message.serviceName}`,
+              {
+                serviceLog: {
+                  containerId: message.containerId ?? '',
+                  serviceName: message.serviceName,
+                  timestamp: message.timestamp,
+                  message: message.message,
+                  stream: 'event',
+                  event: message.event ?? null,
+                },
+              },
+            );
           } else if (message.type === 'error') {
             this.logger.warn(
-              `Log-streamer error [${conn.host}]${message.containerId ? ` [container=${message.containerId}]` : ''}: ${message.message}`,
+              `Log-streamer error [${conn.host}]${message.containerId ? ` [container=${message.containerId}]` : ''}${message.serviceName ? ` [service=${message.serviceName}]` : ''}: ${message.message}`,
             );
           }
         } catch (error) {
@@ -277,10 +335,65 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     return wrapper;
   }
 
+  async subscribeToServiceLogs(serviceName: string) {
+    const topic = `${SERVICE_LOG_TOPIC}.${serviceName}`;
+    this.activeServiceSubscriptions.add(serviceName);
+
+    // 1. Await Redis SUBSCRIBE completion before requesting data
+    const preSubId = await this.pubSub.subscribe(topic, () => {});
+
+    // 2. Create async iterator (channel already active)
+    const iterator = this.pubSub.asyncIterableIterator<ServiceLogPayload>(
+      topic,
+    ) as AsyncIterableIterator<ServiceLogPayload>;
+
+    // 3. Send subscribe_service to all Log Streamer instances
+    const subscribeMsg = JSON.stringify({
+      type: 'subscribe_service',
+      serviceName,
+    });
+    this.broadcastToAll(subscribeMsg);
+
+    if (this.connections.size === 0) {
+      this.logger.warn(
+        'No log-streamer connections available, service subscription may be delayed',
+      );
+    }
+
+    // 4. Wrap iterator to cleanup on subscription end
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
+    const originalReturn = iterator.return!.bind(iterator);
+
+    const wrapper: AsyncIterableIterator<ServiceLogPayload> = {
+      next: iterator.next.bind(iterator),
+      throw: iterator.throw!.bind(iterator),
+      [Symbol.asyncIterator]() {
+        return wrapper;
+      },
+      async return(): Promise<IteratorResult<ServiceLogPayload>> {
+        self.activeServiceSubscriptions.delete(serviceName);
+        self.unsubscribeFromServiceLogs(serviceName);
+        const result = await originalReturn();
+        self.pubSub.unsubscribe(preSubId);
+        return result;
+      },
+    };
+    return wrapper;
+  }
+
   unsubscribeFromLogs(containerId: string) {
     const unsubscribeMsg = JSON.stringify({
       type: 'unsubscribe',
       containerId,
+    });
+    this.broadcastToAll(unsubscribeMsg);
+  }
+
+  unsubscribeFromServiceLogs(serviceName: string) {
+    const unsubscribeMsg = JSON.stringify({
+      type: 'unsubscribe_service',
+      serviceName,
     });
     this.broadcastToAll(unsubscribeMsg);
   }
