@@ -3,11 +3,12 @@ import { LogStreamerProxyService } from './log-streamer-proxy.service';
 
 describe('LogStreamerProxyResolver', () => {
   let resolver: LogStreamerProxyResolver;
-  let mockService: jest.Mocked<Pick<LogStreamerProxyService, 'subscribeToLogs' | 'listContainers'>>;
+  let mockService: jest.Mocked<Pick<LogStreamerProxyService, 'subscribeToLogs' | 'subscribeToServiceLogs' | 'listContainers'>>;
 
   beforeEach(() => {
     mockService = {
       subscribeToLogs: jest.fn(),
+      subscribeToServiceLogs: jest.fn(),
       listContainers: jest.fn(),
     };
     resolver = new LogStreamerProxyResolver(
@@ -49,6 +50,32 @@ describe('LogStreamerProxyResolver', () => {
       await expect(resolver.containerLog('container-123')).rejects.toThrow(
         'Redis connection failed',
       );
+    });
+  });
+
+  describe('serviceLog', () => {
+    it('should be an async function', () => {
+      const result = resolver.serviceLog('test-service');
+      expect(result).toBeInstanceOf(Promise);
+    });
+
+    it('should call service.subscribeToServiceLogs with serviceName', async () => {
+      const mockIterator = {
+        next: jest.fn(),
+        return: jest.fn(),
+        throw: jest.fn(),
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+      };
+      mockService.subscribeToServiceLogs.mockResolvedValue(mockIterator as any);
+
+      const result = await resolver.serviceLog('my-service');
+
+      expect(mockService.subscribeToServiceLogs).toHaveBeenCalledWith(
+        'my-service',
+      );
+      expect(result).toBe(mockIterator);
     });
   });
 

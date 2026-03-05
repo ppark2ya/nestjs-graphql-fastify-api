@@ -21,9 +21,11 @@ var upgrader = websocket.Upgrader{
 type Message struct {
 	Type        string `json:"type"`
 	ContainerID string `json:"containerId,omitempty"`
+	ServiceName string `json:"serviceName,omitempty"`
 	Timestamp   string `json:"timestamp,omitempty"`
 	Message     string `json:"message,omitempty"`
 	Stream      string `json:"stream,omitempty"`
+	Event       string `json:"event,omitempty"` // "container_started" | "container_stopped"
 }
 
 // Handle returns an http.HandlerFunc that upgrades to WebSocket and dispatches messages.
@@ -71,6 +73,18 @@ func Handle(dockerClient *docker.Client) http.HandlerFunc {
 				if msg.ContainerID != "" {
 					slog.Info("websocket unsubscribe", "containerId", msg.ContainerID, "remoteAddr", r.RemoteAddr)
 					mgr.Unsubscribe(msg.ContainerID)
+				}
+			case "subscribe_service":
+				if msg.ServiceName == "" {
+					mgr.writeJSON(Message{Type: "error", Message: "serviceName is required"})
+					continue
+				}
+				slog.Info("websocket subscribe_service", "serviceName", msg.ServiceName, "remoteAddr", r.RemoteAddr)
+				mgr.SubscribeService(r.Context(), msg.ServiceName)
+			case "unsubscribe_service":
+				if msg.ServiceName != "" {
+					slog.Info("websocket unsubscribe_service", "serviceName", msg.ServiceName, "remoteAddr", r.RemoteAddr)
+					mgr.UnsubscribeService(msg.ServiceName)
 				}
 			}
 		}
