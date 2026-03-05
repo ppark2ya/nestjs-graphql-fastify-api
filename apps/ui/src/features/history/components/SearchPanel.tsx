@@ -121,13 +121,13 @@ export default function SearchPanel({
                 variant="outline"
                 role="combobox"
                 aria-expanded={appOpen}
-                className="bg-secondary h-8 text-sm min-w-[160px] justify-between font-normal"
+                className="bg-secondary h-8 text-sm w-[280px] justify-between font-normal"
               >
                 {app || 'Select app...'}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[200px] p-0" align="start">
+            <PopoverContent className="w-[280px] p-0" align="start">
               <Command>
                 <CommandInput placeholder="Search app..." />
                 <CommandList>
