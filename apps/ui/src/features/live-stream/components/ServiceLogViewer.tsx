@@ -67,7 +67,6 @@ export default function ServiceLogViewer({ service }: Props) {
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 24,
     overscan: 20,
-    measureElement: (el) => el.getBoundingClientRect().height,
   });
 
   const { scrollRef, isFollowing, handleScroll, scrollToBottom } =
