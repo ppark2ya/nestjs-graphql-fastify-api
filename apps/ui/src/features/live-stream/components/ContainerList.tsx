@@ -98,7 +98,7 @@ export default function ContainerList({
     });
   })();
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="flex flex-col">
         {Array.from({ length: 6 }).map((_, i) => (
