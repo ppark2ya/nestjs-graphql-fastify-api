@@ -1,6 +1,7 @@
 import { Resolver, Query, Subscription, Args } from '@nestjs/graphql';
 import { LogStreamerProxyService } from './log-streamer-proxy.service';
 import { Container } from './models/container.model';
+import { ContainerStats } from './models/container-stats.model';
 import { LogEntry } from './models/log-entry.model';
 import { ServiceLogEntry } from './models/service-log-entry.model';
 import { Public } from '../auth/public.decorator';
@@ -12,6 +13,13 @@ export class LogStreamerProxyResolver {
   @Query(() => [Container], { description: 'List all Docker containers' })
   async containers(): Promise<Container[]> {
     return this.service.listContainers();
+  }
+
+  @Query(() => [ContainerStats], {
+    description: 'Get resource usage statistics for all running containers',
+  })
+  async containerStats(): Promise<ContainerStats[]> {
+    return this.service.getContainerStats();
   }
 
   @Public()
