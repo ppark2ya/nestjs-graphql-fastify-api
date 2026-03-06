@@ -4,12 +4,6 @@ import { basename, join } from 'path';
 import * as winston from 'winston';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import DailyRotateFile = require('winston-daily-rotate-file');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ecsFormat: (opts?: {
-  apmIntegration?: boolean;
-  serviceName?: string;
-}) => winston.Logform.Format = require('@elastic/ecs-winston-format');
-
 // 레벨별 컬러 매핑
 const levelColors: Record<string, string> = {
   error: '\x1b[31m', // red
@@ -38,20 +32,39 @@ const koreaTimestamp = winston.format.timestamp({
   format: () => new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }),
 });
 
+// Winston info에서 제외할 내부 키
+const INTERNAL_KEYS = new Set(['level', 'message', 'splat', 'context', 'trace']);
+
 /**
- * ECS 필드 매핑: context → log.logger, trace → error.stack_trace
- * ecsFormat 이전에 실행되어 ECS 표준 필드로 변환
+ * ECS JSON 포맷 (UTC @timestamp)
+ * @elastic/ecs-winston-format은 info 객체를 변형하여 후속 로그 기록을 깨뜨리므로 직접 구현
  */
-const ecsFieldMapping = winston.format((info) => {
-  if (info.context) {
-    info['log.logger'] = info.context;
-    delete info.context;
+const ecsJsonFormat = winston.format.printf((info) => {
+  const { level, message, context, trace, ...rest } = info;
+
+  const ecs: Record<string, unknown> = {
+    '@timestamp': new Date().toISOString(),
+    'log.level': level,
+    message: message as string,
+    'ecs.version': '8.11.0',
+    'process.pid': process.pid,
+    'service.name': process.env.SERVICE_NAME || 'app',
+  };
+
+  if (context) {
+    ecs['log.logger'] = context;
   }
-  if (info.trace) {
-    info['error.stack_trace'] = info.trace;
-    delete info.trace;
+  if (trace) {
+    ecs['error.stack_trace'] = trace;
   }
-  return info;
+
+  for (const [key, value] of Object.entries(rest)) {
+    if (!INTERNAL_KEYS.has(key) && value !== undefined) {
+      ecs[key] = value;
+    }
+  }
+
+  return JSON.stringify(ecs);
 });
 
 const ARCHIVE_DIR = 'logs/archive';
@@ -87,13 +100,7 @@ export class WinstonLoggerService implements LoggerService {
       zippedArchive: true,
       maxSize: '10m',
       maxFiles: '14d',
-      format: winston.format.combine(
-        ecsFieldMapping(),
-        ecsFormat({
-          apmIntegration: false,
-          serviceName: process.env.SERVICE_NAME || 'app',
-        }),
-      ),
+      format: ecsJsonFormat,
     });
 
     // 로테이션 시 archive 디렉토리로 이동
