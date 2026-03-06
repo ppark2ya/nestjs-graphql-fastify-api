@@ -422,14 +422,19 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     return containers;
   }
 
-  async getContainerStats(): Promise<ContainerStats[]> {
+  async getContainerStats(containerIds: string[]): Promise<ContainerStats[]> {
+    if (containerIds.length === 0) return [];
+
+    const idsParam = containerIds.join(',');
     const hosts = await discoverLogStreamers(this.logStreamerBaseUrl);
     const results = await Promise.allSettled(
       hosts.map((host) =>
         this.circuitBreaker.fire('log-streamer', async () => {
           const url = `http://${host}:${this.logStreamerPort}`;
           const response = await firstValueFrom(
-            this.httpService.get<ContainerStats[]>(`${url}/api/stats`),
+            this.httpService.get<ContainerStats[]>(
+              `${url}/api/stats?ids=${idsParam}`,
+            ),
           );
           return response.data;
         }),

@@ -84,8 +84,8 @@ export interface ContainerStatsData {
 }
 
 export const CONTAINER_STATS_QUERY = gql`
-  query ContainerStats {
-    containerStats {
+  query ContainerStats($containerIds: [String!]!) {
+    containerStats(containerIds: $containerIds) {
       id
       name
       cpuPercent

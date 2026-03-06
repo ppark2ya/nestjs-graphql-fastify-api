@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@apollo/client/react';
-import { CONTAINERS_QUERY, CONTAINER_STATS_QUERY, Container, ContainerStatsData, ServiceGroup } from '../graphql';
-import { formatBytes } from '@/lib/utils';
+import { CONTAINERS_QUERY, Container, ServiceGroup } from '../graphql';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -63,25 +62,6 @@ function makeFavoriteId(type: 'service' | 'container', key: string): string {
   return `${type}-${key}`;
 }
 
-function getResourceColor(stats: ContainerStatsData | undefined): string {
-  if (!stats) return 'bg-green-500';
-  if (stats.cpuPercent >= 80 || (stats.memLimit > 0 && stats.memUsage / stats.memLimit >= 0.9)) {
-    return 'bg-red-500';
-  }
-  if (stats.cpuPercent >= 50 || (stats.memLimit > 0 && stats.memUsage / stats.memLimit >= 0.7)) {
-    return 'bg-yellow-500';
-  }
-  return 'bg-green-500';
-}
-
-function formatStatsText(stats: ContainerStatsData): string {
-  const cpu = `CPU ${stats.cpuPercent.toFixed(1)}%`;
-  if (stats.memLimit > 0) {
-    return `${cpu} · ${formatBytes(stats.memUsage)}/${formatBytes(stats.memLimit)}`;
-  }
-  return `${cpu} · ${formatBytes(stats.memUsage)}`;
-}
-
 export default function ContainerList({
   selectedId,
   selectedServiceName,
@@ -105,18 +85,6 @@ export default function ContainerList({
   const { data, loading, error, refetch } = useQuery<{
     containers: Container[];
   }>(CONTAINERS_QUERY, { pollInterval: 30_000 });
-
-  const { data: statsData } = useQuery<{ containerStats: ContainerStatsData[] }>(
-    CONTAINER_STATS_QUERY,
-    { pollInterval: 10_000 },
-  );
-
-  const statsMap = new Map<string, ContainerStatsData>();
-  if (statsData?.containerStats) {
-    for (const s of statsData.containerStats) {
-      statsMap.set(s.id, s);
-    }
-  }
 
   const containers = data?.containers ?? [];
 
@@ -293,31 +261,14 @@ export default function ContainerList({
                 >
                   {svc.containers[0].image}
                 </p>
-                {(() => {
-                  const svcStats = svc.containers
-                    .map((c) => statsMap.get(c.id))
-                    .filter((s): s is ContainerStatsData => s !== undefined);
-                  if (svcStats.length === 0) return null;
-                  const totalCpu = svcStats.reduce((sum, s) => sum + s.cpuPercent, 0);
-                  const totalMem = svcStats.reduce((sum, s) => sum + s.memUsage, 0);
-                  const totalLimit = svcStats.reduce((sum, s) => sum + s.memLimit, 0);
-                  return (
-                    <p className="text-xs text-muted-foreground/70 mt-0.5 font-mono">
-                      CPU {totalCpu.toFixed(1)}% · {formatBytes(totalMem)}
-                      {totalLimit > 0 ? `/${formatBytes(totalLimit)}` : ''}
-                    </p>
-                  );
-                })()}
                 <div className="flex gap-1 mt-1 flex-wrap">
                   {svc.containers.map((c) => (
                     <span
                       key={c.id}
                       className={`w-1.5 h-1.5 rounded-full ${
-                        c.state === 'running' ? getResourceColor(statsMap.get(c.id)) : 'bg-gray-500'
+                        c.state === 'running' ? 'bg-green-500' : 'bg-gray-500'
                       }`}
-                      title={`${c.name} (${c.id})${c.nodeName ? ` @ ${c.nodeName}` : ''}${
-                        statsMap.has(c.id) ? ` — ${formatStatsText(statsMap.get(c.id)!)}` : ''
-                      }`}
+                      title={`${c.name} (${c.id})${c.nodeName ? ` @ ${c.nodeName}` : ''}`}
                     />
                   ))}
                 </div>
@@ -341,7 +292,7 @@ export default function ContainerList({
               <div className="flex items-center gap-2">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    c.state === 'running' ? getResourceColor(statsMap.get(c.id)) : 'bg-gray-500'
+                    c.state === 'running' ? 'bg-green-500' : 'bg-gray-500'
                   }`}
                 />
                 <span
@@ -367,11 +318,6 @@ export default function ContainerList({
                 {c.image}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">{c.status}</p>
-              {statsMap.has(c.id) && (
-                <p className="text-xs text-muted-foreground/70 mt-0.5 font-mono">
-                  {formatStatsText(statsMap.get(c.id)!)}
-                </p>
-              )}
             </button>
           </li>
           );

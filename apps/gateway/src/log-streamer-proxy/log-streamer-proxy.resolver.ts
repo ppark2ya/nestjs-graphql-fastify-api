@@ -16,10 +16,12 @@ export class LogStreamerProxyResolver {
   }
 
   @Query(() => [ContainerStats], {
-    description: 'Get resource usage statistics for all running containers',
+    description: 'Get resource usage statistics for specified containers',
   })
-  async containerStats(): Promise<ContainerStats[]> {
-    return this.service.getContainerStats();
+  async containerStats(
+    @Args('containerIds', { type: () => [String] }) containerIds: string[],
+  ): Promise<ContainerStats[]> {
+    return this.service.getContainerStats(containerIds);
   }
 
   @Public()

@@ -193,12 +193,9 @@ func (c *Client) Ping(ctx context.Context) (types.Ping, error) {
 	return c.cli.Ping(ctx)
 }
 
-func (c *Client) GetAllContainerStats(ctx context.Context) ([]ContainerStats, error) {
-	c.mu.RLock()
-	containers, err := c.cli.ContainerList(ctx, types.ContainerListOptions{All: false})
-	c.mu.RUnlock()
-	if err != nil {
-		return nil, err
+func (c *Client) GetContainerStats(ctx context.Context, ids []string) ([]ContainerStats, error) {
+	if len(ids) == 0 {
+		return []ContainerStats{}, nil
 	}
 
 	// Use a dedicated context with generous timeout, decoupled from the HTTP
@@ -214,22 +211,19 @@ func (c *Client) GetAllContainerStats(ctx context.Context) ([]ContainerStats, er
 		err   error
 	}
 
-	ch := make(chan result, len(containers))
+	ch := make(chan result, len(ids))
 	var wg sync.WaitGroup
 
-	for _, ctr := range containers {
-		if ctr.State != "running" {
-			continue
-		}
+	for _, id := range ids {
 		wg.Add(1)
-		go func(ctr types.Container) {
+		go func(containerID string) {
 			defer wg.Done()
 
 			c.mu.RLock()
-			resp, err := c.cli.ContainerStats(statsCtx, ctr.ID, false)
+			resp, err := c.cli.ContainerStats(statsCtx, containerID, false)
 			c.mu.RUnlock()
 			if err != nil {
-				slog.Warn("stats failed", "container", ctr.ID[:12], "error", err)
+				slog.Warn("stats failed", "container", containerID, "error", err)
 				ch <- result{err: err}
 				return
 			}
@@ -241,24 +235,27 @@ func (c *Client) GetAllContainerStats(ctx context.Context) ([]ContainerStats, er
 				return
 			}
 
-			name := ""
-			if len(ctr.Names) > 0 {
-				name = ctr.Names[0]
+			// ContainerInspect to get the name
+			c.mu.RLock()
+			inspect, inspectErr := c.cli.ContainerInspect(statsCtx, containerID)
+			c.mu.RUnlock()
+
+			name := containerID
+			if inspectErr == nil {
+				name = inspect.Name
 				if len(name) > 0 && name[0] == '/' {
 					name = name[1:]
 				}
 			}
 
-			cpuPercent := calculateCPUPercent(&v)
-
 			ch <- result{stats: ContainerStats{
-				ID:         ctr.ID[:12],
+				ID:         containerID[:12],
 				Name:       name,
-				CPUPercent: cpuPercent,
+				CPUPercent: calculateCPUPercent(&v),
 				MemUsage:   v.MemoryStats.Usage,
 				MemLimit:   v.MemoryStats.Limit,
 			}}
-		}(ctr)
+		}(id)
 	}
 
 	go func() {

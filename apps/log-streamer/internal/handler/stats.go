@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/docker"
 )
@@ -12,7 +13,14 @@ func ContainerStats(dockerClient *docker.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		stats, err := dockerClient.GetAllContainerStats(r.Context())
+		idsParam := r.URL.Query().Get("ids")
+		if idsParam == "" {
+			json.NewEncoder(w).Encode([]docker.ContainerStats{})
+			return
+		}
+
+		ids := strings.Split(idsParam, ",")
+		stats, err := dockerClient.GetContainerStats(r.Context(), ids)
 		if err != nil {
 			slog.Error("get container stats failed", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
