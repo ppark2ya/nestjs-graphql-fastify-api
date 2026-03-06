@@ -62,13 +62,41 @@ services:
     networks:
       - app-network
 
-  gateway:
-    image: ${DOCKER_REPO_GATEWAY:-ppark2ya/nestjs-gateway}:${TAG:-latest}
+  nginx:
+    image: ${DOCKER_REPO_NGINX:-ppark2ya/nginx-ui}:${TAG:-latest}
     ports:
-      - target: 4000
+      - target: 80
         published: 4000
         protocol: tcp
         mode: host
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - app-network
+
+  gateway:
+    image: ${DOCKER_REPO_GATEWAY:-ppark2ya/nestjs-gateway}:${TAG:-latest}
     environment:
       - NODE_ENV=production
       - AUTH_SERVICE_URL=http://auth:4001
