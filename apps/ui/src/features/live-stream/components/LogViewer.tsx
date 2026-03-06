@@ -18,9 +18,10 @@ import { Search, X } from 'lucide-react';
 interface Props {
   containerId: string;
   containerName: string;
+  isActive?: boolean;
 }
 
-export default function LogViewer({ containerId, containerName }: Props) {
+export default function LogViewer({ containerId, containerName, isActive = true }: Props) {
   const { logs, addLog, clearLogs, lineCount, batchStartIndex } = useLogBuffer<LogEntry>();
   const { grepQuery, setGrepQuery, filteredLogs, isGrepping } =
     useLogFilter(logs);
@@ -43,7 +44,8 @@ export default function LogViewer({ containerId, containerName }: Props) {
     containerStats: ContainerStatsData[];
   }>(CONTAINER_STATS_QUERY, {
     variables: { containerIds: [containerId] },
-    pollInterval: 10_000,
+    pollInterval: isActive ? 10_000 : 0,
+    skip: !isActive,
   });
   const stats = statsData?.containerStats?.[0];
 

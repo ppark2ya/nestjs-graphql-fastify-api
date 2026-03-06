@@ -20,6 +20,7 @@ import { Search, X } from 'lucide-react';
 
 interface Props {
   service: ServiceGroup;
+  isActive?: boolean;
 }
 
 // Short container ID → color mapping for visual distinction
@@ -32,7 +33,7 @@ const REPLICA_COLORS = [
   'text-indigo-400',
 ];
 
-export default function ServiceLogViewer({ service }: Props) {
+export default function ServiceLogViewer({ service, isActive = true }: Props) {
   const { logs, addLog, clearLogs, lineCount, batchStartIndex } =
     useLogBuffer<ServiceLogEntry>({
       sortByTimestamp: true,
@@ -82,8 +83,8 @@ export default function ServiceLogViewer({ service }: Props) {
     containerStats: ContainerStatsData[];
   }>(CONTAINER_STATS_QUERY, {
     variables: { containerIds },
-    pollInterval: 10_000,
-    skip: containerIds.length === 0,
+    pollInterval: isActive && containerIds.length > 0 ? 10_000 : 0,
+    skip: !isActive || containerIds.length === 0,
   });
   const statsMap = useMemo(() => {
     const map = new Map<string, ContainerStatsData>();
