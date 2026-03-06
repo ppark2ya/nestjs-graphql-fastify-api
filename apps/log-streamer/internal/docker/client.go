@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -200,6 +201,14 @@ func (c *Client) GetAllContainerStats(ctx context.Context) ([]ContainerStats, er
 		return nil, err
 	}
 
+	// Use a dedicated context with generous timeout, decoupled from the HTTP
+	// request context.  Docker's ContainerStats(stream=false) blocks ~1 s per
+	// container while the daemon collects two CPU samples, so the caller's
+	// context (tied to the Gateway HTTP request) may cancel before all
+	// goroutines finish.
+	statsCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	type result struct {
 		stats ContainerStats
 		err   error
@@ -217,7 +226,7 @@ func (c *Client) GetAllContainerStats(ctx context.Context) ([]ContainerStats, er
 			defer wg.Done()
 
 			c.mu.RLock()
-			resp, err := c.cli.ContainerStats(ctx, ctr.ID, false)
+			resp, err := c.cli.ContainerStats(statsCtx, ctr.ID, false)
 			c.mu.RUnlock()
 			if err != nil {
 				slog.Warn("stats failed", "container", ctr.ID[:12], "error", err)
