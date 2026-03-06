@@ -15,7 +15,7 @@ import { Observable, tap, catchError } from 'rxjs';
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('LoggingInterceptor');
+  private readonly logger = new Logger(LoggingInterceptor.name);
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const contextType = context.getType<string>();

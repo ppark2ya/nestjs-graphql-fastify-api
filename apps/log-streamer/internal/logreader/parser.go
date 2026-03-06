@@ -43,6 +43,10 @@ var jsonStandardKeys = map[string]bool{
 	"level": true, "severity": true,
 	"logger": true, "source": true, "name": true, "module": true,
 	"msg": true, "message": true,
+	"log.level": true, "log.logger": true,
+	"ecs.version": true,
+	"process.pid": true, "process.thread.name": true,
+	"service.name": true,
 }
 
 // DetectParser - 첫 줄로 파서 자동 감지
@@ -137,10 +141,10 @@ func (p *JSONParser) Parse(line string) LogLine {
 	}
 
 	result := LogLine{
-		Timestamp: firstStr(data, "timestamp", "@timestamp", "time"),
-		Level:     strings.ToUpper(firstStr(data, "level", "severity")),
-		Source:    firstStr(data, "logger", "source", "name", "module"),
-		Message:   firstStr(data, "msg", "message"),
+		Timestamp: firstStr(data, "@timestamp", "timestamp", "time"),
+		Level:     strings.ToUpper(firstStr(data, "log.level", "level", "severity")),
+		Source:    firstStr(data, "log.logger", "logger", "source", "name", "module"),
+		Message:   firstStr(data, "message", "msg"),
 	}
 
 	// 표준 키 외 추가 필드를 metadata로 수집
