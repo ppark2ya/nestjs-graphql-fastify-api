@@ -1,21 +1,12 @@
-import { Catch, HttpException } from '@nestjs/common';
+import { Catch, HttpException, Logger } from '@nestjs/common';
 import { GqlExceptionFilter } from '@nestjs/graphql';
 import { GraphQLError } from 'graphql';
 import { AxiosError } from 'axios';
 import { HTTP_STATUS_TO_ERROR_CODE } from '@monorepo/shared/common/filter/http-status-mapping';
-import { WinstonLoggerService } from '@monorepo/shared';
-import { requestContext } from '@monorepo/shared/common/context/request-context';
-
-function getCorrelationMeta(): Record<string, unknown> {
-  const store = requestContext.getStore();
-  return store?.correlationId ? { correlationId: store.correlationId } : {};
-}
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements GqlExceptionFilter {
-  private readonly logger = new WinstonLoggerService().setContext(
-    'HttpExceptionFilter',
-  );
+  private readonly logger = new Logger('HttpExceptionFilter');
 
   catch(exception: HttpException): GraphQLError {
     const status = exception.getStatus();
@@ -25,11 +16,7 @@ export class HttpExceptionFilter implements GqlExceptionFilter {
         ? response
         : ((response as { message?: string }).message ?? exception.message);
 
-    this.logger.logWithMeta(
-      'error',
-      `HttpException [${status}]: ${message}`,
-      getCorrelationMeta(),
-    );
+    this.logger.error(`HttpException [${status}]: ${message}`);
 
     const code = HTTP_STATUS_TO_ERROR_CODE[status] ?? 'INTERNAL_SERVER_ERROR';
 
@@ -41,31 +28,22 @@ export class HttpExceptionFilter implements GqlExceptionFilter {
 
 @Catch(AxiosError)
 export class AxiosExceptionFilter implements GqlExceptionFilter {
-  private readonly logger = new WinstonLoggerService().setContext(
-    'AxiosExceptionFilter',
-  );
+  private readonly logger = new Logger('AxiosExceptionFilter');
 
   catch(exception: AxiosError): GraphQLError {
     const status = exception.response?.status;
     const code = exception.code;
     const url = exception.config?.url ?? 'unknown';
-    const meta = getCorrelationMeta();
 
     if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
-      this.logger.logWithMeta('error', `Backend timeout: ${url}`, {
-        ...meta,
-        trace: exception.message,
-      });
+      this.logger.error(`Backend timeout: ${url}`, exception.stack);
       return new GraphQLError('Backend service timeout', {
         extensions: { code: 'GATEWAY_TIMEOUT', statusCode: 504 },
       });
     }
 
     if (!status) {
-      this.logger.logWithMeta('error', `Backend unreachable: ${url}`, {
-        ...meta,
-        trace: exception.message,
-      });
+      this.logger.error(`Backend unreachable: ${url}`, exception.stack);
       return new GraphQLError('Backend service unavailable', {
         extensions: { code: 'BAD_GATEWAY', statusCode: 502 },
       });
@@ -79,11 +57,7 @@ export class AxiosExceptionFilter implements GqlExceptionFilter {
       `Backend service error (${status})`;
     const errorCode = typeof data?.code === 'string' ? data.code : undefined;
 
-    this.logger.logWithMeta(
-      'error',
-      `Backend error: ${url} responded with ${status}`,
-      { ...meta, trace: message },
-    );
+    this.logger.error(`Backend error: ${url} responded with ${status}`);
 
     const gqlCode = HTTP_STATUS_TO_ERROR_CODE[status] ?? 'BAD_GATEWAY';
 

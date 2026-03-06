@@ -4,6 +4,7 @@ import { basename, join } from 'path';
 import * as winston from 'winston';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import DailyRotateFile = require('winston-daily-rotate-file');
+import { requestContext } from '../context/request-context';
 // 레벨별 컬러 매핑
 const levelColors: Record<string, string> = {
   error: '\x1b[31m', // red
@@ -122,28 +123,46 @@ export class WinstonLoggerService implements LoggerService {
     return this;
   }
 
+  private getRequestMeta(): Record<string, unknown> {
+    const store = requestContext.getStore();
+    return store?.correlationId
+      ? { correlationId: store.correlationId }
+      : {};
+  }
+
   log(message: any, context?: string): void {
-    this.logger.info(message as string, { context: context || this.context });
+    this.logger.info(message as string, {
+      context: context || this.context,
+      ...this.getRequestMeta(),
+    });
   }
 
   error(message: any, trace?: string, context?: string): void {
     this.logger.error(message as string, {
       context: context || this.context,
       trace,
+      ...this.getRequestMeta(),
     });
   }
 
   warn(message: any, context?: string): void {
-    this.logger.warn(message as string, { context: context || this.context });
+    this.logger.warn(message as string, {
+      context: context || this.context,
+      ...this.getRequestMeta(),
+    });
   }
 
   debug(message: any, context?: string): void {
-    this.logger.debug(message as string, { context: context || this.context });
+    this.logger.debug(message as string, {
+      context: context || this.context,
+      ...this.getRequestMeta(),
+    });
   }
 
   verbose(message: any, context?: string): void {
     this.logger.verbose(message as string, {
       context: context || this.context,
+      ...this.getRequestMeta(),
     });
   }
 
@@ -158,6 +177,7 @@ export class WinstonLoggerService implements LoggerService {
   ): void {
     this.logger.log(level, message, {
       context: context || this.context,
+      ...this.getRequestMeta(),
       ...meta,
     });
   }

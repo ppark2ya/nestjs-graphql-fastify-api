@@ -3,6 +3,7 @@ import {
   NestModule,
   MiddlewareConsumer,
   OnModuleInit,
+  Logger,
 } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
@@ -35,7 +36,7 @@ import {
 } from './common/filter/http-exception.filter';
 import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
 import { LoggingInterceptor } from '@monorepo/shared/common/interceptor/logging.interceptor';
-import { WinstonLoggerModule, WinstonLoggerService } from '@monorepo/shared';
+import { WinstonLoggerModule } from '@monorepo/shared';
 import { envSchema } from './env.schema';
 import { PubSubModule } from './pubsub/pubsub.module';
 import { LogStreamerProxyModule } from './log-streamer-proxy/log-streamer-proxy.module';
@@ -129,56 +130,36 @@ import { LogHistoryModule } from './log-history/log-history.module';
   ],
 })
 export class AppModule implements NestModule, OnModuleInit {
-  private readonly logger: WinstonLoggerService;
+  private readonly logger = new Logger('HttpClient');
 
-  constructor(
-    private readonly httpService: HttpService,
-    logger: WinstonLoggerService,
-  ) {
-    this.logger = logger.setContext('HttpClient');
-  }
+  constructor(private readonly httpService: HttpService) {}
 
   onModuleInit() {
     this.httpService.axiosRef.interceptors.request.use((config) => {
       const store = requestContext.getStore();
-      const correlationId = store?.correlationId;
 
-      this.logger.logWithMeta(
-        'info',
-        `→ ${config.method?.toUpperCase()} ${config.url}`,
-        correlationId ? { correlationId } : {},
-      );
+      this.logger.log(`→ ${config.method?.toUpperCase()} ${config.url}`);
 
       if (store?.authToken) {
         config.headers.Authorization = store.authToken;
       }
-      if (correlationId) {
-        config.headers[CORRELATION_HEADER] = correlationId;
+      if (store?.correlationId) {
+        config.headers[CORRELATION_HEADER] = store.correlationId;
       }
       return config;
     });
 
     this.httpService.axiosRef.interceptors.response.use(
       (response) => {
-        const store = requestContext.getStore();
-        const correlationId = store?.correlationId;
-        this.logger.logWithMeta(
-          'info',
+        this.logger.log(
           `← ${response.status} ${response.config.url}`,
-          correlationId ? { correlationId } : {},
         );
         return response;
       },
       (error: AxiosError) => {
         const status = error.response?.status ?? 'ERR';
         const url = error.config?.url ?? 'unknown';
-        const store = requestContext.getStore();
-        const correlationId = store?.correlationId;
-        this.logger.logWithMeta(
-          'error',
-          `← ${status} ${url}`,
-          { ...(correlationId ? { correlationId } : {}), trace: error.message },
-        );
+        this.logger.error(`← ${status} ${url}`, error.stack);
         return Promise.reject(error);
       },
     );

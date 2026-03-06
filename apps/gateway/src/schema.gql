@@ -21,6 +21,14 @@ type AuthToken {
   refreshToken: String!
 }
 
+input ChangePasswordInput {
+  """현재 비밀번호"""
+  currentPassword: String!
+
+  """새 비밀번호"""
+  newPassword: String!
+}
+
 """Docker container information"""
 type Container {
   """Unix timestamp of container creation"""
@@ -52,6 +60,24 @@ type Container {
 
   """Swarm task ID (null if not a swarm service)"""
   taskSlot: String
+}
+
+"""Docker container resource usage statistics"""
+type ContainerStats {
+  """CPU usage percentage"""
+  cpuPercent: Float!
+
+  """Container ID (short format)"""
+  id: String!
+
+  """Memory limit in bytes"""
+  memLimit: Float!
+
+  """Memory usage in bytes"""
+  memUsage: Float!
+
+  """Container name"""
+  name: String!
 }
 
 """로그 앱 정보"""
@@ -91,6 +117,9 @@ type LogLine {
 
   """로그 메시지 (파싱 실패 시 원본 라인 전체)"""
   message: String!
+
+  """추가 메타데이터 (JSON 문자열)"""
+  metadata: String
 
   """Swarm 노드명"""
   node: String!
@@ -146,11 +175,11 @@ type LogSummary {
 }
 
 input LoginInput {
+  """로그인 ID"""
+  loginId: String!
+
   """비밀번호"""
   password: String!
-
-  """사용자명"""
-  username: String!
 }
 
 type LoginResult {
@@ -165,17 +194,14 @@ type LoginResult {
 }
 
 type Mutation {
+  """패스워드 변경"""
+  changePassword(input: ChangePasswordInput!): Boolean!
+
   """로그인"""
   login(input: LoginInput!): LoginResult!
 
-  """로그아웃"""
-  logout(refreshToken: String!): Boolean!
-
   """토큰 갱신"""
   refreshToken(input: RefreshTokenInput!): AuthToken!
-
-  """2FA 설정 (JWT 인증 필요)"""
-  setupTwoFactor(input: TotpSetupInput!): TotpSetupResult!
 
   """2FA TOTP 검증"""
   verifyTwoFactor(input: TotpVerifyInput!): AuthToken!
@@ -191,6 +217,9 @@ type Post {
 type Query {
   """Add two numbers"""
   add(input: AddNumbersInput!): Int!
+
+  """Get resource usage statistics for specified containers"""
+  containerStats(containerIds: [String!]!): [ContainerStats!]!
 
   """List all Docker containers"""
   containers: [Container!]!
@@ -222,31 +251,40 @@ input RefreshTokenInput {
   refreshToken: String!
 }
 
+"""Service-level log entry (includes container lifecycle events)"""
+type ServiceLogEntry {
+  """Container ID that produced the log"""
+  containerId: String!
+
+  """
+  Container lifecycle event type: container_started, container_stopped, or null for regular logs
+  """
+  event: String
+
+  """Log message or event description"""
+  message: String!
+
+  """Swarm service name"""
+  serviceName: String!
+
+  """Output stream: stdout, stderr, or event"""
+  stream: String!
+
+  """Log timestamp (RFC3339 format)"""
+  timestamp: String!
+}
+
 type Subscription {
   """Subscribe to container logs"""
   containerLog(containerId: String!): LogEntry!
-}
 
-input TotpSetupInput {
-  """TOTP 코드 (6자리)"""
-  totpCode: String
-}
-
-type TotpSetupResult {
-  """2FA 활성화 완료 여부"""
-  enabled: Boolean
-
-  """TOTP Key URI (QR코드 생성용)"""
-  keyUri: String
-
-  """TOTP Secret (QR코드 생성용)"""
-  secret: String
+  """
+  Subscribe to all logs from a service (auto-recovers on container restart)
+  """
+  serviceLog(serviceName: String!): ServiceLogEntry!
 }
 
 input TotpVerifyInput {
   """TOTP 6자리 코드"""
   totpCode: String!
-
-  """2FA 임시 토큰"""
-  twoFactorToken: String!
 }
