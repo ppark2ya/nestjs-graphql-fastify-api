@@ -12,14 +12,15 @@
 #
 # 필요 Secrets:
 #   - docker_username, docker_password
-#   - docker_repo_gateway, docker_repo_auth, docker_repo_log_streamer
+#   - docker_repo_gateway, docker_repo_auth, docker_repo_log_streamer, docker_repo_nginx
+#   - vite_api_key
 #
 # Runner 설정:
 #   Docker socket 마운트 필요
 #   DRONE_RUNNER_VOLUMES=/var/run/docker.sock:/var/run/docker.sock
 #
 # 파이프라인 실행 순서:
-#   dev-gateway → dev-auth → dev-log-streamer (depends_on으로 순차 실행, 빌드 서버 부하 방지)
+#   dev-gateway → dev-auth → dev-log-streamer → dev-nginx (depends_on으로 순차 실행, 빌드 서버 부하 방지)
 #   release-{service}-detect → release-{service} (detect/build 쌍, 서비스 간 병렬 실행)
 #     detect 실패(변경 없음) → build 자동 skip
 # ================================================================
@@ -55,7 +56,7 @@ steps:
         echo "Changed files ($BEFORE..HEAD):"
         echo "$CHANGED"
         echo "---"
-        if echo "$CHANGED" | grep -qE '^(apps/gateway/|apps/ui/|libs/shared/|package\.json|pnpm-lock\.yaml|tsconfig\.base\.json|nest-cli\.json|nx\.json|\.swcrc)'; then
+        if echo "$CHANGED" | grep -qE '^(apps/gateway/|libs/shared/|package\.json|pnpm-lock\.yaml|tsconfig\.base\.json|nest-cli\.json|nx\.json|\.swcrc)'; then
           echo ">>> Gateway build required"
         else
           echo ">>> No gateway changes, skipping build"
@@ -74,8 +75,6 @@ steps:
         from_secret: docker_username
       DOCKER_PASSWORD:
         from_secret: docker_password
-      VITE_API_KEY:
-        from_secret: vite_api_key
     commands:
       - |
         if [ -f .skip-build ]; then
@@ -90,7 +89,7 @@ steps:
         else
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
         fi
-        docker build -f apps/gateway/Dockerfile --build-arg VITE_API_KEY="$VITE_API_KEY" -t "$DOCKER_REPO:$TAG" -t "$DOCKER_REPO:latest" .
+        docker build -f apps/gateway/Dockerfile -t "$DOCKER_REPO:$TAG" -t "$DOCKER_REPO:latest" .
         docker push "$DOCKER_REPO:$TAG"
         docker push "$DOCKER_REPO:latest"
         echo ">>> Pushed $DOCKER_REPO:$TAG"
@@ -249,6 +248,83 @@ steps:
         - success
 
 ---
+# ================== Dev: Nginx ==================
+kind: pipeline
+type: docker
+name: dev-nginx
+
+depends_on:
+  - dev-log-streamer
+
+trigger:
+  branch:
+    - develop
+    - dev-*
+  event:
+    - push
+
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+
+steps:
+  - name: detect-changes
+    image: alpine/git
+    commands:
+      - |
+        BEFORE=$(git rev-parse HEAD~1 2>/dev/null)
+        if [ $? -ne 0 ]; then
+          echo ">>> Build required (no parent commit, initial commit)"
+          exit 0
+        fi
+        CHANGED=$(git diff --name-only "$BEFORE"..HEAD)
+        echo "Changed files ($BEFORE..HEAD):"
+        echo "$CHANGED"
+        echo "---"
+        if echo "$CHANGED" | grep -qE '^(apps/ui/|docker/nginx/|libs/shared/|package\.json|pnpm-lock\.yaml|tsconfig\.base\.json|nx\.json)'; then
+          echo ">>> Nginx build required"
+        else
+          echo ">>> No nginx changes, skipping build"
+          touch .skip-build
+        fi
+
+  - name: build-and-push
+    image: docker:cli
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+    environment:
+      DOCKER_REPO:
+        from_secret: docker_repo_nginx
+      DOCKER_USERNAME:
+        from_secret: docker_username
+      DOCKER_PASSWORD:
+        from_secret: docker_password
+      VITE_API_KEY:
+        from_secret: vite_api_key
+    commands:
+      - |
+        if [ -f .skip-build ]; then
+          echo "Build skipped (no relevant changes)"
+          exit 0
+        fi
+        TAG="${DRONE_BRANCH}-$(echo ${DRONE_COMMIT_SHA} | cut -c1-8)"
+        REGISTRY=$(echo "$DOCKER_REPO" | cut -d'/' -f1)
+        if echo "$REGISTRY" | grep -qE '[.:]'; then
+          echo "$DOCKER_PASSWORD" | docker login "$REGISTRY" -u "$DOCKER_USERNAME" --password-stdin
+        else
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        fi
+        docker build -f docker/nginx/Dockerfile --build-arg VITE_API_KEY="$VITE_API_KEY" -t "$DOCKER_REPO:$TAG" -t "$DOCKER_REPO:latest" .
+        docker push "$DOCKER_REPO:$TAG"
+        docker push "$DOCKER_REPO:latest"
+        echo ">>> Pushed $DOCKER_REPO:$TAG"
+    when:
+      status:
+        - success
+
+---
 # ================== Release Detect: Gateway ==================
 kind: pipeline
 type: docker
@@ -275,7 +351,7 @@ steps:
         echo "Changed files ($PREV_TAG..HEAD):"
         echo "$CHANGED"
         echo "---"
-        if echo "$CHANGED" | grep -qE '^(apps/gateway/|apps/ui/|libs/shared/|package\.json|pnpm-lock\.yaml|tsconfig\.base\.json|nest-cli\.json|nx\.json|\.swcrc)'; then
+        if echo "$CHANGED" | grep -qE '^(apps/gateway/|libs/shared/|package\.json|pnpm-lock\.yaml|tsconfig\.base\.json|nest-cli\.json|nx\.json|\.swcrc)'; then
           echo ">>> Gateway build required"
         else
           echo ">>> No gateway changes, skipping build"
@@ -312,11 +388,6 @@ steps:
         from_secret: docker_username
       password:
         from_secret: docker_password
-      build_args_from_env:
-        - VITE_API_KEY
-    environment:
-      VITE_API_KEY:
-        from_secret: vite_api_key
 
 ---
 # ================== Release Detect: Auth ==================
@@ -447,3 +518,73 @@ steps:
         from_secret: docker_username
       password:
         from_secret: docker_password
+
+---
+# ================== Release Detect: Nginx ==================
+kind: pipeline
+type: docker
+name: release-nginx-detect
+
+trigger:
+  event:
+    - tag
+  ref:
+    - refs/tags/v*
+
+steps:
+  - name: detect-changes
+    image: alpine/git
+    commands:
+      - |
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null)
+        if [ $? -ne 0 ]; then
+          echo ">>> Build required (first release, no previous tag)"
+          exit 0
+        fi
+        echo "Previous tag: $PREV_TAG"
+        CHANGED=$(git diff --name-only "$PREV_TAG"..HEAD)
+        echo "Changed files ($PREV_TAG..HEAD):"
+        echo "$CHANGED"
+        echo "---"
+        if echo "$CHANGED" | grep -qE '^(apps/ui/|docker/nginx/|libs/shared/|package\.json|pnpm-lock\.yaml|tsconfig\.base\.json|nx\.json)'; then
+          echo ">>> Nginx build required"
+        else
+          echo ">>> No nginx changes, skipping build"
+          exit 1
+        fi
+
+---
+# ================== Release: Nginx ==================
+kind: pipeline
+type: docker
+name: release-nginx
+
+depends_on:
+  - release-nginx-detect
+
+trigger:
+  event:
+    - tag
+  ref:
+    - refs/tags/v*
+
+steps:
+  - name: build-and-push
+    image: plugins/docker
+    settings:
+      dockerfile: docker/nginx/Dockerfile
+      context: .
+      repo:
+        from_secret: docker_repo_nginx
+      tags:
+        - ${DRONE_TAG}
+        - latest
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      build_args_from_env:
+        - VITE_API_KEY
+    environment:
+      VITE_API_KEY:
+        from_secret: vite_api_key
