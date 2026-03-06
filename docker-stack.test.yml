@@ -138,13 +138,34 @@ services:
     networks:
       - test-overlay
 
-  gateway:
-    image: gateway:test
+  nginx:
+    image: nginx-ui:test
     ports:
-      - target: 4000
+      - target: 80
         published: 4000
         protocol: tcp
         mode: ingress
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - test-overlay
+
+  gateway:
+    image: gateway:test
     environment:
       - NODE_ENV=production
       - PORT=4000

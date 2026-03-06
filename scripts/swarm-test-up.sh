@@ -31,16 +31,19 @@ echo ""
 # 3. Docker 이미지 빌드
 echo "--- [3/5] Docker 이미지 빌드 ---"
 
-echo "[3a] gateway 빌드..."
-docker build -f "$PROJECT_ROOT/apps/gateway/Dockerfile" --build-arg VITE_API_KEY="${VITE_API_KEY:-test-api-key}" -t gateway:test "$PROJECT_ROOT"
+echo "[3a] nginx-ui 빌드..."
+docker build -f "$PROJECT_ROOT/docker/nginx/Dockerfile" --build-arg VITE_API_KEY="${VITE_API_KEY:-test-api-key}" -t nginx-ui:test "$PROJECT_ROOT"
 
-echo "[3b] auth 빌드..."
+echo "[3b] gateway 빌드..."
+docker build -f "$PROJECT_ROOT/apps/gateway/Dockerfile" -t gateway:test "$PROJECT_ROOT"
+
+echo "[3c] auth 빌드..."
 docker build -f "$PROJECT_ROOT/apps/auth/Dockerfile" -t auth:test "$PROJECT_ROOT"
 
-echo "[3c] log-streamer 빌드..."
+echo "[3d] log-streamer 빌드..."
 docker build -f "$PROJECT_ROOT/apps/log-streamer/Dockerfile" -t log-streamer:test "$PROJECT_ROOT/apps/log-streamer"
 
-echo "[3d] relay 빌드..."
+echo "[3e] relay 빌드..."
 # relay의 Dockerfile이 golang:1.23을 사용하지만 go.mod는 1.25를 요구하므로 버전 패치
 sed 's/golang:1.23-alpine/golang:1.25-alpine/g' "$RELAY_ROOT/Dockerfile_alpine" \
   | docker build -t relay:test -f - "$RELAY_ROOT"
