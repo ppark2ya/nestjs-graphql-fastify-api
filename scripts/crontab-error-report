@@ -1,2 +1,3 @@
-# Daily ERROR log report — Mon-Fri 8:00 AM (requires TZ=Asia/Seoul)
-0 8 * * 1-5 node /app/daily-error-report.mjs >> /proc/1/fd/1 2>> /proc/1/fd/2
+# Daily ERROR log report — every day 08:00 KST (= 23:00 UTC, previous day)
+# Alpine crond ignores TZ env var and uses UTC. Adjust cron schedule accordingly.
+0 23 * * * node /app/daily-error-report.mjs >> /proc/1/fd/1 2>> /proc/1/fd/2
