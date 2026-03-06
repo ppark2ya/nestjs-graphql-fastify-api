@@ -1,6 +1,8 @@
 import { ObjectType, Field } from '@nestjs/graphql';
 
-@ObjectType({ description: 'Service-level log entry (includes container lifecycle events)' })
+@ObjectType({
+  description: 'Service-level log entry (includes container lifecycle events)',
+})
 export class ServiceLogEntry {
   @Field(() => String, { description: 'Container ID that produced the log' })
   containerId: string;
