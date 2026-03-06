@@ -6,7 +6,7 @@ import { HTTP_STATUS_TO_ERROR_CODE } from '@monorepo/shared/common/filter/http-s
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements GqlExceptionFilter {
-  private readonly logger = new Logger('HttpExceptionFilter');
+  private readonly logger = new Logger(HttpExceptionFilter.name);
 
   catch(exception: HttpException): GraphQLError {
     const status = exception.getStatus();
@@ -28,7 +28,7 @@ export class HttpExceptionFilter implements GqlExceptionFilter {
 
 @Catch(AxiosError)
 export class AxiosExceptionFilter implements GqlExceptionFilter {
-  private readonly logger = new Logger('AxiosExceptionFilter');
+  private readonly logger = new Logger(AxiosExceptionFilter.name);
 
   catch(exception: AxiosError): GraphQLError {
     const status = exception.response?.status;
