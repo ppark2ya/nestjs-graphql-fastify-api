@@ -4,6 +4,8 @@ import { basename, join } from 'path';
 import * as winston from 'winston';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import DailyRotateFile = require('winston-daily-rotate-file');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ecsFormat: (opts?: { apmIntegration?: boolean; serviceName?: string }) => winston.Logform.Format = require('@elastic/ecs-winston-format');
 
 // 레벨별 컬러 매핑
 const levelColors: Record<string, string> = {
@@ -31,6 +33,48 @@ const nestLikeConsoleFormat = winston.format.printf((info) => {
 
 const koreaTimestamp = winston.format.timestamp({
   format: () => new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }),
+});
+
+/**
+ * ECS 필드 매핑: context → log.logger, trace → error.stack_trace
+ * ecsFormat 이전에 실행되어 ECS 표준 필드로 변환
+ */
+const ecsFieldMapping = winston.format((info) => {
+  if (info.context) {
+    info['log.logger'] = info.context;
+    delete info.context;
+  }
+  if (info.trace) {
+    info['error.stack_trace'] = info.trace;
+    delete info.trace;
+  }
+  return info;
+});
+
+/**
+ * KST ISO 8601 타임스탬프: ecsFormat 이후 @timestamp를 KST로 오버라이드
+ */
+const kstTimestamp = winston.format((info) => {
+  info['@timestamp'] = new Date().toLocaleString('sv-SE', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3,
+    hour12: false,
+  }).replace(' ', 'T') + '+09:00';
+  return info;
+});
+
+/**
+ * service.name 필드 주입
+ */
+const serviceName = winston.format((info) => {
+  info['service.name'] = process.env.SERVICE_NAME || 'app';
+  return info;
 });
 
 const ARCHIVE_DIR = 'logs/archive';
@@ -66,7 +110,12 @@ export class WinstonLoggerService implements LoggerService {
       zippedArchive: true,
       maxSize: '10m',
       maxFiles: '14d',
-      format: winston.format.combine(koreaTimestamp, winston.format.json()),
+      format: winston.format.combine(
+        ecsFieldMapping(),
+        ecsFormat({ apmIntegration: false }),
+        kstTimestamp(),
+        serviceName(),
+      ),
     });
 
     // 로테이션 시 archive 디렉토리로 이동
