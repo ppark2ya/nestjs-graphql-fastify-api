@@ -3,19 +3,29 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  Logger,
 } from '@nestjs/common';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { FastifyRequest } from 'fastify';
 import { GraphQLResolveInfo } from 'graphql';
 import { Observable, tap, catchError } from 'rxjs';
+import { WinstonLoggerService } from '../logger/winston-logger.service';
+import { requestContext } from '../context/request-context';
 
 /**
  * LoggingInterceptor - HTTP, GraphQL, TCP 메시지 모두 로깅
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('LoggingInterceptor');
+  private readonly logger = new WinstonLoggerService().setContext(
+    'LoggingInterceptor',
+  );
+
+  private getCorrelationMeta(): Record<string, unknown> {
+    const store = requestContext.getStore();
+    return store?.correlationId
+      ? { correlationId: store.correlationId }
+      : {};
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const contextType = context.getType<string>();
@@ -49,16 +59,28 @@ export class LoggingInterceptor implements NestInterceptor {
       logData = '';
     }
 
-    this.logger.log(`→ ${logPrefix}${logData ? ` | ${logData}` : ''}`);
+    const meta = this.getCorrelationMeta();
+    this.logger.logWithMeta(
+      'info',
+      `→ ${logPrefix}${logData ? ` | ${logData}` : ''}`,
+      meta,
+    );
 
     return next.handle().pipe(
       tap(() => {
         const duration = Date.now() - now;
-        this.logger.log(`← ${logPrefix} | ${duration}ms`);
+        this.logger.logWithMeta('info', `← ${logPrefix} | ${duration}ms`, {
+          ...meta,
+          duration,
+        });
       }),
       catchError((error: Error) => {
         const duration = Date.now() - now;
-        this.logger.error(`✕ ${logPrefix} | ${duration}ms | ${error.message}`);
+        this.logger.logWithMeta(
+          'error',
+          `✕ ${logPrefix} | ${duration}ms | ${error.message}`,
+          { ...meta, duration },
+        );
         throw error;
       }),
     );
