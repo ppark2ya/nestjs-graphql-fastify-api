@@ -4,8 +4,6 @@ import { basename, join } from 'path';
 import * as winston from 'winston';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import DailyRotateFile = require('winston-daily-rotate-file');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ecsFormat: (opts?: { apmIntegration?: boolean; serviceName?: string }) => winston.Logform.Format = require('@elastic/ecs-winston-format');
 
 // 레벨별 컬러 매핑
 const levelColors: Record<string, string> = {
@@ -36,45 +34,51 @@ const koreaTimestamp = winston.format.timestamp({
 });
 
 /**
- * ECS 필드 매핑: context → log.logger, trace → error.stack_trace
- * ecsFormat 이전에 실행되어 ECS 표준 필드로 변환
+ * KST ISO 8601 타임스탬프 생성
  */
-const ecsFieldMapping = winston.format((info) => {
-  if (info.context) {
-    info['log.logger'] = info.context;
-    delete info.context;
-  }
-  if (info.trace) {
-    info['error.stack_trace'] = info.trace;
-    delete info.trace;
-  }
-  return info;
-});
+function getKstTimestamp(): string {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().replace('Z', '+09:00');
+}
+
+// Winston info에서 제외할 내부 키
+const INTERNAL_KEYS = new Set(['level', 'message', 'splat', 'context', 'trace']);
 
 /**
- * KST ISO 8601 타임스탬프: ecsFormat 이후 @timestamp를 KST로 오버라이드
+ * ECS JSON 포맷: ECS 필드 매핑 + JSON 직렬화를 단일 format으로 처리
+ * @elastic/ecs-winston-format은 @timestamp를 UTC로 강제하고 후속 format을 무시하므로 직접 구현
  */
-const kstTimestamp = winston.format((info) => {
-  info['@timestamp'] = new Date().toLocaleString('sv-SE', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    fractionalSecondDigits: 3,
-    hour12: false,
-  }).replace(' ', 'T') + '+09:00';
-  return info;
-});
+const ecsJsonFormat = winston.format.printf((info) => {
+  const { level, message, context, trace, ...rest } = info;
 
-/**
- * service.name 필드 주입
- */
-const serviceName = winston.format((info) => {
-  info['service.name'] = process.env.SERVICE_NAME || 'app';
-  return info;
+  const ecs: Record<string, unknown> = {
+    '@timestamp': getKstTimestamp(),
+    'log.level': level,
+    message: message as string,
+    'ecs.version': '8.11.0',
+    'process.pid': process.pid,
+    'service.name': process.env.SERVICE_NAME || 'app',
+  };
+
+  // context → log.logger
+  if (context) {
+    ecs['log.logger'] = context;
+  }
+
+  // trace → error.stack_trace
+  if (trace) {
+    ecs['error.stack_trace'] = trace;
+  }
+
+  // 나머지 메타데이터 추가 (Winston 내부 키 제외)
+  for (const [key, value] of Object.entries(rest)) {
+    if (!INTERNAL_KEYS.has(key) && value !== undefined) {
+      ecs[key] = value;
+    }
+  }
+
+  return JSON.stringify(ecs);
 });
 
 const ARCHIVE_DIR = 'logs/archive';
@@ -110,12 +114,7 @@ export class WinstonLoggerService implements LoggerService {
       zippedArchive: true,
       maxSize: '10m',
       maxFiles: '14d',
-      format: winston.format.combine(
-        ecsFieldMapping(),
-        ecsFormat({ apmIntegration: false }),
-        kstTimestamp(),
-        serviceName(),
-      ),
+      format: ecsJsonFormat,
     });
 
     // 로테이션 시 archive 디렉토리로 이동
