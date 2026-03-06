@@ -1,11 +1,14 @@
-import { useRef, useState, useCallback } from 'react';
-import { useSubscription } from '@apollo/client/react';
+import { useRef, useState, useCallback, useMemo } from 'react';
+import { useSubscription, useQuery } from '@apollo/client/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   SERVICE_LOG_SUBSCRIPTION,
+  CONTAINER_STATS_QUERY,
   ServiceLogEntry,
   ServiceGroup,
+  ContainerStatsData,
 } from '../graphql';
+import { formatBytes } from '@/lib/utils';
 import { ServiceLogRow, ServiceEventRow } from './LogRow';
 import { useLogBuffer } from '@/hooks/useLogBuffer';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
@@ -17,6 +20,7 @@ import { Search, X } from 'lucide-react';
 
 interface Props {
   service: ServiceGroup;
+  isActive?: boolean;
 }
 
 // Short container ID → color mapping for visual distinction
@@ -29,7 +33,7 @@ const REPLICA_COLORS = [
   'text-indigo-400',
 ];
 
-export default function ServiceLogViewer({ service }: Props) {
+export default function ServiceLogViewer({ service, isActive = true }: Props) {
   const { logs, addLog, clearLogs, lineCount, batchStartIndex } =
     useLogBuffer<ServiceLogEntry>({
       sortByTimestamp: true,
@@ -70,6 +74,27 @@ export default function ServiceLogViewer({ service }: Props) {
     }
     return map.get(containerId)!;
   }, []);
+
+  const containerIds = useMemo(
+    () => Array.from(activeContainers.keys()),
+    [activeContainers],
+  );
+  const { data: statsData } = useQuery<{
+    containerStats: ContainerStatsData[];
+  }>(CONTAINER_STATS_QUERY, {
+    variables: { containerIds },
+    pollInterval: isActive && containerIds.length > 0 ? 10_000 : 0,
+    skip: !isActive || containerIds.length === 0,
+  });
+  const statsMap = useMemo(() => {
+    const map = new Map<string, ContainerStatsData>();
+    if (statsData?.containerStats) {
+      for (const s of statsData.containerStats) {
+        map.set(s.id, s);
+      }
+    }
+    return map;
+  }, [statsData]);
 
   useSubscription<{ serviceLog: ServiceLogEntry }>(
     SERVICE_LOG_SUBSCRIPTION,
@@ -125,6 +150,22 @@ export default function ServiceLogViewer({ service }: Props) {
           <Badge variant="secondary" className="text-purple-400">
             {activeContainers.size} replicas
           </Badge>
+          {statsMap.size > 0 && (
+            <span className="text-xs text-muted-foreground font-mono ml-2">
+              CPU{' '}
+              {[...statsMap.values()]
+                .reduce((sum, s) => sum + s.cpuPercent, 0)
+                .toFixed(1)}
+              % ·{' '}
+              {formatBytes(
+                [...statsMap.values()].reduce((sum, s) => sum + s.memUsage, 0),
+              )}
+              {[...statsMap.values()].reduce((sum, s) => sum + s.memLimit, 0) >
+              0
+                ? `/${formatBytes([...statsMap.values()].reduce((sum, s) => sum + s.memLimit, 0))}`
+                : ''}
+            </span>
+          )}
         </div>
         <div className="relative flex items-center">
           <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground" />
@@ -172,16 +213,26 @@ export default function ServiceLogViewer({ service }: Props) {
 
       {/* Replica legend — dynamically reflects active containers */}
       <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-card/50 flex-wrap">
-        {[...activeContainers.entries()].map(([id, info]) => (
-          <span key={id} className={`text-xs ${getContainerColor(id)}`}>
-            {id.slice(0, 8)}
-            {info.nodeName && (
-              <span className="text-muted-foreground ml-1">
-                @{info.nodeName}
-              </span>
-            )}
-          </span>
-        ))}
+        {[...activeContainers.entries()].map(([id, info]) => {
+          const s = statsMap.get(id);
+          return (
+            <span key={id} className={`text-xs ${getContainerColor(id)}`}>
+              {id.slice(0, 8)}
+              {info.nodeName && (
+                <span className="text-muted-foreground ml-1">
+                  @{info.nodeName}
+                </span>
+              )}
+              {s && (
+                <span className="text-muted-foreground/70 font-mono ml-1">
+                  {s.cpuPercent.toFixed(1)}% ·{' '}
+                  {formatBytes(s.memUsage)}
+                  {s.memLimit > 0 ? `/${formatBytes(s.memLimit)}` : ''}
+                </span>
+              )}
+            </span>
+          );
+        })}
         {activeContainers.size === 0 && (
           <span className="text-xs text-muted-foreground italic">
             No active replicas

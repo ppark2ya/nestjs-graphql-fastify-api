@@ -1,6 +1,12 @@
-import { useSubscription } from '@apollo/client/react';
+import { useSubscription, useQuery } from '@apollo/client/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { CONTAINER_LOG_SUBSCRIPTION, LogEntry } from '../graphql';
+import {
+  CONTAINER_LOG_SUBSCRIPTION,
+  CONTAINER_STATS_QUERY,
+  LogEntry,
+  ContainerStatsData,
+} from '../graphql';
+import { formatBytes } from '@/lib/utils';
 import { LogRow } from './LogRow';
 import { useLogBuffer } from '@/hooks/useLogBuffer';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
@@ -12,9 +18,10 @@ import { Search, X } from 'lucide-react';
 interface Props {
   containerId: string;
   containerName: string;
+  isActive?: boolean;
 }
 
-export default function LogViewer({ containerId, containerName }: Props) {
+export default function LogViewer({ containerId, containerName, isActive = true }: Props) {
   const { logs, addLog, clearLogs, lineCount, batchStartIndex } = useLogBuffer<LogEntry>();
   const { grepQuery, setGrepQuery, filteredLogs, isGrepping } =
     useLogFilter(logs);
@@ -32,6 +39,15 @@ export default function LogViewer({ containerId, containerName }: Props) {
       itemCount: filteredLogs.length,
       enabled: !isGrepping,
     });
+
+  const { data: statsData } = useQuery<{
+    containerStats: ContainerStatsData[];
+  }>(CONTAINER_STATS_QUERY, {
+    variables: { containerIds: [containerId] },
+    pollInterval: isActive ? 10_000 : 0,
+    skip: !isActive,
+  });
+  const stats = statsData?.containerStats?.[0];
 
   const { error } = useSubscription<{ containerLog: LogEntry }>(
     CONTAINER_LOG_SUBSCRIPTION,
@@ -55,6 +71,13 @@ export default function LogViewer({ containerId, containerName }: Props) {
           <span className="text-xs text-muted-foreground">
             {containerId.slice(0, 12)}
           </span>
+          {stats && (
+            <span className="text-xs text-muted-foreground font-mono ml-2">
+              CPU {stats.cpuPercent.toFixed(1)}% ·{' '}
+              {formatBytes(stats.memUsage)}
+              {stats.memLimit > 0 ? `/${formatBytes(stats.memLimit)}` : ''}
+            </span>
+          )}
         </div>
         <div className="relative flex items-center">
           <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground" />

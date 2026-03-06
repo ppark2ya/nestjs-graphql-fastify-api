@@ -74,3 +74,23 @@ export interface ServiceGroup {
 export type LiveStreamTabData =
   | { type: 'container'; container: Container }
   | { type: 'service'; service: ServiceGroup };
+
+export interface ContainerStatsData {
+  id: string;
+  name: string;
+  cpuPercent: number;
+  memUsage: number;
+  memLimit: number;
+}
+
+export const CONTAINER_STATS_QUERY = gql`
+  query ContainerStats($containerIds: [String!]!) {
+    containerStats(containerIds: $containerIds) {
+      id
+      name
+      cpuPercent
+      memUsage
+      memLimit
+    }
+  }
+`;

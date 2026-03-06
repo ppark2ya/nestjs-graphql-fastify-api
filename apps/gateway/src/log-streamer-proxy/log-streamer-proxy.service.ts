@@ -14,6 +14,7 @@ import { PUB_SUB } from '../pubsub/pubsub.provider';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
 import WebSocket from 'ws';
 import { Container } from './models/container.model';
+import { ContainerStats } from './models/container-stats.model';
 import { discoverLogStreamers } from '../common/discover-log-streamers';
 
 const LOG_STREAM_TOPIC = 'CONTAINER_LOG';
@@ -419,5 +420,39 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
       }
     }
     return containers;
+  }
+
+  async getContainerStats(containerIds: string[]): Promise<ContainerStats[]> {
+    if (containerIds.length === 0) return [];
+
+    const idsParam = containerIds.join(',');
+    const hosts = await discoverLogStreamers(this.logStreamerBaseUrl);
+    const results = await Promise.allSettled(
+      hosts.map((host) =>
+        this.circuitBreaker.fire('log-streamer', async () => {
+          const url = `http://${host}:${this.logStreamerPort}`;
+          const response = await firstValueFrom(
+            this.httpService.get<ContainerStats[]>(
+              `${url}/api/stats?ids=${idsParam}`,
+            ),
+          );
+          return response.data;
+        }),
+      ),
+    );
+
+    const seen = new Set<string>();
+    const stats: ContainerStats[] = [];
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        for (const s of result.value) {
+          if (!seen.has(s.id)) {
+            seen.add(s.id);
+            stats.push(s);
+          }
+        }
+      }
+    }
+    return stats;
   }
 }

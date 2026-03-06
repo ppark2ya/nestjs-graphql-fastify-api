@@ -115,11 +115,15 @@ export default function LiveStreamPage() {
               }}
             >
               {tab.data.type === 'service' ? (
-                <ServiceLogViewer service={tab.data.service} />
+                <ServiceLogViewer
+                  service={tab.data.service}
+                  isActive={tab.id === activeTabId}
+                />
               ) : (
                 <LogViewer
                   containerId={tab.data.container.id}
                   containerName={tab.data.container.name}
+                  isActive={tab.id === activeTabId}
                 />
               )}
             </motion.div>

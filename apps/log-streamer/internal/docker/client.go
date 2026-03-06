@@ -2,10 +2,13 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -27,6 +30,14 @@ type ContainerInfo struct {
 	ServiceName string   `json:"serviceName,omitempty"`
 	TaskSlot    string   `json:"taskSlot,omitempty"`
 	NodeName    string   `json:"nodeName,omitempty"`
+}
+
+type ContainerStats struct {
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	CPUPercent float64 `json:"cpuPercent"`
+	MemUsage   uint64  `json:"memUsage"`
+	MemLimit   uint64  `json:"memLimit"`
 }
 
 func NewClient() (*Client, error) {
@@ -180,4 +191,99 @@ func (c *Client) Ping(ctx context.Context) (types.Ping, error) {
 	defer c.mu.RUnlock()
 
 	return c.cli.Ping(ctx)
+}
+
+func (c *Client) GetContainerStats(ctx context.Context, ids []string) ([]ContainerStats, error) {
+	if len(ids) == 0 {
+		return []ContainerStats{}, nil
+	}
+
+	// Use a dedicated context with generous timeout, decoupled from the HTTP
+	// request context.  Docker's ContainerStats(stream=false) blocks ~1 s per
+	// container while the daemon collects two CPU samples, so the caller's
+	// context (tied to the Gateway HTTP request) may cancel before all
+	// goroutines finish.
+	statsCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	type result struct {
+		stats ContainerStats
+		err   error
+	}
+
+	ch := make(chan result, len(ids))
+	var wg sync.WaitGroup
+
+	for _, id := range ids {
+		wg.Add(1)
+		go func(containerID string) {
+			defer wg.Done()
+
+			c.mu.RLock()
+			resp, err := c.cli.ContainerStats(statsCtx, containerID, false)
+			c.mu.RUnlock()
+			if err != nil {
+				slog.Warn("stats failed", "container", containerID, "error", err)
+				ch <- result{err: err}
+				return
+			}
+			defer resp.Body.Close()
+
+			var v types.StatsJSON
+			if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+				ch <- result{err: err}
+				return
+			}
+
+			// ContainerInspect to get the name
+			c.mu.RLock()
+			inspect, inspectErr := c.cli.ContainerInspect(statsCtx, containerID)
+			c.mu.RUnlock()
+
+			name := containerID
+			if inspectErr == nil {
+				name = inspect.Name
+				if len(name) > 0 && name[0] == '/' {
+					name = name[1:]
+				}
+			}
+
+			ch <- result{stats: ContainerStats{
+				ID:         containerID[:12],
+				Name:       name,
+				CPUPercent: calculateCPUPercent(&v),
+				MemUsage:   v.MemoryStats.Usage,
+				MemLimit:   v.MemoryStats.Limit,
+			}}
+		}(id)
+	}
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	var stats []ContainerStats
+	for r := range ch {
+		if r.err == nil {
+			stats = append(stats, r.stats)
+		}
+	}
+	return stats, nil
+}
+
+func calculateCPUPercent(v *types.StatsJSON) float64 {
+	cpuDelta := float64(v.CPUStats.CPUUsage.TotalUsage - v.PreCPUStats.CPUUsage.TotalUsage)
+	systemDelta := float64(v.CPUStats.SystemUsage - v.PreCPUStats.SystemUsage)
+	if systemDelta <= 0 || cpuDelta < 0 {
+		return 0.0
+	}
+	numCPUs := float64(v.CPUStats.OnlineCPUs)
+	if numCPUs == 0 {
+		numCPUs = float64(len(v.CPUStats.CPUUsage.PercpuUsage))
+	}
+	if numCPUs == 0 {
+		numCPUs = 1.0
+	}
+	return (cpuDelta / systemDelta) * numCPUs * 100.0
 }

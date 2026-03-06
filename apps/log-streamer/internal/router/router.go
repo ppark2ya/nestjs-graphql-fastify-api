@@ -23,6 +23,7 @@ func New(dockerClient *docker.Client, logReader *logreader.Reader) *chi.Mux {
 	// REST API
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/containers", handler.Containers(dockerClient))
+		r.Get("/stats", handler.ContainerStats(dockerClient))
 
 		r.Route("/logs", func(r chi.Router) {
 			h := handler.NewLogFilesHandler(logReader, dockerClient)
