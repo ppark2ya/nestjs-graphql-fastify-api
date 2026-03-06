@@ -2,8 +2,10 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"sync"
 
@@ -27,6 +29,14 @@ type ContainerInfo struct {
 	ServiceName string   `json:"serviceName,omitempty"`
 	TaskSlot    string   `json:"taskSlot,omitempty"`
 	NodeName    string   `json:"nodeName,omitempty"`
+}
+
+type ContainerStats struct {
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	CPUPercent float64 `json:"cpuPercent"`
+	MemUsage   uint64  `json:"memUsage"`
+	MemLimit   uint64  `json:"memLimit"`
 }
 
 func NewClient() (*Client, error) {
@@ -180,4 +190,94 @@ func (c *Client) Ping(ctx context.Context) (types.Ping, error) {
 	defer c.mu.RUnlock()
 
 	return c.cli.Ping(ctx)
+}
+
+func (c *Client) GetAllContainerStats(ctx context.Context) ([]ContainerStats, error) {
+	c.mu.RLock()
+	containers, err := c.cli.ContainerList(ctx, types.ContainerListOptions{All: false})
+	c.mu.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+
+	type result struct {
+		stats ContainerStats
+		err   error
+	}
+
+	ch := make(chan result, len(containers))
+	var wg sync.WaitGroup
+
+	for _, ctr := range containers {
+		if ctr.State != "running" {
+			continue
+		}
+		wg.Add(1)
+		go func(ctr types.Container) {
+			defer wg.Done()
+
+			c.mu.RLock()
+			resp, err := c.cli.ContainerStats(ctx, ctr.ID, false)
+			c.mu.RUnlock()
+			if err != nil {
+				slog.Warn("stats failed", "container", ctr.ID[:12], "error", err)
+				ch <- result{err: err}
+				return
+			}
+			defer resp.Body.Close()
+
+			var v types.StatsJSON
+			if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+				ch <- result{err: err}
+				return
+			}
+
+			name := ""
+			if len(ctr.Names) > 0 {
+				name = ctr.Names[0]
+				if len(name) > 0 && name[0] == '/' {
+					name = name[1:]
+				}
+			}
+
+			cpuPercent := calculateCPUPercent(&v)
+
+			ch <- result{stats: ContainerStats{
+				ID:         ctr.ID[:12],
+				Name:       name,
+				CPUPercent: cpuPercent,
+				MemUsage:   v.MemoryStats.Usage,
+				MemLimit:   v.MemoryStats.Limit,
+			}}
+		}(ctr)
+	}
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	var stats []ContainerStats
+	for r := range ch {
+		if r.err == nil {
+			stats = append(stats, r.stats)
+		}
+	}
+	return stats, nil
+}
+
+func calculateCPUPercent(v *types.StatsJSON) float64 {
+	cpuDelta := float64(v.CPUStats.CPUUsage.TotalUsage - v.PreCPUStats.CPUUsage.TotalUsage)
+	systemDelta := float64(v.CPUStats.SystemUsage - v.PreCPUStats.SystemUsage)
+	if systemDelta <= 0 || cpuDelta < 0 {
+		return 0.0
+	}
+	numCPUs := float64(v.CPUStats.OnlineCPUs)
+	if numCPUs == 0 {
+		numCPUs = float64(len(v.CPUStats.CPUUsage.PercpuUsage))
+	}
+	if numCPUs == 0 {
+		numCPUs = 1.0
+	}
+	return (cpuDelta / systemDelta) * numCPUs * 100.0
 }
