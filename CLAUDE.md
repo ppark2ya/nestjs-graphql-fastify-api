@@ -2,6 +2,11 @@
 
 이 파일은 Claude Code가 프로젝트를 이해하는 데 사용하는 컨텍스트 문서입니다.
 
+## 작업 스타일
+
+- 계획(plan) 단계에서만 질문하고, 구현 중에는 스스로 판단하여 진행한다.
+- 구현 중 막히면 질문 대신 가장 합리적인 방향으로 먼저 시도한다.
+
 ## 프로젝트 개요
 
 Nx monorepo 기반의 멀티 서버 + 프론트엔드 프로젝트. 다섯 개의 애플리케이션으로 구성된다:
@@ -379,6 +384,9 @@ import { requestContext } from '@monorepo/shared/common/context/request-context'
 ```
 
 ## 환경 설정
+
+**공통** (NestJS 앱):
+- `SERVICE_NAME` (`app`): ECS 로그의 `service.name` 필드 (예: `gateway`, `auth`)
 
 **Gateway** (기본값):
 - `PORT` (4000), `API_KEYS` (쉼표 구분)

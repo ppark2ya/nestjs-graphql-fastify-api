@@ -323,6 +323,104 @@ func TestBracketLog4j2ContinuationLineAsRaw(t *testing.T) {
 	}
 }
 
+func TestJSONParserECSFormat(t *testing.T) {
+	p := &JSONParser{}
+	line := `{"@timestamp":"2026-03-06T15:09:17.123+09:00","log.level":"info","message":"POST /graphql 200","ecs.version":"8.11.0","process.pid":12345,"log.logger":"HTTP","service.name":"gateway","correlationId":"abc-123"}`
+	result := p.Parse(line)
+
+	if result.Timestamp != "2026-03-06T15:09:17.123+09:00" {
+		t.Errorf("timestamp = %q, want %q", result.Timestamp, "2026-03-06T15:09:17.123+09:00")
+	}
+	if result.Level != "INFO" {
+		t.Errorf("level = %q, want %q", result.Level, "INFO")
+	}
+	if result.Source != "HTTP" {
+		t.Errorf("source = %q, want %q", result.Source, "HTTP")
+	}
+	if result.Message != "POST /graphql 200" {
+		t.Errorf("message = %q, want %q", result.Message, "POST /graphql 200")
+	}
+
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(result.Metadata), &meta); err != nil {
+		t.Fatalf("metadata JSON parse error: %v", err)
+	}
+	// ECS meta keys should NOT be in metadata
+	for _, key := range []string{"ecs.version", "process.pid", "service.name", "log.level", "log.logger"} {
+		if _, ok := meta[key]; ok {
+			t.Errorf("metadata should not contain %s", key)
+		}
+	}
+	// Custom fields SHOULD be in metadata
+	if meta["correlationId"] != "abc-123" {
+		t.Errorf("metadata correlationId = %v, want %q", meta["correlationId"], "abc-123")
+	}
+}
+
+func TestJSONParserECSErrorFormat(t *testing.T) {
+	p := &JSONParser{}
+	line := `{"@timestamp":"2026-03-06T15:09:17.123+09:00","log.level":"error","message":"Request failed","log.logger":"HTTP","error.stack_trace":"Error: timeout\n  at Object.<anonymous>","service.name":"gateway"}`
+	result := p.Parse(line)
+
+	if result.Level != "ERROR" {
+		t.Errorf("level = %q, want %q", result.Level, "ERROR")
+	}
+	if result.Source != "HTTP" {
+		t.Errorf("source = %q, want %q", result.Source, "HTTP")
+	}
+
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(result.Metadata), &meta); err != nil {
+		t.Fatalf("metadata JSON parse error: %v", err)
+	}
+	if meta["error.stack_trace"] == nil {
+		t.Error("metadata should contain error.stack_trace")
+	}
+}
+
+func TestJSONParserECSSpringFormat(t *testing.T) {
+	p := &JSONParser{}
+	line := `{"@timestamp":"2026-03-06T15:09:17.123+09:00","log.level":"INFO","message":"User logged in","ecs.version":"8.11.0","process.thread.name":"http-nio-8080-exec-1","log.logger":"c.e.s.MyService","service.name":"my-spring-app","correlationId":"abc-123","userId":"user01"}`
+	result := p.Parse(line)
+
+	if result.Timestamp != "2026-03-06T15:09:17.123+09:00" {
+		t.Errorf("timestamp = %q", result.Timestamp)
+	}
+	if result.Level != "INFO" {
+		t.Errorf("level = %q, want %q", result.Level, "INFO")
+	}
+	if result.Source != "c.e.s.MyService" {
+		t.Errorf("source = %q, want %q", result.Source, "c.e.s.MyService")
+	}
+
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(result.Metadata), &meta); err != nil {
+		t.Fatalf("metadata JSON parse error: %v", err)
+	}
+	if meta["correlationId"] != "abc-123" {
+		t.Errorf("correlationId = %v", meta["correlationId"])
+	}
+	if meta["userId"] != "user01" {
+		t.Errorf("userId = %v", meta["userId"])
+	}
+}
+
+func TestJSONParserLegacyFormatStillWorks(t *testing.T) {
+	p := &JSONParser{}
+	line := `{"timestamp":"2026-03-06 15:09:17","level":"info","message":"POST /graphql 200","context":"HTTP","correlationId":"abc-123"}`
+	result := p.Parse(line)
+
+	if result.Timestamp != "2026-03-06 15:09:17" {
+		t.Errorf("timestamp = %q", result.Timestamp)
+	}
+	if result.Level != "INFO" {
+		t.Errorf("level = %q, want %q", result.Level, "INFO")
+	}
+	if result.Message != "POST /graphql 200" {
+		t.Errorf("message = %q", result.Message)
+	}
+}
+
 func TestDetectParser(t *testing.T) {
 	tests := []struct {
 		line string

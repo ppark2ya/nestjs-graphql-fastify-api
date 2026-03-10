@@ -36,14 +36,14 @@ export class AxiosExceptionFilter implements GqlExceptionFilter {
     const url = exception.config?.url ?? 'unknown';
 
     if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
-      this.logger.error(`Backend timeout: ${url}`, exception.message);
+      this.logger.error(`Backend timeout: ${url}`, exception.stack);
       return new GraphQLError('Backend service timeout', {
         extensions: { code: 'GATEWAY_TIMEOUT', statusCode: 504 },
       });
     }
 
     if (!status) {
-      this.logger.error(`Backend unreachable: ${url}`, exception.message);
+      this.logger.error(`Backend unreachable: ${url}`, exception.stack);
       return new GraphQLError('Backend service unavailable', {
         extensions: { code: 'BAD_GATEWAY', statusCode: 502 },
       });
@@ -57,10 +57,7 @@ export class AxiosExceptionFilter implements GqlExceptionFilter {
       `Backend service error (${status})`;
     const errorCode = typeof data?.code === 'string' ? data.code : undefined;
 
-    this.logger.error(
-      `Backend error: ${url} responded with ${status}`,
-      message,
-    );
+    this.logger.error(`Backend error: ${url} responded with ${status}`);
 
     const gqlCode = HTTP_STATUS_TO_ERROR_CODE[status] ?? 'BAD_GATEWAY';
 

@@ -4,7 +4,7 @@ import { basename, join } from 'path';
 import * as winston from 'winston';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import DailyRotateFile = require('winston-daily-rotate-file');
-
+import { requestContext } from '../context/request-context';
 // 레벨별 컬러 매핑
 const levelColors: Record<string, string> = {
   error: '\x1b[31m', // red
@@ -31,6 +31,41 @@ const nestLikeConsoleFormat = winston.format.printf((info) => {
 
 const koreaTimestamp = winston.format.timestamp({
   format: () => new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }),
+});
+
+// Winston info에서 제외할 내부 키
+const INTERNAL_KEYS = new Set(['level', 'message', 'splat', 'context', 'trace']);
+
+/**
+ * ECS JSON 포맷 (UTC @timestamp)
+ * @elastic/ecs-winston-format은 info 객체를 변형하여 후속 로그 기록을 깨뜨리므로 직접 구현
+ */
+const ecsJsonFormat = winston.format.printf((info) => {
+  const { level, message, context, trace, ...rest } = info;
+
+  const ecs: Record<string, unknown> = {
+    '@timestamp': new Date().toISOString(),
+    'log.level': level,
+    message: message as string,
+    'ecs.version': '8.11.0',
+    'process.pid': process.pid,
+    'service.name': process.env.SERVICE_NAME || 'app',
+  };
+
+  if (context) {
+    ecs['log.logger'] = context;
+  }
+  if (trace) {
+    ecs['error.stack_trace'] = trace;
+  }
+
+  for (const [key, value] of Object.entries(rest)) {
+    if (!INTERNAL_KEYS.has(key) && value !== undefined) {
+      ecs[key] = value;
+    }
+  }
+
+  return JSON.stringify(ecs);
 });
 
 const ARCHIVE_DIR = 'logs/archive';
@@ -66,7 +101,7 @@ export class WinstonLoggerService implements LoggerService {
       zippedArchive: true,
       maxSize: '10m',
       maxFiles: '14d',
-      format: winston.format.combine(koreaTimestamp, winston.format.json()),
+      format: ecsJsonFormat,
     });
 
     // 로테이션 시 archive 디렉토리로 이동
@@ -88,28 +123,46 @@ export class WinstonLoggerService implements LoggerService {
     return this;
   }
 
+  private getRequestMeta(): Record<string, unknown> {
+    const store = requestContext.getStore();
+    return store?.correlationId
+      ? { correlationId: store.correlationId }
+      : {};
+  }
+
   log(message: any, context?: string): void {
-    this.logger.info(message as string, { context: context || this.context });
+    this.logger.info(message as string, {
+      context: context || this.context,
+      ...this.getRequestMeta(),
+    });
   }
 
   error(message: any, trace?: string, context?: string): void {
     this.logger.error(message as string, {
       context: context || this.context,
       trace,
+      ...this.getRequestMeta(),
     });
   }
 
   warn(message: any, context?: string): void {
-    this.logger.warn(message as string, { context: context || this.context });
+    this.logger.warn(message as string, {
+      context: context || this.context,
+      ...this.getRequestMeta(),
+    });
   }
 
   debug(message: any, context?: string): void {
-    this.logger.debug(message as string, { context: context || this.context });
+    this.logger.debug(message as string, {
+      context: context || this.context,
+      ...this.getRequestMeta(),
+    });
   }
 
   verbose(message: any, context?: string): void {
     this.logger.verbose(message as string, {
       context: context || this.context,
+      ...this.getRequestMeta(),
     });
   }
 
@@ -124,6 +177,7 @@ export class WinstonLoggerService implements LoggerService {
   ): void {
     this.logger.log(level, message, {
       context: context || this.context,
+      ...this.getRequestMeta(),
       ...meta,
     });
   }

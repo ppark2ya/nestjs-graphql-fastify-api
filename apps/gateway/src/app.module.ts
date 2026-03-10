@@ -1,9 +1,4 @@
-import {
-  Module,
-  NestModule,
-  MiddlewareConsumer,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
@@ -12,20 +7,14 @@ import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
 import depthLimit from 'graphql-depth-limit';
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { AxiosError } from 'axios';
 import { GlobalHttpModule } from './http/global-http.module';
 import { AppService } from './app.service';
 import { AppResolver } from './app.resolver';
 import { ApiKeyGuard } from './auth/api-key.guard';
 import { GqlThrottlerGuard } from './auth/gql-throttler.guard';
-import { HttpService } from '@nestjs/axios';
 import { LoggerMiddleware } from '@monorepo/shared/common/middleware/logger.middleware';
-import {
-  CORRELATION_HEADER,
-  CorrelationIdMiddleware,
-} from '@monorepo/shared/common/middleware/correlation-id.middleware';
+import { CorrelationIdMiddleware } from '@monorepo/shared/common/middleware/correlation-id.middleware';
 import { RequestContextMiddleware } from '@monorepo/shared/common/middleware/request-context.middleware';
-import { requestContext } from '@monorepo/shared/common/context/request-context';
 import { DataLoaderModule } from './dataloader/dataloader.module';
 import { DataLoaderService } from './dataloader/dataloader.service';
 import { CircuitBreakerModule } from './circuit-breaker/circuit-breaker.module';
@@ -35,7 +24,7 @@ import {
 } from './common/filter/http-exception.filter';
 import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
 import { LoggingInterceptor } from '@monorepo/shared/common/interceptor/logging.interceptor';
-import { WinstonLoggerModule, WinstonLoggerService } from '@monorepo/shared';
+import { WinstonLoggerModule } from '@monorepo/shared';
 import { envSchema } from './env.schema';
 import { PubSubModule } from './pubsub/pubsub.module';
 import { LogStreamerProxyModule } from './log-streamer-proxy/log-streamer-proxy.module';
@@ -128,44 +117,7 @@ import { LogHistoryModule } from './log-history/log-history.module';
     },
   ],
 })
-export class AppModule implements NestModule, OnModuleInit {
-  private readonly logger: WinstonLoggerService;
-
-  constructor(
-    private readonly httpService: HttpService,
-    logger: WinstonLoggerService,
-  ) {
-    this.logger = logger.setContext('HttpClient');
-  }
-
-  onModuleInit() {
-    this.httpService.axiosRef.interceptors.request.use((config) => {
-      this.logger.log(`→ ${config.method?.toUpperCase()} ${config.url}`);
-
-      const store = requestContext.getStore();
-      if (store?.authToken) {
-        config.headers.Authorization = store.authToken;
-      }
-      if (store?.correlationId) {
-        config.headers[CORRELATION_HEADER] = store.correlationId;
-      }
-      return config;
-    });
-
-    this.httpService.axiosRef.interceptors.response.use(
-      (response) => {
-        this.logger.log(`← ${response.status} ${response.config.url}`);
-        return response;
-      },
-      (error: AxiosError) => {
-        const status = error.response?.status ?? 'ERR';
-        const url = error.config?.url ?? 'unknown';
-        this.logger.error(`← ${status} ${url}`, error.message);
-        return Promise.reject(error);
-      },
-    );
-  }
-
+export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(
