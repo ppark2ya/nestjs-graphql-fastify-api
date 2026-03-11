@@ -34,6 +34,9 @@ export class GlobalHttpModule implements OnModuleInit {
       if (store?.correlationId) {
         config.headers[CORRELATION_HEADER] = store.correlationId;
       }
+      if (store?.acceptLanguage) {
+        config.headers['accept-language'] = store.acceptLanguage;
+      }
       return config;
     });
 
