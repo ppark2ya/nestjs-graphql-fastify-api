@@ -9,6 +9,7 @@ export class RequestContextMiddleware implements NestMiddleware {
     const store = {
       authToken: req.headers.authorization,
       correlationId: req.headers[CORRELATION_HEADER] as string | undefined,
+      acceptLanguage: req.headers['accept-language'] as string | undefined,
     };
     requestContext.run(store, () => next());
   }
