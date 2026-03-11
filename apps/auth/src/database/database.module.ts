@@ -15,14 +15,18 @@ export type DrizzleDB = MySql2Database<typeof schema>;
       provide: DRIZZLE,
       inject: [ConfigService],
       useFactory: async (config: ConfigService): Promise<DrizzleDB> => {
-        const connection = await mysql.createConnection({
+        const pool = mysql.createPool({
           host: config.get<string>('DB_HOST', 'localhost'),
           port: config.get<number>('DB_PORT', 3306),
           user: config.get<string>('DB_USERNAME', 'root'),
           password: config.get<string>('DB_PASSWORD', ''),
           database: config.get<string>('DB_DATABASE', 'auth'),
+          waitForConnections: true,
+          connectionLimit: 10,
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 30_000,
         });
-        return drizzle(connection, { schema, mode: 'default' });
+        return drizzle(pool, { schema, mode: 'default' });
       },
     },
   ],
