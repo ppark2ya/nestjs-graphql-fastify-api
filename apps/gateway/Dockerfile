@@ -20,9 +20,6 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # ---- Stage 2: Build ----
 FROM node:24-alpine AS build
 
-ARG VITE_API_KEY
-ENV VITE_API_KEY=$VITE_API_KEY
-
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@8.10.5 --activate
@@ -32,16 +29,15 @@ COPY pnpm-lock.yaml package.json ./
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
-# 소스 코드 및 설정 파일 복사
+# 소스 코드 및 설정 파일 복사 (UI 제외 — nginx 서비스에서 별도 빌드)
 COPY tsconfig.base.json nest-cli.json nx.json ./
 COPY apps/gateway ./apps/gateway
-COPY apps/ui ./apps/ui
 COPY libs ./libs
 
-# Shared 라이브러리 → Log-viewer → Gateway 순서로 빌드
+# Shared 라이브러리 → Gateway 빌드
 # Nx 21.x Docker 환경에서 SQLite 캐시 DB 오류가 발생할 수 있으므로
 # 빌드 성공 여부는 출력 파일 존재로 검증
-RUN (pnpm nx build shared && pnpm build:gateway || true) \
+RUN (pnpm nx build shared && pnpm nx build gateway || true) \
     && test -f dist/apps/gateway/main.js
 
 # ---- Stage 3: Production ----
