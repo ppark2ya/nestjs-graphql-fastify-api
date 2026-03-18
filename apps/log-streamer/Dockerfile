@@ -1,39 +1,25 @@
-# Build stage
-FROM golang:1.24-alpine AS builder
-
-WORKDIR /app
-
-# Copy go.mod and go.sum first for dependency caching
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o /log-streamer ./cmd/server
-
-# Production stage
+# ================================================================
+# Log Streamer Dockerfile (pre-built)
+# 빌드 컨텍스트: apps/log-streamer/
+# 전제: Drone CI에서 Go 바이너리 빌드 완료
+# 사용법: docker build -f apps/log-streamer/Dockerfile -t log-streamer:tag apps/log-streamer/
+# ================================================================
 FROM alpine:3.19
 
-# Install ca-certificates for HTTPS connections
 RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /log-streamer .
+# 빌드된 바이너리 복사
+COPY log-streamer .
 
-# Create non-root user
+# non-root 사용자 생성
 RUN adduser -D -g '' appuser
 USER appuser
 
-# Expose port
 EXPOSE 4003
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -q -O - http://localhost:4003/health || exit 1
 
-# Run the application
 ENTRYPOINT ["./log-streamer"]

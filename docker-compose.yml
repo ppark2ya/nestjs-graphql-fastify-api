@@ -81,7 +81,7 @@ services:
       - redis
       - log-streamer
     deploy:
-      replicas: 1
+      mode: global
       update_config:
         parallelism: 1
         delay: 10s

@@ -62,7 +62,29 @@ steps:
           touch .skip-build
         fi
 
-  - name: build-and-push
+  - name: build
+    image: node:24-alpine
+    environment:
+      VITE_API_KEY:
+        from_secret: vite_api_key
+    commands:
+      - |
+        if [ -f .skip-build ]; then
+          echo "Build skipped (no relevant changes)"
+          exit 0
+        fi
+        corepack enable && corepack prepare pnpm@8.10.5 --activate
+        pnpm install --frozen-lockfile
+        pnpm nx build shared
+        VITE_API_KEY="$VITE_API_KEY" pnpm build:gateway
+        # production 의존성으로 교체
+        rm -rf node_modules
+        pnpm install --frozen-lockfile --prod
+    when:
+      status:
+        - success
+
+  - name: dockerize
     image: docker:cli
     volumes:
       - name: dockersock
@@ -74,8 +96,6 @@ steps:
         from_secret: docker_username
       DOCKER_PASSWORD:
         from_secret: docker_password
-      VITE_API_KEY:
-        from_secret: vite_api_key
     commands:
       - |
         if [ -f .skip-build ]; then
@@ -83,14 +103,13 @@ steps:
           exit 0
         fi
         TAG="${DRONE_BRANCH}-$(echo ${DRONE_COMMIT_SHA} | cut -c1-8)"
-        # Registry 자동 감지: repo 경로에 도메인이 포함되면 해당 registry로 로그인
         REGISTRY=$(echo "$DOCKER_REPO" | cut -d'/' -f1)
         if echo "$REGISTRY" | grep -qE '[.:]'; then
           echo "$DOCKER_PASSWORD" | docker login "$REGISTRY" -u "$DOCKER_USERNAME" --password-stdin
         else
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
         fi
-        docker build -f apps/gateway/Dockerfile --build-arg VITE_API_KEY="$VITE_API_KEY" -t "$DOCKER_REPO:$TAG" -t "$DOCKER_REPO:latest" .
+        docker build -f apps/gateway/Dockerfile -t "$DOCKER_REPO:$TAG" -t "$DOCKER_REPO:latest" .
         docker push "$DOCKER_REPO:$TAG"
         docker push "$DOCKER_REPO:latest"
         echo ">>> Pushed $DOCKER_REPO:$TAG"
@@ -140,7 +159,24 @@ steps:
           touch .skip-build
         fi
 
-  - name: build-and-push
+  - name: build
+    image: node:24-alpine
+    commands:
+      - |
+        if [ -f .skip-build ]; then
+          echo "Build skipped (no relevant changes)"
+          exit 0
+        fi
+        corepack enable && corepack prepare pnpm@8.10.5 --activate
+        pnpm install --frozen-lockfile
+        pnpm build:auth
+        rm -rf node_modules
+        pnpm install --frozen-lockfile --prod
+    when:
+      status:
+        - success
+
+  - name: dockerize
     image: docker:cli
     volumes:
       - name: dockersock
@@ -215,7 +251,21 @@ steps:
           touch .skip-build
         fi
 
-  - name: build-and-push
+  - name: build
+    image: golang:1.24-alpine
+    commands:
+      - |
+        if [ -f .skip-build ]; then
+          echo "Build skipped (no relevant changes)"
+          exit 0
+        fi
+        cd apps/log-streamer
+        CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o log-streamer ./cmd/server
+    when:
+      status:
+        - success
+
+  - name: dockerize
     image: docker:cli
     volumes:
       - name: dockersock
@@ -297,26 +347,50 @@ trigger:
   ref:
     - refs/tags/v*
 
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+
 steps:
-  - name: build-and-push
-    image: plugins/docker
-    settings:
-      dockerfile: apps/gateway/Dockerfile
-      context: .
-      repo:
-        from_secret: docker_repo_gateway
-      tags:
-        - ${DRONE_TAG}
-        - latest
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
-      build_args_from_env:
-        - VITE_API_KEY
+  - name: build
+    image: node:24-alpine
     environment:
       VITE_API_KEY:
         from_secret: vite_api_key
+    commands:
+      - |
+        corepack enable && corepack prepare pnpm@8.10.5 --activate
+        pnpm install --frozen-lockfile
+        pnpm nx build shared
+        VITE_API_KEY="$VITE_API_KEY" pnpm build:gateway
+        rm -rf node_modules
+        pnpm install --frozen-lockfile --prod
+
+  - name: dockerize
+    image: docker:cli
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+    environment:
+      DOCKER_REPO:
+        from_secret: docker_repo_gateway
+      DOCKER_USERNAME:
+        from_secret: docker_username
+      DOCKER_PASSWORD:
+        from_secret: docker_password
+    commands:
+      - |
+        REGISTRY=$(echo "$DOCKER_REPO" | cut -d'/' -f1)
+        if echo "$REGISTRY" | grep -qE '[.:]'; then
+          echo "$DOCKER_PASSWORD" | docker login "$REGISTRY" -u "$DOCKER_USERNAME" --password-stdin
+        else
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        fi
+        docker build -f apps/gateway/Dockerfile -t "$DOCKER_REPO:${DRONE_TAG}" -t "$DOCKER_REPO:latest" .
+        docker push "$DOCKER_REPO:${DRONE_TAG}"
+        docker push "$DOCKER_REPO:latest"
+        echo ">>> Pushed $DOCKER_REPO:${DRONE_TAG}"
 
 ---
 # ================== Release Detect: Auth ==================
@@ -367,21 +441,46 @@ trigger:
   ref:
     - refs/tags/v*
 
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+
 steps:
-  - name: build-and-push
-    image: plugins/docker
-    settings:
-      dockerfile: apps/auth/Dockerfile
-      context: .
-      repo:
+  - name: build
+    image: node:24-alpine
+    commands:
+      - |
+        corepack enable && corepack prepare pnpm@8.10.5 --activate
+        pnpm install --frozen-lockfile
+        pnpm build:auth
+        rm -rf node_modules
+        pnpm install --frozen-lockfile --prod
+
+  - name: dockerize
+    image: docker:cli
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+    environment:
+      DOCKER_REPO:
         from_secret: docker_repo_auth
-      tags:
-        - ${DRONE_TAG}
-        - latest
-      username:
+      DOCKER_USERNAME:
         from_secret: docker_username
-      password:
+      DOCKER_PASSWORD:
         from_secret: docker_password
+    commands:
+      - |
+        REGISTRY=$(echo "$DOCKER_REPO" | cut -d'/' -f1)
+        if echo "$REGISTRY" | grep -qE '[.:]'; then
+          echo "$DOCKER_PASSWORD" | docker login "$REGISTRY" -u "$DOCKER_USERNAME" --password-stdin
+        else
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        fi
+        docker build -f apps/auth/Dockerfile -t "$DOCKER_REPO:${DRONE_TAG}" -t "$DOCKER_REPO:latest" .
+        docker push "$DOCKER_REPO:${DRONE_TAG}"
+        docker push "$DOCKER_REPO:latest"
+        echo ">>> Pushed $DOCKER_REPO:${DRONE_TAG}"
 
 ---
 # ================== Release Detect: Log Streamer ==================
@@ -432,18 +531,40 @@ trigger:
   ref:
     - refs/tags/v*
 
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+
 steps:
-  - name: build-and-push
-    image: plugins/docker
-    settings:
-      dockerfile: apps/log-streamer/Dockerfile
-      context: apps/log-streamer
-      repo:
+  - name: build
+    image: golang:1.24-alpine
+    commands:
+      - |
+        cd apps/log-streamer
+        CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o log-streamer ./cmd/server
+
+  - name: dockerize
+    image: docker:cli
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+    environment:
+      DOCKER_REPO:
         from_secret: docker_repo_log_streamer
-      tags:
-        - ${DRONE_TAG}
-        - latest
-      username:
+      DOCKER_USERNAME:
         from_secret: docker_username
-      password:
+      DOCKER_PASSWORD:
         from_secret: docker_password
+    commands:
+      - |
+        REGISTRY=$(echo "$DOCKER_REPO" | cut -d'/' -f1)
+        if echo "$REGISTRY" | grep -qE '[.:]'; then
+          echo "$DOCKER_PASSWORD" | docker login "$REGISTRY" -u "$DOCKER_USERNAME" --password-stdin
+        else
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        fi
+        docker build -f apps/log-streamer/Dockerfile -t "$DOCKER_REPO:${DRONE_TAG}" -t "$DOCKER_REPO:latest" apps/log-streamer/
+        docker push "$DOCKER_REPO:${DRONE_TAG}"
+        docker push "$DOCKER_REPO:latest"
+        echo ">>> Pushed $DOCKER_REPO:${DRONE_TAG}"
