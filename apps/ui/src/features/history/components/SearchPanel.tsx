@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLazyQuery } from '@apollo/client/react';
 import { AnsiText } from '@/components/AnsiText';
-import { cn } from '@/lib/utils';
+import { cn, toKST } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -386,7 +386,7 @@ function LogRow({ line }: { line: HistoryLogLine }) {
               ) : (
                 <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
               ))}
-            {line.timestamp ?? '-'}
+            {toKST(line.timestamp)}
           </span>
         </TableCell>
         <TableCell className="px-2 py-1">
