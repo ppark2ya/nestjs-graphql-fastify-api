@@ -75,6 +75,7 @@ steps:
         fi
         corepack enable && corepack prepare pnpm@8.10.5 --activate
         pnpm install --frozen-lockfile
+        pnpm exec nx build shared
         VITE_API_KEY="$VITE_API_KEY" pnpm build:gateway
         # production 의존성으로 교체
         rm -rf node_modules
@@ -168,6 +169,7 @@ steps:
         fi
         corepack enable && corepack prepare pnpm@8.10.5 --activate
         pnpm install --frozen-lockfile
+        pnpm exec nx build shared
         pnpm build:auth
         rm -rf node_modules
         pnpm install --frozen-lockfile --prod
@@ -361,6 +363,7 @@ steps:
       - |
         corepack enable && corepack prepare pnpm@8.10.5 --activate
         pnpm install --frozen-lockfile
+        pnpm exec nx build shared
         VITE_API_KEY="$VITE_API_KEY" pnpm build:gateway
         rm -rf node_modules
         pnpm install --frozen-lockfile --prod
@@ -451,6 +454,7 @@ steps:
       - |
         corepack enable && corepack prepare pnpm@8.10.5 --activate
         pnpm install --frozen-lockfile
+        pnpm exec nx build shared
         pnpm build:auth
         rm -rf node_modules
         pnpm install --frozen-lockfile --prod
