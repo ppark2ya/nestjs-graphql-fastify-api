@@ -98,6 +98,19 @@
     animation: log-enter 150ms ease-out forwards;
   }
 
+  /* Find mode: keyword highlight */
+  .match-highlight {
+    background: rgb(253 224 71 / 0.4); /* yellow-300/40 */
+    color: inherit;
+    border-radius: 2px;
+  }
+
+  .match-highlight-current {
+    background: rgb(251 146 60 / 0.7); /* orange-400/70 */
+    color: inherit;
+    border-radius: 2px;
+  }
+
   /* Indeterminate progress bar */
   @keyframes progress-indeterminate {
     0% {
