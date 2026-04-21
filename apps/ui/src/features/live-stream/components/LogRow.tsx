@@ -1,12 +1,14 @@
-import { AnsiText } from '@/components/AnsiText';
+import { HighlightedAnsiText } from '@/components/HighlightedAnsiText';
 import { formatTime } from '@/lib/utils';
 import type { LogEntry, ServiceLogEntry } from '../graphql';
 
 interface LogRowProps {
   log: LogEntry;
+  query?: string;
+  currentMatchPositionInLine?: number;
 }
 
-export function LogRow({ log }: LogRowProps) {
+export function LogRow({ log, query, currentMatchPositionInLine }: LogRowProps) {
   return (
     <div
       className={`flex gap-2 py-0.5 px-2 hover:bg-secondary/50 ${
@@ -23,7 +25,12 @@ export function LogRow({ log }: LogRowProps) {
       >
         {log.stream}
       </span>
-      <AnsiText text={log.message} className="whitespace-pre-wrap break-all" />
+      <HighlightedAnsiText
+        text={log.message}
+        className="whitespace-pre-wrap break-all"
+        query={query}
+        currentMatchPositionInLine={currentMatchPositionInLine}
+      />
     </div>
   );
 }
@@ -32,12 +39,16 @@ interface ServiceLogRowProps {
   log: LogEntry;
   replicaColor: string;
   nodeName: string;
+  query?: string;
+  currentMatchPositionInLine?: number;
 }
 
 export function ServiceLogRow({
   log,
   replicaColor,
   nodeName,
+  query,
+  currentMatchPositionInLine,
 }: ServiceLogRowProps) {
   return (
     <div
@@ -59,7 +70,12 @@ export function ServiceLogRow({
       >
         {log.stream}
       </span>
-      <AnsiText text={log.message} className="whitespace-pre-wrap break-all" />
+      <HighlightedAnsiText
+        text={log.message}
+        className="whitespace-pre-wrap break-all"
+        query={query}
+        currentMatchPositionInLine={currentMatchPositionInLine}
+      />
     </div>
   );
 }
