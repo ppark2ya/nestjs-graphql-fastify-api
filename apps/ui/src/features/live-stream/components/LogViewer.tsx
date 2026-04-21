@@ -82,7 +82,7 @@ export default function LogViewer({ containerId, containerName, isActive = true 
     if (isFindMode && currentMatchLogIndex !== null) {
       virtualizer.scrollToIndex(currentMatchLogIndex, { align: 'center' });
     }
-  }, [isFindMode, currentMatchLogIndex, virtualizer]);
+  }, [isFindMode, currentMatchLogIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard navigation: n (next) / Shift+N (prev) in find mode
   const handleKeyDown = useCallback(

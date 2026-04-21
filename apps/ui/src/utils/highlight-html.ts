@@ -37,7 +37,8 @@ export function highlightHtml(
           ? 'match-highlight-current'
           : 'match-highlight';
       globalIndex++;
-      return `<mark class="${cls}">${match}</mark>`;
+      const safe = match.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `<mark class="${cls}">${safe}</mark>`;
     });
   });
 
