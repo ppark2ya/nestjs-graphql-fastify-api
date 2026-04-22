@@ -15,11 +15,11 @@ export function LogRow({ log, query, currentMatchPositionInLine }: LogRowProps) 
         log.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'
       }`}
     >
-      <span className="text-muted-foreground shrink-0">
+      <span className="text-muted-foreground shrink-0 select-none">
         {formatTime(log.timestamp)}
       </span>
       <span
-        className={`shrink-0 w-12 ${
+        className={`shrink-0 w-12 select-none ${
           log.stream === 'stderr' ? 'text-red-500' : 'text-blue-500'
         }`}
       >
@@ -56,15 +56,15 @@ export function ServiceLogRow({
         log.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'
       }`}
     >
-      <span className="text-muted-foreground shrink-0">
+      <span className="text-muted-foreground shrink-0 select-none">
         {formatTime(log.timestamp)}
       </span>
-      <span className={`shrink-0 truncate ${replicaColor}`}>
+      <span className={`shrink-0 truncate select-none ${replicaColor}`}>
         {log.containerId.slice(0, 8)}
         {nodeName && <span className="text-muted-foreground">@{nodeName}</span>}
       </span>
       <span
-        className={`shrink-0 w-12 ${
+        className={`shrink-0 w-12 select-none ${
           log.stream === 'stderr' ? 'text-red-500' : 'text-blue-500'
         }`}
       >
@@ -87,7 +87,7 @@ interface ServiceEventRowProps {
 export function ServiceEventRow({ log }: ServiceEventRowProps) {
   return (
     <div className="flex items-center gap-2 py-1 px-2 border-y border-yellow-500/20">
-      <span className="text-muted-foreground shrink-0 text-xs">
+      <span className="text-muted-foreground shrink-0 text-xs select-none">
         {formatTime(log.timestamp)}
       </span>
       <span className="flex-1 text-center text-yellow-400 italic text-xs">

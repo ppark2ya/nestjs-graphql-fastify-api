@@ -14,7 +14,7 @@ import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { useLogSearch } from '@/hooks/useLogSearch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, X, ListFilter } from 'lucide-react';
+import { Search, X, ListFilter, Pause, Play } from 'lucide-react';
 
 interface Props {
   containerId: string;
@@ -49,7 +49,7 @@ export default function LogViewer({ containerId, containerName, isActive = true 
     overscan: 20,
   });
 
-  const { scrollRef, isFollowing, handleScroll, scrollToBottom } =
+  const { scrollRef, isFollowing, isPaused, handleScroll, togglePause, scrollToBottom } =
     useAutoScroll({
       virtualizer,
       itemCount: filteredLogs.length,
@@ -174,6 +174,19 @@ export default function LogViewer({ containerId, containerName, isActive = true 
                 ? `${filteredLogs.length}/${lineCount} lines`
                 : `${lineCount} lines`}
           </span>
+          <Button
+            variant={isPaused ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-auto p-0"
+            onClick={togglePause}
+          >
+            {isPaused ? (
+              <Play className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <Pause className="h-3.5 w-3.5 mr-1" />
+            )}
+            {isPaused ? 'Resume' : 'Pause'}
+          </Button>
           {!isFollowing && (
             <Button
               variant="link"
