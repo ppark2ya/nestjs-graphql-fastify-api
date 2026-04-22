@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useSubscription, useQuery } from '@apollo/client/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
@@ -42,19 +42,35 @@ export default function LogViewer({ containerId, containerName, isActive = true 
 
   const isFindMode = mode === 'find';
 
+  const [isPaused, setIsPaused] = useState(false);
+  const togglePause = () => setIsPaused((prev) => !prev);
+
+  // Freeze displayed logs when paused to prevent virtualizer scroll shifts
+  const frozenLogsRef = useRef(filteredLogs);
+  if (!isPaused) {
+    frozenLogsRef.current = filteredLogs;
+  }
+  const displayedLogs = frozenLogsRef.current;
+
   const virtualizer = useVirtualizer({
-    count: filteredLogs.length,
+    count: displayedLogs.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 24,
     overscan: 20,
   });
 
-  const { scrollRef, isFollowing, isPaused, handleScroll, togglePause, scrollToBottom } =
+  const { scrollRef, isFollowing, handleScroll, scrollToBottom: _scrollToBottom } =
     useAutoScroll({
       virtualizer,
-      itemCount: filteredLogs.length,
+      itemCount: displayedLogs.length,
       enabled: !isGrepping,
+      isPaused,
     });
+
+  const scrollToBottom = () => {
+    setIsPaused(false);
+    _scrollToBottom();
+  };
 
   const { data: statsData } = useQuery<{
     containerStats: ContainerStatsData[];
@@ -219,7 +235,7 @@ export default function LogViewer({ containerId, containerName, isActive = true 
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-2 font-mono text-xs"
       >
-        {filteredLogs.length === 0 ? (
+        {displayedLogs.length === 0 ? (
           <p className="text-muted-foreground p-2">
             {isGrepping ? 'No matching logs' : 'Waiting for logs...'}
           </p>
@@ -250,7 +266,7 @@ export default function LogViewer({ containerId, containerName, isActive = true 
                 }}
               >
                 <LogRow
-                  log={filteredLogs[virtualRow.index]}
+                  log={displayedLogs[virtualRow.index]}
                   query={isFindMode && isGrepping ? debouncedQuery : undefined}
                   currentMatchPositionInLine={getMatchPositionForLog(virtualRow.index)}
                 />

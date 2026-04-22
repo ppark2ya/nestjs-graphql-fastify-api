@@ -140,19 +140,35 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
     },
   );
 
+  const [isPaused, setIsPaused] = useState(false);
+  const togglePause = () => setIsPaused((prev) => !prev);
+
+  // Freeze displayed logs when paused to prevent virtualizer scroll shifts
+  const frozenLogsRef = useRef(filteredLogs);
+  if (!isPaused) {
+    frozenLogsRef.current = filteredLogs;
+  }
+  const displayedLogs = frozenLogsRef.current;
+
   const virtualizer = useVirtualizer({
-    count: filteredLogs.length,
+    count: displayedLogs.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 24,
     overscan: 20,
   });
 
-  const { scrollRef, isFollowing, isPaused, handleScroll, togglePause, scrollToBottom } =
+  const { scrollRef, isFollowing, handleScroll, scrollToBottom: _scrollToBottom } =
     useAutoScroll({
       virtualizer,
-      itemCount: filteredLogs.length,
+      itemCount: displayedLogs.length,
       enabled: !isGrepping,
+      isPaused,
     });
+
+  const scrollToBottom = () => {
+    setIsPaused(false);
+    _scrollToBottom();
+  };
 
   // Scroll to current match in find mode
   useEffect(() => {
@@ -329,7 +345,7 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-2 font-mono text-xs"
       >
-        {filteredLogs.length === 0 ? (
+        {displayedLogs.length === 0 ? (
           <p className="text-muted-foreground p-2">
             {isGrepping
               ? 'No matching logs'
@@ -344,7 +360,7 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
             }}
           >
             {virtualizer.getVirtualItems().map((virtualRow) => {
-              const log = filteredLogs[virtualRow.index] as ServiceLogEntry;
+              const log = displayedLogs[virtualRow.index] as ServiceLogEntry;
               const isEvent = log.stream === 'event';
               return (
                 <div
