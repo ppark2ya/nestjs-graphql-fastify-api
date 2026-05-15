@@ -7,6 +7,7 @@ import { createClient } from 'graphql-ws';
 import { getAccessToken } from '@/features/auth/token';
 
 const API_KEY = import.meta.env.VITE_API_KEY ?? 'test-api-key';
+const AUTH_USER_TYPE = import.meta.env.VITE_AUTH_USER_TYPE ?? 'LOTTE_CARD_BO';
 
 const httpLink = new HttpLink({
   uri: '/graphql',
@@ -20,7 +21,7 @@ const authLink = setContext((_, prevContext) => {
     headers: {
       ...existingHeaders,
       'X-API-Key': API_KEY,
-      'X-User-Type': 'ADMIN_BO',
+      'X-User-Type': AUTH_USER_TYPE,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(twoFactorToken ? { 'X-2FA-Token': twoFactorToken } : {}),
     },
