@@ -41,6 +41,11 @@ export const AUTH_ERROR = {
     status: 401,
     message: '인증 토큰이 만료되었습니다.',
   },
+  INVALID_TOKEN_CLAIMS: {
+    code: '11013',
+    status: 500,
+    message: '계정 인증 정보가 올바르지 않습니다. 관리자에게 문의하세요.',
+  },
 } as const;
 
 export type AuthErrorKey = keyof typeof AUTH_ERROR;

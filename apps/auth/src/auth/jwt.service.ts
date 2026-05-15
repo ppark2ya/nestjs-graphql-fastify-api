@@ -12,6 +12,13 @@ import { randomUUID } from 'crypto';
 import { AUTH_CONSTANTS } from '@monorepo/shared';
 import type { JwtPayload } from '@monorepo/shared';
 
+type AccessTokenPayload = Omit<
+  JwtPayload,
+  'iat' | 'exp' | 'jti' | 'roleType'
+> & {
+  roleType?: string;
+};
+
 @Injectable()
 export class JwtTokenService implements OnModuleInit {
   private privateKey: KeyLike;
@@ -42,7 +49,7 @@ export class JwtTokenService implements OnModuleInit {
   }
 
   async signAccessToken(
-    payload: Omit<JwtPayload, 'iat' | 'exp' | 'jti'>,
+    payload: AccessTokenPayload,
   ): Promise<{ token: string; jti: string }> {
     const jti = randomUUID();
     const token = await new SignJWT({ ...payload, jti })

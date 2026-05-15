@@ -4,11 +4,24 @@ import { AccountService } from '../account/account.service';
 import { JwtTokenService } from './jwt.service';
 import { TotpService } from './totp.service';
 import { AUTH_CONSTANTS } from '@monorepo/shared';
-import type { AuthResponse, AuthTokens } from '@monorepo/shared';
+import type { AuthResponse, AuthTokens, JwtPayload } from '@monorepo/shared';
 import { AccountStatus } from './enums';
 import { TWO_FACTOR_REQUIRED_TYPES } from './enums/user-type.enum';
 import { AUTH_ERROR } from './constants/auth-error';
 import { AuthErrorException } from './filters/auth-error.filter';
+
+const SPRING_COMPATIBLE_ROLE_TYPES = new Set([
+  'SUPER_ADMIN',
+  'ADMIN',
+  'MEMBER',
+]);
+
+type AccessTokenPayload = Omit<
+  JwtPayload,
+  'iat' | 'exp' | 'jti' | 'roleType'
+> & {
+  roleType?: string;
+};
 
 @Injectable()
 export class AuthService {
@@ -179,29 +192,79 @@ export class AuthService {
     roleType: string | null;
     customerNo: string | null;
   }): Promise<AuthTokens> {
-    const sub = String(account.id);
-    const loginId =
-      account.loginId instanceof Buffer
-        ? account.loginId.toString('utf8')
-        : String(account.loginId);
+    const accessTokenPayload = this.buildAccessTokenPayload(account);
 
     const [accessResult, refreshResult] = await Promise.all([
-      this.jwtTokenService.signAccessToken({
-        sub,
-        loginId,
-        name: account.name ?? '',
-        userType: account.userType,
-        roleType: account.roleType ?? '',
-        customerNo: account.customerNo ?? '',
-      }),
-      this.jwtTokenService.signRefreshToken(sub, account.userType),
+      this.jwtTokenService.signAccessToken(accessTokenPayload),
+      this.jwtTokenService.signRefreshToken(
+        accessTokenPayload.sub,
+        accessTokenPayload.userType,
+      ),
     ]);
+
+    if (!accessResult.jti.trim() || !refreshResult.jti.trim()) {
+      this.throwAuthError('INVALID_TOKEN_CLAIMS');
+    }
 
     return {
       accessToken: accessResult.token,
       refreshToken: refreshResult.token,
       expiresIn: AUTH_CONSTANTS.ACCESS_TOKEN_EXPIRY_SECONDS,
     };
+  }
+
+  private buildAccessTokenPayload(account: {
+    id: number;
+    loginId: Buffer | string;
+    name: string | null;
+    userType: string;
+    roleType: string | null;
+    customerNo: string | null;
+  }): AccessTokenPayload {
+    const payload: AccessTokenPayload = {
+      sub: this.requireNonBlank(String(account.id), 'sub'),
+      loginId: this.requireNonBlank(
+        this.normalizeLoginId(account.loginId),
+        'loginId',
+      ),
+      name: this.requireNonBlank(account.name, 'name'),
+      userType: this.requireNonBlank(account.userType, 'userType'),
+      customerNo: account.customerNo?.trim() ?? '',
+    };
+
+    const roleType = this.normalizeOptionalRoleType(account.roleType);
+    if (roleType) {
+      payload.roleType = roleType;
+    }
+
+    return payload;
+  }
+
+  private normalizeLoginId(loginId: Buffer | string): string {
+    return typeof loginId === 'string' ? loginId : loginId.toString('utf8');
+  }
+
+  private requireNonBlank(
+    value: string | null | undefined,
+    _claimName: string,
+  ): string {
+    const normalized = value?.trim();
+    if (!normalized) {
+      this.throwAuthError('INVALID_TOKEN_CLAIMS');
+    }
+    return normalized;
+  }
+
+  private normalizeOptionalRoleType(value: string | null): string | undefined {
+    const roleType = value?.trim();
+    if (!roleType) {
+      return undefined;
+    }
+
+    if (!SPRING_COMPATIBLE_ROLE_TYPES.has(roleType)) {
+      this.throwAuthError('INVALID_TOKEN_CLAIMS');
+    }
+    return roleType;
   }
 
   private throwAuthError(key: keyof typeof AUTH_ERROR): never {

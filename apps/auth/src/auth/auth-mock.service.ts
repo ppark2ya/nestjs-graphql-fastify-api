@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AuthResponse, AuthTokens } from '@monorepo/shared';
 import { AuthErrorException } from './filters/auth-error.filter';
 import { AUTH_ERROR } from './constants/auth-error';
+import { UserType } from './enums/user-type.enum';
 
 const MOCK_ACCOUNTS = [
   {
@@ -23,10 +24,23 @@ const MOCK_ACCOUNTS = [
     password: 'dash123',
     name: '대시보드',
     userType: 'DASHBOARD',
-    roleType: 'VIEWER',
+    roleType: 'MEMBER',
     customerNo: 'C002',
     status: 'ACTIVE',
     otpSecretKey: null,
+    failCount: 0,
+    lastPasswordChangedAt: new Date(),
+  },
+  {
+    id: 3,
+    loginId: 'lottecard',
+    password: 'lotte123',
+    name: '롯데카드',
+    userType: 'LOTTE_CARD_BO',
+    roleType: null,
+    customerNo: 'LC001',
+    status: 'ACTIVE',
+    otpSecretKey: 'JBSWY3DPEHPK3PXP',
     failCount: 0,
     lastPasswordChangedAt: new Date(),
   },
@@ -37,6 +51,20 @@ const generateMockToken = (payload: object, prefix: string): string => {
     JSON.stringify({ ...payload, iat: Date.now() }),
   ).toString('base64');
   return `${prefix}.${data}.mock`;
+};
+
+const parseMockTokenPayload = (
+  token: string,
+): { sub?: number | string } | null => {
+  try {
+    const [, data] = token.split('.');
+    if (!data) return null;
+    return JSON.parse(Buffer.from(data, 'base64').toString('utf8')) as {
+      sub?: number | string;
+    };
+  } catch {
+    return null;
+  }
 };
 
 @Injectable()
@@ -59,10 +87,11 @@ export class MockAuthService {
     }
 
     const requiresTwoFactor = [
-      'ADMIN_BO',
-      'CUSTOMER_BO',
-      'PARTNER_BO',
-    ].includes(userType);
+      UserType.ADMIN_BO,
+      UserType.CUSTOMER_BO,
+      UserType.PARTNER_BO,
+      UserType.LOTTE_CARD_BO,
+    ].includes(userType as UserType);
     if (requiresTwoFactor) {
       const twoFactorToken = generateMockToken(
         { sub: account.id, type: '2fa', userType },
@@ -93,7 +122,16 @@ export class MockAuthService {
       );
     }
 
-    const account = MOCK_ACCOUNTS[0];
+    const accountId = Number(parseMockTokenPayload(twoFactorToken)?.sub);
+    const account = MOCK_ACCOUNTS.find((a) => a.id === accountId);
+    if (!account) {
+      throw new AuthErrorException(
+        AUTH_ERROR.TOKEN_EXPIRED.code,
+        AUTH_ERROR.TOKEN_EXPIRED.message,
+        AUTH_ERROR.TOKEN_EXPIRED.status,
+      );
+    }
+
     return this.generateTokens(account);
   }
 
@@ -105,7 +143,16 @@ export class MockAuthService {
         AUTH_ERROR.TOKEN_EXPIRED.status,
       );
     }
-    return this.generateTokens(MOCK_ACCOUNTS[0]);
+    const accountId = Number(parseMockTokenPayload(refreshToken)?.sub);
+    const account = MOCK_ACCOUNTS.find((a) => a.id === accountId);
+    if (!account) {
+      throw new AuthErrorException(
+        AUTH_ERROR.TOKEN_EXPIRED.code,
+        AUTH_ERROR.TOKEN_EXPIRED.message,
+        AUTH_ERROR.TOKEN_EXPIRED.status,
+      );
+    }
+    return this.generateTokens(account);
   }
 
   async changePassword(
@@ -125,18 +172,19 @@ export class MockAuthService {
   }
 
   private generateTokens(account: (typeof MOCK_ACCOUNTS)[0]): AuthTokens {
+    const accessPayload: Record<string, string | number> = {
+      sub: account.id,
+      loginId: account.loginId,
+      name: account.name,
+      userType: account.userType,
+      customerNo: account.customerNo,
+    };
+    if (account.roleType) {
+      accessPayload.roleType = account.roleType;
+    }
+
     return {
-      accessToken: generateMockToken(
-        {
-          sub: account.id,
-          loginId: account.loginId,
-          name: account.name,
-          userType: account.userType,
-          roleType: account.roleType,
-          customerNo: account.customerNo,
-        },
-        'mockAccess',
-      ),
+      accessToken: generateMockToken(accessPayload, 'mockAccess'),
       refreshToken: generateMockToken(
         { sub: account.id, userType: account.userType },
         'mockRefresh',

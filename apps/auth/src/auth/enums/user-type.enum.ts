@@ -4,6 +4,7 @@ export enum UserType {
   KIOSK = 'KIOSK',
   DASHBOARD = 'DASHBOARD',
   PARTNER_BO = 'PARTNER_BO',
+  LOTTE_CARD_BO = 'LOTTE_CARD_BO',
 }
 
 /** 2FA가 필요한 user_type 목록 */
@@ -11,4 +12,5 @@ export const TWO_FACTOR_REQUIRED_TYPES: ReadonlySet<string> = new Set([
   UserType.ADMIN_BO,
   UserType.CUSTOMER_BO,
   UserType.PARTNER_BO,
+  UserType.LOTTE_CARD_BO,
 ]);
