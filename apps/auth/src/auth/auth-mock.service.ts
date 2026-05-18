@@ -4,6 +4,12 @@ import { AuthErrorException } from './filters/auth-error.filter';
 import { AUTH_ERROR } from './constants/auth-error';
 import { UserType } from './enums/user-type.enum';
 
+const SPRING_COMPATIBLE_ROLE_TYPES = new Set([
+  'SUPER_ADMIN',
+  'ADMIN',
+  'MEMBER',
+]);
+
 const MOCK_ACCOUNTS = [
   {
     id: 1,
@@ -177,9 +183,12 @@ export class MockAuthService {
       loginId: account.loginId,
       name: account.name,
       userType: account.userType,
-      roleType: account.roleType ?? '',
       customerNo: account.customerNo,
     };
+    const roleType = account.roleType?.trim();
+    if (roleType && SPRING_COMPATIBLE_ROLE_TYPES.has(roleType)) {
+      accessPayload.roleType = roleType;
+    }
 
     return {
       accessToken: generateMockToken(accessPayload, 'mockAccess'),

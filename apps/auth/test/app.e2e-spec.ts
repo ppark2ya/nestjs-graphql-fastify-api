@@ -238,7 +238,7 @@ class TestAccountService {
 
   updateTokenClaims(
     accountId: number,
-    patch: Partial<Pick<TestAccount, 'name' | 'roleType'>>,
+    patch: Partial<Pick<TestAccount, 'loginId' | 'name' | 'roleType'>>,
   ) {
     const account = this.accounts.find((a) => a.id === accountId);
     if (account) {
@@ -482,8 +482,81 @@ describe('Auth E2E - Full Login Process', () => {
       expect(payload.loginId).toBe('lottecard');
       expect(payload.name).toBe('롯데카드');
       expect(payload.userType).toBe('LOTTE_CARD_BO');
-      expect(payload.roleType).toBe('');
+      expect(payload.roleType).toBeUndefined();
       expect(payload.jti).toEqual(expect.any(String));
+    });
+
+    it('ADMIN_BO 계정은 roleType을 포함해 토큰 발급', async () => {
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'admin', password: TEST_PASSWORD })
+        .expect(201);
+
+      const totpCode = authenticator.generate(OTP_SECRET);
+      const verifyRes = await request(app.getHttpServer())
+        .post('/auth/2fa/verify')
+        .set('x-2fa-token', loginRes.body.twoFactorToken)
+        .send({ totpCode })
+        .expect(201);
+
+      const payload = decodeJwt(verifyRes.body.accessToken);
+      expect(payload.userType).toBe('ADMIN_BO');
+      expect(payload.roleType).toBe('ADMIN');
+    });
+
+    it('ADMIN_BO 계정의 roleType이 없으면 11013 INVALID_TOKEN_CLAIMS', async () => {
+      testAccountService.updateTokenClaims(1, { roleType: null });
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'admin', password: TEST_PASSWORD })
+        .expect(201);
+
+      const totpCode = authenticator.generate(OTP_SECRET);
+      const res = await request(app.getHttpServer())
+        .post('/auth/2fa/verify')
+        .set('x-2fa-token', loginRes.body.twoFactorToken)
+        .send({ totpCode })
+        .expect(500);
+
+      expect(res.body.code).toBe('11013');
+    });
+
+    it('ADMIN_BO 계정의 roleType이 공백이면 11013 INVALID_TOKEN_CLAIMS', async () => {
+      testAccountService.updateTokenClaims(1, { roleType: '   ' });
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'admin', password: TEST_PASSWORD })
+        .expect(201);
+
+      const totpCode = authenticator.generate(OTP_SECRET);
+      const res = await request(app.getHttpServer())
+        .post('/auth/2fa/verify')
+        .set('x-2fa-token', loginRes.body.twoFactorToken)
+        .send({ totpCode })
+        .expect(500);
+
+      expect(res.body.code).toBe('11013');
+    });
+
+    it('ADMIN_BO 계정의 roleType이 Spring 호환 목록 밖이면 11013 INVALID_TOKEN_CLAIMS', async () => {
+      testAccountService.updateTokenClaims(1, { roleType: 'VIEWER' });
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'admin', password: TEST_PASSWORD })
+        .expect(201);
+
+      const totpCode = authenticator.generate(OTP_SECRET);
+      const res = await request(app.getHttpServer())
+        .post('/auth/2fa/verify')
+        .set('x-2fa-token', loginRes.body.twoFactorToken)
+        .send({ totpCode })
+        .expect(500);
+
+      expect(res.body.code).toBe('11013');
     });
 
     it('roleType 공백 LOTTE_CARD_BO 계정 → 토큰 발급', async () => {
@@ -503,10 +576,10 @@ describe('Auth E2E - Full Login Process', () => {
 
       const payload = decodeJwt(verifyRes.body.accessToken);
       expect(payload.userType).toBe('LOTTE_CARD_BO');
-      expect(payload.roleType).toBe('');
+      expect(payload.roleType).toBeUndefined();
     });
 
-    it('기존 roleType 값이 Spring 호환 목록 밖이어도 토큰 발급', async () => {
+    it('LOTTE_CARD_BO 계정의 roleType이 Spring 호환 목록 밖이면 claim을 생략하고 토큰 발급', async () => {
       testAccountService.updateTokenClaims(9, { roleType: 'VIEWER' });
       const loginRes = await request(app.getHttpServer())
         .post('/auth/login')
@@ -522,10 +595,10 @@ describe('Auth E2E - Full Login Process', () => {
         .expect(201);
 
       const payload = decodeJwt(res.body.accessToken);
-      expect(payload.roleType).toBe('VIEWER');
+      expect(payload.roleType).toBeUndefined();
     });
 
-    it('name 누락 계정도 2FA 검증 후 토큰 발급', async () => {
+    it('name 누락 계정은 2FA 검증 후 11013 INVALID_TOKEN_CLAIMS', async () => {
       testAccountService.updateTokenClaims(9, { name: null });
       const loginRes = await request(app.getHttpServer())
         .post('/auth/login')
@@ -538,10 +611,29 @@ describe('Auth E2E - Full Login Process', () => {
         .post('/auth/2fa/verify')
         .set('x-2fa-token', loginRes.body.twoFactorToken)
         .send({ totpCode })
+        .expect(500);
+
+      expect(res.body.code).toBe('11013');
+    });
+
+    it('loginId 공백 계정은 2FA 검증 후 11013 INVALID_TOKEN_CLAIMS', async () => {
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'LOTTE_CARD_BO')
+        .send({ loginId: 'lottecard', password: TEST_PASSWORD })
         .expect(201);
 
-      const payload = decodeJwt(res.body.accessToken);
-      expect(payload.name).toBe('');
+      testAccountService.updateTokenClaims(9, {
+        loginId: Buffer.from('   '),
+      });
+      const totpCode = authenticator.generate(OTP_SECRET);
+      const res = await request(app.getHttpServer())
+        .post('/auth/2fa/verify')
+        .set('x-2fa-token', loginRes.body.twoFactorToken)
+        .send({ totpCode })
+        .expect(500);
+
+      expect(res.body.code).toBe('11013');
     });
 
     it('잘못된 TOTP 코드 → 11011 INVALID_OTP', async () => {

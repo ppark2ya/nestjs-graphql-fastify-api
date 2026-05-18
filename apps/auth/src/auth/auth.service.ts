@@ -6,11 +6,19 @@ import { TotpService } from './totp.service';
 import { AUTH_CONSTANTS } from '@monorepo/shared';
 import type { AuthResponse, AuthTokens, JwtPayload } from '@monorepo/shared';
 import { AccountStatus } from './enums';
-import { TWO_FACTOR_REQUIRED_TYPES } from './enums/user-type.enum';
+import {
+  TWO_FACTOR_REQUIRED_TYPES,
+  UserType,
+} from './enums/user-type.enum';
 import { AUTH_ERROR } from './constants/auth-error';
 import { AuthErrorException } from './filters/auth-error.filter';
 
 type AccessTokenPayload = Omit<JwtPayload, 'iat' | 'exp' | 'jti'>;
+const SPRING_COMPATIBLE_ROLE_TYPES = new Set([
+  'SUPER_ADMIN',
+  'ADMIN',
+  'MEMBER',
+]);
 
 @Injectable()
 export class AuthService {
@@ -216,11 +224,17 @@ export class AuthService {
         this.normalizeLoginId(account.loginId),
         'loginId',
       ),
-      name: this.normalizeOptionalClaim(account.name),
+      name: this.requireNonBlank(account.name, 'name'),
       userType: this.requireNonBlank(account.userType, 'userType'),
-      roleType: this.normalizeOptionalClaim(account.roleType),
       customerNo: this.normalizeOptionalClaim(account.customerNo),
     };
+    const roleType = this.normalizeRoleTypeClaim(
+      payload.userType,
+      account.roleType,
+    );
+    if (roleType) {
+      payload.roleType = roleType;
+    }
 
     return payload;
   }
@@ -242,6 +256,27 @@ export class AuthService {
 
   private normalizeOptionalClaim(value: string | null | undefined): string {
     return value?.trim() ?? '';
+  }
+
+  private normalizeRoleTypeClaim(
+    userType: string,
+    value: string | null | undefined,
+  ): string | undefined {
+    const roleType = value?.trim();
+
+    if (userType === UserType.ADMIN_BO) {
+      const requiredRoleType = this.requireNonBlank(roleType, 'roleType');
+      if (!SPRING_COMPATIBLE_ROLE_TYPES.has(requiredRoleType)) {
+        this.throwAuthError('INVALID_TOKEN_CLAIMS');
+      }
+      return requiredRoleType;
+    }
+
+    if (!roleType) {
+      return undefined;
+    }
+
+    return SPRING_COMPATIBLE_ROLE_TYPES.has(roleType) ? roleType : undefined;
   }
 
   private throwAuthError(key: keyof typeof AUTH_ERROR): never {
