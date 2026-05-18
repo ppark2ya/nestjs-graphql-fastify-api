@@ -17,13 +17,16 @@ const authLink = setContext((_, prevContext) => {
   const token = getAccessToken();
   const twoFactorToken = localStorage.getItem('twoFactorToken');
   const existingHeaders = (prevContext.headers ?? {}) as Record<string, string>;
+  const authHeaders = {
+    'X-API-Key': API_KEY,
+    'X-User-Type': AUTH_USER_TYPE,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(twoFactorToken ? { 'X-2FA-Token': twoFactorToken } : {}),
+  };
   return {
     headers: {
+      ...authHeaders,
       ...existingHeaders,
-      'X-API-Key': API_KEY,
-      'X-User-Type': AUTH_USER_TYPE,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(twoFactorToken ? { 'X-2FA-Token': twoFactorToken } : {}),
     },
   };
 });

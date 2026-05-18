@@ -85,6 +85,9 @@ test.describe('OTP Input', () => {
     await page.route('**/graphql', async (route) => {
       const body = route.request().postDataJSON() as { query?: string };
       if (body.query?.includes('VerifyTwoFactor')) {
+        expect(route.request().headers()['x-2fa-token']).toBe(
+          'two-factor-token',
+        );
         await route.fulfill({
           status: 200,
           contentType: 'application/json',

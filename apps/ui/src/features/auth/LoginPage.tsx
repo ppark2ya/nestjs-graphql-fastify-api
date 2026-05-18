@@ -29,7 +29,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [otpCode, setOtpCode] = useState('');
-  const [, setTwoFactorToken] = useState('');
+  const [twoFactorToken, setTwoFactorToken] = useState('');
   const [error, setError] = useState('');
 
   const otpContainerRef = useRef<HTMLDivElement>(null);
@@ -104,6 +104,11 @@ export default function LoginPage() {
     try {
       const result = await verifyMutation({
         variables: { input: { totpCode: otpCode } },
+        context: {
+          headers: twoFactorToken
+            ? { 'X-2FA-Token': twoFactorToken }
+            : undefined,
+        },
         errorPolicy: 'all',
       });
       const authError = getAuthErrorMessage(result?.error, '');
