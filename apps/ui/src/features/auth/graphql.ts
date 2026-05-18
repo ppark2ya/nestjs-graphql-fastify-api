@@ -67,7 +67,6 @@ export interface LoginVariables {
 export interface VerifyTwoFactorVariables {
   input: {
     totpCode: string;
-    twoFactorToken?: string;
   };
 }
 

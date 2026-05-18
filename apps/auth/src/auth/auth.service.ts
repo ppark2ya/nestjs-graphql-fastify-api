@@ -6,10 +6,7 @@ import { TotpService } from './totp.service';
 import { AUTH_CONSTANTS } from '@monorepo/shared';
 import type { AuthResponse, AuthTokens, JwtPayload } from '@monorepo/shared';
 import { AccountStatus } from './enums';
-import {
-  TWO_FACTOR_REQUIRED_TYPES,
-  UserType,
-} from './enums/user-type.enum';
+import { TWO_FACTOR_REQUIRED_TYPES } from './enums/user-type.enum';
 import { AUTH_ERROR } from './constants/auth-error';
 import { AuthErrorException } from './filters/auth-error.filter';
 
@@ -228,10 +225,7 @@ export class AuthService {
       userType: this.requireNonBlank(account.userType, 'userType'),
       customerNo: this.normalizeOptionalClaim(account.customerNo),
     };
-    const roleType = this.normalizeRoleTypeClaim(
-      payload.userType,
-      account.roleType,
-    );
+    const roleType = this.normalizeRoleTypeClaim(account.roleType);
     if (roleType) {
       payload.roleType = roleType;
     }
@@ -259,19 +253,9 @@ export class AuthService {
   }
 
   private normalizeRoleTypeClaim(
-    userType: string,
     value: string | null | undefined,
   ): string | undefined {
     const roleType = value?.trim();
-
-    if (userType === UserType.ADMIN_BO) {
-      const requiredRoleType = this.requireNonBlank(roleType, 'roleType');
-      if (!SPRING_COMPATIBLE_ROLE_TYPES.has(requiredRoleType)) {
-        this.throwAuthError('INVALID_TOKEN_CLAIMS');
-      }
-      return requiredRoleType;
-    }
-
     if (!roleType) {
       return undefined;
     }

@@ -505,7 +505,7 @@ describe('Auth E2E - Full Login Process', () => {
       expect(payload.roleType).toBe('ADMIN');
     });
 
-    it('ADMIN_BO 계정의 roleType이 없으면 11013 INVALID_TOKEN_CLAIMS', async () => {
+    it('ADMIN_BO 계정의 roleType이 없으면 claim을 생략하고 토큰 발급', async () => {
       testAccountService.updateTokenClaims(1, { roleType: null });
       const loginRes = await request(app.getHttpServer())
         .post('/auth/login')
@@ -518,12 +518,14 @@ describe('Auth E2E - Full Login Process', () => {
         .post('/auth/2fa/verify')
         .set('x-2fa-token', loginRes.body.twoFactorToken)
         .send({ totpCode })
-        .expect(500);
+        .expect(201);
 
-      expect(res.body.code).toBe('11013');
+      const payload = decodeJwt(res.body.accessToken);
+      expect(payload.userType).toBe('ADMIN_BO');
+      expect(payload.roleType).toBeUndefined();
     });
 
-    it('ADMIN_BO 계정의 roleType이 공백이면 11013 INVALID_TOKEN_CLAIMS', async () => {
+    it('ADMIN_BO 계정의 roleType이 공백이면 claim을 생략하고 토큰 발급', async () => {
       testAccountService.updateTokenClaims(1, { roleType: '   ' });
       const loginRes = await request(app.getHttpServer())
         .post('/auth/login')
@@ -536,12 +538,14 @@ describe('Auth E2E - Full Login Process', () => {
         .post('/auth/2fa/verify')
         .set('x-2fa-token', loginRes.body.twoFactorToken)
         .send({ totpCode })
-        .expect(500);
+        .expect(201);
 
-      expect(res.body.code).toBe('11013');
+      const payload = decodeJwt(res.body.accessToken);
+      expect(payload.userType).toBe('ADMIN_BO');
+      expect(payload.roleType).toBeUndefined();
     });
 
-    it('ADMIN_BO 계정의 roleType이 Spring 호환 목록 밖이면 11013 INVALID_TOKEN_CLAIMS', async () => {
+    it('ADMIN_BO 계정의 roleType이 Spring 호환 목록 밖이면 claim을 생략하고 토큰 발급', async () => {
       testAccountService.updateTokenClaims(1, { roleType: 'VIEWER' });
       const loginRes = await request(app.getHttpServer())
         .post('/auth/login')
@@ -554,9 +558,11 @@ describe('Auth E2E - Full Login Process', () => {
         .post('/auth/2fa/verify')
         .set('x-2fa-token', loginRes.body.twoFactorToken)
         .send({ totpCode })
-        .expect(500);
+        .expect(201);
 
-      expect(res.body.code).toBe('11013');
+      const payload = decodeJwt(res.body.accessToken);
+      expect(payload.userType).toBe('ADMIN_BO');
+      expect(payload.roleType).toBeUndefined();
     });
 
     it('roleType 공백 LOTTE_CARD_BO 계정 → 토큰 발급', async () => {
