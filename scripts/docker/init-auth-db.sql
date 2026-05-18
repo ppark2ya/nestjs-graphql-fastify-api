@@ -44,9 +44,12 @@ CREATE TABLE IF NOT EXISTS `tb_account` (
 
 -- 테스트용 계정 데이터 (패스워드: admin123 → bcryptjs hash)
 INSERT INTO `tb_user_group` (`id`, `name`, `type`, `use_yn`, `created_adm`, `created_at`)
-VALUES (1, 'Admin Group', 'ADMIN_BO', 'Y', 'system', NOW());
+VALUES
+  (1, 'Admin Group', 'ADMIN_BO', 'Y', 'system', NOW()),
+  (2, 'Lotte Card Group', 'LOTTE_CARD_BO', 'Y', 'system', NOW());
 
 INSERT INTO `tb_account` (`login_id`, `name`, `user_type`, `password`, `status`, `role_type`, `customer_no`, `user_group_id`, `otp_secret_key`, `last_password_changed_at`, `created_at`)
 VALUES
   ('admin', '관리자', 'ADMIN_BO', '{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ACTIVE', 'ADMIN', 'C001', 1, 'JBSWY3DPEHPK3PXP', NOW(), NOW()),
-  ('dashboard', '대시보드', 'DASHBOARD', '{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ACTIVE', 'VIEWER', 'C002', 1, NULL, NOW(), NOW());
+  ('dashboard', '대시보드', 'DASHBOARD', '{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ACTIVE', 'VIEWER', 'C002', 1, NULL, NOW(), NOW()),
+  ('lottecard', '롯데카드', 'LOTTE_CARD_BO', '{bcrypt}$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ACTIVE', NULL, 'LC001', 2, 'JBSWY3DPEHPK3PXP', NOW(), NOW());

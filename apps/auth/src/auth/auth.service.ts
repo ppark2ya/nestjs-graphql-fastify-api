@@ -10,18 +10,12 @@ import { TWO_FACTOR_REQUIRED_TYPES } from './enums/user-type.enum';
 import { AUTH_ERROR } from './constants/auth-error';
 import { AuthErrorException } from './filters/auth-error.filter';
 
+type AccessTokenPayload = Omit<JwtPayload, 'iat' | 'exp' | 'jti'>;
 const SPRING_COMPATIBLE_ROLE_TYPES = new Set([
   'SUPER_ADMIN',
   'ADMIN',
   'MEMBER',
 ]);
-
-type AccessTokenPayload = Omit<
-  JwtPayload,
-  'iat' | 'exp' | 'jti' | 'roleType'
-> & {
-  roleType?: string;
-};
 
 @Injectable()
 export class AuthService {
@@ -229,10 +223,9 @@ export class AuthService {
       ),
       name: this.requireNonBlank(account.name, 'name'),
       userType: this.requireNonBlank(account.userType, 'userType'),
-      customerNo: account.customerNo?.trim() ?? '',
+      customerNo: this.normalizeOptionalClaim(account.customerNo),
     };
-
-    const roleType = this.normalizeOptionalRoleType(account.roleType);
+    const roleType = this.normalizeRoleTypeClaim(account.roleType);
     if (roleType) {
       payload.roleType = roleType;
     }
@@ -255,16 +248,19 @@ export class AuthService {
     return normalized;
   }
 
-  private normalizeOptionalRoleType(value: string | null): string | undefined {
+  private normalizeOptionalClaim(value: string | null | undefined): string {
+    return value?.trim() ?? '';
+  }
+
+  private normalizeRoleTypeClaim(
+    value: string | null | undefined,
+  ): string | undefined {
     const roleType = value?.trim();
     if (!roleType) {
       return undefined;
     }
 
-    if (!SPRING_COMPATIBLE_ROLE_TYPES.has(roleType)) {
-      this.throwAuthError('INVALID_TOKEN_CLAIMS');
-    }
-    return roleType;
+    return SPRING_COMPATIBLE_ROLE_TYPES.has(roleType) ? roleType : undefined;
   }
 
   private throwAuthError(key: keyof typeof AUTH_ERROR): never {

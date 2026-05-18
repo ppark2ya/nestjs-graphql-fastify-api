@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadGatewayException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -69,6 +69,9 @@ export class AuthProxyService {
           headers,
         }),
       );
+      if (!res || typeof res.data === 'undefined') {
+        throw new BadGatewayException('인증 서버 응답이 올바르지 않습니다.');
+      }
       return res.data;
     });
   }

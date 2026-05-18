@@ -4,6 +4,36 @@ import { GraphQLError } from 'graphql';
 import { AxiosError } from 'axios';
 import { HTTP_STATUS_TO_ERROR_CODE } from '@monorepo/shared/common/filter/http-status-mapping';
 
+type ParsedDownstreamError = {
+  message?: string;
+  code?: string;
+  rawMessage?: string;
+};
+
+function parseDownstreamErrorData(data: unknown): ParsedDownstreamError {
+  if (typeof data === 'string') {
+    try {
+      return parseDownstreamErrorData(JSON.parse(data));
+    } catch {
+      return { rawMessage: data };
+    }
+  }
+
+  if (!data || typeof data !== 'object') {
+    return {};
+  }
+
+  const record = data as Record<string, unknown>;
+  return {
+    message: typeof record.message === 'string' ? record.message : undefined,
+    code: typeof record.code === 'string' ? record.code : undefined,
+  };
+}
+
+function isAuthUrl(url: string): boolean {
+  return url.includes('/auth/');
+}
+
 @Catch(HttpException)
 export class HttpExceptionFilter implements GqlExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -34,28 +64,43 @@ export class AxiosExceptionFilter implements GqlExceptionFilter {
     const status = exception.response?.status;
     const code = exception.code;
     const url = exception.config?.url ?? 'unknown';
+    const downstreamService = isAuthUrl(url) ? 'auth' : undefined;
 
     if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
       this.logger.error(`Backend timeout: ${url}`, exception.stack);
-      return new GraphQLError('Backend service timeout', {
-        extensions: { code: 'GATEWAY_TIMEOUT', statusCode: 504 },
-      });
+      return new GraphQLError(
+        downstreamService === 'auth'
+          ? '인증 서버 응답이 지연되고 있습니다.'
+          : 'Backend service timeout',
+        {
+          extensions: {
+            code: 'GATEWAY_TIMEOUT',
+            statusCode: 504,
+            ...(downstreamService && { downstreamService }),
+          },
+        },
+      );
     }
 
     if (!status) {
       this.logger.error(`Backend unreachable: ${url}`, exception.stack);
-      return new GraphQLError('Backend service unavailable', {
-        extensions: { code: 'BAD_GATEWAY', statusCode: 502 },
-      });
+      return new GraphQLError(
+        downstreamService === 'auth'
+          ? '인증 서버에 연결할 수 없습니다.'
+          : 'Backend service unavailable',
+        {
+          extensions: {
+            code: 'BAD_GATEWAY',
+            statusCode: 502,
+            ...(downstreamService && { downstreamService }),
+          },
+        },
+      );
     }
 
-    const data = exception.response?.data as
-      | Record<string, unknown>
-      | undefined;
+    const data = parseDownstreamErrorData(exception.response?.data);
     const message =
-      (typeof data?.message === 'string' ? data.message : null) ??
-      `Backend service error (${status})`;
-    const errorCode = typeof data?.code === 'string' ? data.code : undefined;
+      data.message ?? data.rawMessage ?? `Backend service error (${status})`;
 
     this.logger.error(`Backend error: ${url} responded with ${status}`);
 
@@ -65,7 +110,10 @@ export class AxiosExceptionFilter implements GqlExceptionFilter {
       extensions: {
         code: gqlCode,
         statusCode: status,
-        ...(errorCode && { errorCode }),
+        ...(data.code && { errorCode: data.code }),
+        ...(downstreamService === 'auth' &&
+          data.code && { authErrorCode: data.code }),
+        ...(downstreamService && { downstreamService }),
       },
     });
   }
