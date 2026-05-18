@@ -10,6 +10,13 @@ import { FastifyRequest } from 'fastify';
 import { Public } from '../auth/public.decorator';
 import { GraphQLContext } from '../types/graphql-context.interface';
 
+function normalizeHeaderValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? '';
+  }
+  return value ?? '';
+}
+
 @Resolver()
 export class AuthProxyResolver {
   constructor(private readonly authProxyService: AuthProxyService) {}
@@ -32,7 +39,8 @@ export class AuthProxyResolver {
     @Context() ctx: GraphQLContext,
   ): Promise<AuthToken> {
     const twoFactorToken =
-      (ctx.req.headers['x-2fa-token'] as string | undefined) ?? '';
+      input.twoFactorToken?.trim() ||
+      normalizeHeaderValue(ctx.req.headers['x-2fa-token']);
     return this.authProxyService.verifyTwoFactor(
       twoFactorToken,
       input.totpCode,

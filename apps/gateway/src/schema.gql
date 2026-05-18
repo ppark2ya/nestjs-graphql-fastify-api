@@ -287,4 +287,7 @@ type Subscription {
 input TotpVerifyInput {
   """TOTP 6자리 코드"""
   totpCode: String!
+
+  """2FA 임시 토큰"""
+  twoFactorToken: String
 }

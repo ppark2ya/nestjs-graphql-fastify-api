@@ -103,7 +103,9 @@ export default function LoginPage() {
     setError('');
     try {
       const result = await verifyMutation({
-        variables: { input: { totpCode: otpCode } },
+        variables: {
+          input: { totpCode: otpCode, twoFactorToken },
+        },
         context: {
           headers: twoFactorToken
             ? { 'X-2FA-Token': twoFactorToken }

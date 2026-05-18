@@ -4,4 +4,7 @@ import { InputType, Field } from '@nestjs/graphql';
 export class TotpVerifyInput {
   @Field({ description: 'TOTP 6자리 코드' })
   totpCode: string;
+
+  @Field({ nullable: true, description: '2FA 임시 토큰' })
+  twoFactorToken?: string;
 }
