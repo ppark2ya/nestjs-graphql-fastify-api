@@ -12,12 +12,7 @@ import { randomUUID } from 'crypto';
 import { AUTH_CONSTANTS } from '@monorepo/shared';
 import type { JwtPayload } from '@monorepo/shared';
 
-type AccessTokenPayload = Omit<
-  JwtPayload,
-  'iat' | 'exp' | 'jti' | 'roleType'
-> & {
-  roleType?: string;
-};
+type AccessTokenPayload = Omit<JwtPayload, 'iat' | 'exp' | 'jti'>;
 
 @Injectable()
 export class JwtTokenService implements OnModuleInit {

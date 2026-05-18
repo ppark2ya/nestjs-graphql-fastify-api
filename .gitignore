@@ -25,6 +25,7 @@ lerna-debug.log*
 # temp directory
 .temp
 .tmp
+test-results/
 
 # Claude Code local settings
 .claude/settings.local.json

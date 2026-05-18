@@ -177,11 +177,9 @@ export class MockAuthService {
       loginId: account.loginId,
       name: account.name,
       userType: account.userType,
+      roleType: account.roleType ?? '',
       customerNo: account.customerNo,
     };
-    if (account.roleType) {
-      accessPayload.roleType = account.roleType;
-    }
 
     return {
       accessToken: generateMockToken(accessPayload, 'mockAccess'),

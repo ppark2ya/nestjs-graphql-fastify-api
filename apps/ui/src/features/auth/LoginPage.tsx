@@ -5,6 +5,7 @@ import {
   type LoginResponse,
   type VerifyTwoFactorResponse,
 } from '@/features/auth/graphql';
+import { getAuthErrorMessage } from '@/features/auth/error-message';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -59,25 +60,41 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     try {
-      const { data } = await loginMutation({
+      const result = await loginMutation({
         variables: { input: { loginId, password } },
+        errorPolicy: 'all',
       });
+      const authError = getAuthErrorMessage(result?.error, '');
+      if (authError) {
+        setError(authError);
+        return;
+      }
+
+      const data = result?.data;
       if (!data?.login) {
         setError('로그인에 실패했습니다.');
         return;
       }
 
       if (data.login.requiresTwoFactor) {
-        const token2fa = data.login.twoFactorToken!;
+        const token2fa = data.login.twoFactorToken;
+        if (!token2fa) {
+          setError('2단계 인증 토큰을 받지 못했습니다.');
+          return;
+        }
         setTwoFactorToken(token2fa);
         localStorage.setItem('twoFactorToken', token2fa);
         setStep('otp');
       } else {
-        login(data.login.tokens!);
+        if (!data.login.tokens) {
+          setError('로그인 응답이 올바르지 않습니다.');
+          return;
+        }
+        login(data.login.tokens);
         navigate(from, { replace: true });
       }
-    } catch (err: any) {
-      setError(err.message ?? '로그인에 실패했습니다.');
+    } catch (err) {
+      setError(getAuthErrorMessage(err, '로그인에 실패했습니다.'));
     }
   };
 
@@ -85,9 +102,18 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     try {
-      const { data } = await verifyMutation({
+      const result = await verifyMutation({
         variables: { input: { totpCode: otpCode } },
+        errorPolicy: 'all',
       });
+      const authError = getAuthErrorMessage(result?.error, '');
+      if (authError) {
+        setError(authError);
+        setOtpCode('');
+        return;
+      }
+
+      const data = result?.data;
       if (!data?.verifyTwoFactor) {
         setError('인증에 실패했습니다.');
         return;
@@ -95,8 +121,8 @@ export default function LoginPage() {
       localStorage.removeItem('twoFactorToken');
       login(data.verifyTwoFactor);
       navigate(from, { replace: true });
-    } catch (err: any) {
-      setError(err.message ?? '인증 코드가 올바르지 않습니다.');
+    } catch (err) {
+      setError(getAuthErrorMessage(err, '인증 코드가 올바르지 않습니다.'));
       setOtpCode('');
     }
   };

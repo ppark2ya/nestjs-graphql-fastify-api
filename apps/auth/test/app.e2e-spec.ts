@@ -482,7 +482,7 @@ describe('Auth E2E - Full Login Process', () => {
       expect(payload.loginId).toBe('lottecard');
       expect(payload.name).toBe('롯데카드');
       expect(payload.userType).toBe('LOTTE_CARD_BO');
-      expect(payload.roleType).toBeUndefined();
+      expect(payload.roleType).toBe('');
       expect(payload.jti).toEqual(expect.any(String));
     });
 
@@ -503,10 +503,10 @@ describe('Auth E2E - Full Login Process', () => {
 
       const payload = decodeJwt(verifyRes.body.accessToken);
       expect(payload.userType).toBe('LOTTE_CARD_BO');
-      expect(payload.roleType).toBeUndefined();
+      expect(payload.roleType).toBe('');
     });
 
-    it('Spring 호환 roleType이 아닌 계정 → 11013 INVALID_TOKEN_CLAIMS', async () => {
+    it('기존 roleType 값이 Spring 호환 목록 밖이어도 토큰 발급', async () => {
       testAccountService.updateTokenClaims(9, { roleType: 'VIEWER' });
       const loginRes = await request(app.getHttpServer())
         .post('/auth/login')
@@ -519,12 +519,13 @@ describe('Auth E2E - Full Login Process', () => {
         .post('/auth/2fa/verify')
         .set('x-2fa-token', loginRes.body.twoFactorToken)
         .send({ totpCode })
-        .expect(500);
+        .expect(201);
 
-      expect(res.body.code).toBe('11013');
+      const payload = decodeJwt(res.body.accessToken);
+      expect(payload.roleType).toBe('VIEWER');
     });
 
-    it('name 누락 계정 → 11013 INVALID_TOKEN_CLAIMS', async () => {
+    it('name 누락 계정도 2FA 검증 후 토큰 발급', async () => {
       testAccountService.updateTokenClaims(9, { name: null });
       const loginRes = await request(app.getHttpServer())
         .post('/auth/login')
@@ -537,9 +538,10 @@ describe('Auth E2E - Full Login Process', () => {
         .post('/auth/2fa/verify')
         .set('x-2fa-token', loginRes.body.twoFactorToken)
         .send({ totpCode })
-        .expect(500);
+        .expect(201);
 
-      expect(res.body.code).toBe('11013');
+      const payload = decodeJwt(res.body.accessToken);
+      expect(payload.name).toBe('');
     });
 
     it('잘못된 TOTP 코드 → 11011 INVALID_OTP', async () => {

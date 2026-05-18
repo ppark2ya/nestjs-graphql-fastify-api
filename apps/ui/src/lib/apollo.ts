@@ -7,7 +7,7 @@ import { createClient } from 'graphql-ws';
 import { getAccessToken } from '@/features/auth/token';
 
 const API_KEY = import.meta.env.VITE_API_KEY ?? 'test-api-key';
-const AUTH_USER_TYPE = import.meta.env.VITE_AUTH_USER_TYPE ?? 'LOTTE_CARD_BO';
+const AUTH_USER_TYPE = import.meta.env.VITE_AUTH_USER_TYPE ?? 'ADMIN_BO';
 
 const httpLink = new HttpLink({
   uri: '/graphql',
