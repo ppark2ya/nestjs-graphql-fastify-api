@@ -8,15 +8,11 @@ import { join } from 'path';
 import depthLimit from 'graphql-depth-limit';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { GlobalHttpModule } from './http/global-http.module';
-import { AppService } from './app.service';
-import { AppResolver } from './app.resolver';
 import { ApiKeyGuard } from './auth/api-key.guard';
 import { GqlThrottlerGuard } from './auth/gql-throttler.guard';
 import { LoggerMiddleware } from '@monorepo/shared/common/middleware/logger.middleware';
 import { CorrelationIdMiddleware } from '@monorepo/shared/common/middleware/correlation-id.middleware';
 import { RequestContextMiddleware } from '@monorepo/shared/common/middleware/request-context.middleware';
-import { DataLoaderModule } from './dataloader/dataloader.module';
-import { DataLoaderService } from './dataloader/dataloader.service';
 import { CircuitBreakerModule } from './circuit-breaker/circuit-breaker.module';
 import {
   HttpExceptionFilter,
@@ -39,9 +35,7 @@ import { LogHistoryModule } from './log-history/log-history.module';
     }),
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
-      imports: [DataLoaderModule],
-      inject: [DataLoaderService],
-      useFactory: (dataLoaderService: DataLoaderService) => ({
+      useFactory: () => ({
         autoSchemaFile: join(process.cwd(), 'apps/gateway/src/schema.gql'),
         sortSchema: true,
         playground: false,
@@ -65,13 +59,11 @@ import { LogHistoryModule } from './log-history/log-history.module';
           if (connection) {
             return {
               req: connection.context,
-              loaders: dataLoaderService.createLoaders(),
             };
           }
           return {
             req: request,
             reply: reply,
-            loaders: dataLoaderService.createLoaders(),
           };
         },
       }),
@@ -84,7 +76,6 @@ import { LogHistoryModule } from './log-history/log-history.module';
       },
     ]),
     GlobalHttpModule,
-    DataLoaderModule,
     CircuitBreakerModule,
     AuthProxyModule,
     WinstonLoggerModule,
@@ -93,8 +84,6 @@ import { LogHistoryModule } from './log-history/log-history.module';
     LogHistoryModule,
   ],
   providers: [
-    AppService,
-    AppResolver,
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,

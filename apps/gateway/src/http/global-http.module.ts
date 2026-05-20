@@ -1,6 +1,6 @@
 import { Global, Logger, Module, OnModuleInit } from '@nestjs/common';
 import { HttpModule, HttpService } from '@nestjs/axios';
-import { AxiosError } from 'axios';
+import { AxiosError, isAxiosError } from 'axios';
 import {
   CORRELATION_HEADER,
 } from '@monorepo/shared/common/middleware/correlation-id.middleware';
@@ -48,11 +48,31 @@ export class GlobalHttpModule implements OnModuleInit {
         return response;
       },
       (error: AxiosError) => {
-        const status = error.response?.status ?? 'ERR';
-        const url = error.config?.url ?? 'unknown';
+        const responseError = this.findAxiosErrorWithResponse(error);
+        const status = responseError.response?.status ?? 'ERR';
+        const url =
+          responseError.response?.config?.url ??
+          responseError.config?.url ??
+          error.config?.url ??
+          'unknown';
         this.logger.error(`← ${status} ${url}`, error.stack);
         return Promise.reject(error);
       },
     );
+  }
+
+  private findAxiosErrorWithResponse(error: AxiosError): AxiosError {
+    let current: unknown = error;
+    let fallback = error;
+
+    while (isAxiosError(current)) {
+      fallback = current;
+      if (current.response) {
+        return current;
+      }
+      current = current.cause;
+    }
+
+    return fallback;
   }
 }
