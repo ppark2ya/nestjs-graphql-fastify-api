@@ -49,18 +49,19 @@ export class AuthService {
       this.throwAuthError('INVALID_CREDENTIALS');
     }
 
-    await this.accountService.resetFailCountAndUpdateLoginAt(account.id);
-
     this.validatePasswordExpiry(account.lastPasswordChangedAt);
 
     if (TWO_FACTOR_REQUIRED_TYPES.has(userType)) {
+      await this.accountService.resetFailCount(account.id);
       const twoFactorToken = await this.jwtTokenService.signTwoFactorToken(
         String(account.id),
         userType,
       );
-      return { requiresTwoFactor: true, twoFactorToken };
+      const tOtpUrl = await this.createTotpRegistrationUrlIfRequired(account);
+      return { requiresTwoFactor: true, twoFactorToken, tOtpUrl };
     }
 
+    await this.accountService.resetFailCountAndUpdateLoginAt(account.id);
     const tokens = await this.issueTokens(account);
     return { requiresTwoFactor: false, tokens };
   }
@@ -85,6 +86,7 @@ export class AuthService {
       this.throwAuthError('INVALID_OTP');
     }
 
+    await this.accountService.resetFailCountAndUpdateLoginAt(account.id);
     return this.issueTokens(account);
   }
 
@@ -176,6 +178,25 @@ export class AuthService {
   private hashPassword(plain: string): string {
     const hash = bcryptjs.hashSync(plain, 10);
     return `{bcrypt}${hash}`;
+  }
+
+  private async createTotpRegistrationUrlIfRequired(account: {
+    id: number;
+    loginId: Buffer | string;
+    otpSecretKey: string | null;
+    lastLoginAt: Date | null;
+  }): Promise<string | null> {
+    if (account.otpSecretKey !== null && account.lastLoginAt !== null) {
+      return null;
+    }
+
+    const otpSecretKey = this.totpService.generateSecret();
+    await this.accountService.updateOtpSecretKey(account.id, otpSecretKey);
+
+    return this.totpService.generateKeyUri(
+      this.normalizeLoginId(account.loginId),
+      otpSecretKey,
+    );
   }
 
   private async issueTokens(account: {

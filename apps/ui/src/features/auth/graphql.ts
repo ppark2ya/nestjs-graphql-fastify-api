@@ -10,6 +10,7 @@ export const LOGIN_MUTATION = gql`
         expiresIn
       }
       twoFactorToken
+      tOtpUrl
     }
   }
 `;
@@ -54,6 +55,7 @@ export interface LoginResponse {
     requiresTwoFactor: boolean;
     tokens: AuthTokenResponse | null;
     twoFactorToken: string | null;
+    tOtpUrl: string | null;
   };
 }
 
