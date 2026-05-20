@@ -15,6 +15,9 @@ export class LoginResult {
   @Field({ nullable: true, description: '2FA 임시 토큰 (2FA 필요 시)' })
   twoFactorToken?: string;
 
-  @Field({ nullable: true, description: 'Google OTP 등록 URL (등록 필요 시)' })
+  @Field(() => String, {
+    nullable: true,
+    description: 'Google OTP 등록 URL (등록 필요 시)',
+  })
   tOtpUrl?: string | null;
 }
