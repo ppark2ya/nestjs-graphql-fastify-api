@@ -462,6 +462,23 @@ describe('Auth E2E - Full Login Process', () => {
       expect(account?.lastLoginAt).toBeNull();
     });
 
+    it('OTP 등록 URL은 이름이 없으면 loginId를 label fallback으로 사용한다', async () => {
+      testAccountService.updateTokenClaims(10, { name: null });
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'newadmin', password: TEST_PASSWORD })
+        .expect(201);
+
+      expect(res.body.requiresTwoFactor).toBe(true);
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('otpauth://'));
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('issuer=MX_ADMIN'));
+      expect(decodeURIComponent(res.body.tOtpUrl)).toEqual(
+        expect.stringContaining('MX_ADMIN:newadmin'),
+      );
+    });
+
     it('잘못된 비밀번호 → 11010 INVALID_CREDENTIALS', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/login')

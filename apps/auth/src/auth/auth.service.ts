@@ -182,6 +182,7 @@ export class AuthService {
 
   private async createTotpRegistrationUrlIfRequired(account: {
     id: number;
+    loginId: Buffer | string;
     name: string | null;
     otpSecretKey: string | null;
     lastLoginAt: Date | null;
@@ -194,8 +195,18 @@ export class AuthService {
     await this.accountService.updateOtpSecretKey(account.id, otpSecretKey);
 
     return this.totpService.generateKeyUri(
-      this.requireNonBlank(account.name, 'name'),
+      this.normalizeTotpAccountName(account),
       otpSecretKey,
+    );
+  }
+
+  private normalizeTotpAccountName(account: {
+    loginId: Buffer | string;
+    name: string | null;
+  }): string {
+    return (
+      account.name?.trim() ||
+      this.requireNonBlank(this.normalizeLoginId(account.loginId), 'loginId')
     );
   }
 
