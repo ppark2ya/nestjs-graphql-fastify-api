@@ -410,6 +410,7 @@ describe('Auth E2E - Full Login Process', () => {
       expect(res.body.requiresTwoFactor).toBe(true);
       expect(res.body.twoFactorToken).toBeDefined();
       expect(res.body.tOtpUrl).toEqual(expect.stringContaining('otpauth://'));
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('issuer=MX_ADMIN'));
       expect(afterAccount?.otpSecretKey).toEqual(expect.any(String));
       expect(afterAccount?.lastLoginAt).toBeNull();
       expect(afterAccount?.failCount).toBe(0);
@@ -428,6 +429,7 @@ describe('Auth E2E - Full Login Process', () => {
       );
       expect(res.body.requiresTwoFactor).toBe(true);
       expect(res.body.tOtpUrl).toEqual(expect.stringContaining('otpauth://'));
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('issuer=MX_ADMIN'));
       expect(account?.otpSecretKey).toEqual(expect.any(String));
       expect(account?.lastLoginAt).toBeInstanceOf(Date);
     });
@@ -445,6 +447,7 @@ describe('Auth E2E - Full Login Process', () => {
       );
       expect(res.body.requiresTwoFactor).toBe(true);
       expect(res.body.tOtpUrl).toEqual(expect.stringContaining('otpauth://'));
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('issuer=MX_ADMIN'));
       expect(account?.otpSecretKey).toEqual(expect.any(String));
       expect(account?.otpSecretKey).not.toBe(OTP_SECRET);
       expect(account?.lastLoginAt).toBeNull();
