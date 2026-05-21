@@ -977,6 +977,22 @@ describe('Auth E2E - Full Login Process', () => {
         .send({ currentPassword: TEST_PASSWORD, newPassword: 'short' })
         .expect(400);
     });
+
+    it('새 비밀번호가 8자 이상이지만 영문/숫자/특수문자 조합 정책을 만족하지 않으면 400', async () => {
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'DASHBOARD')
+        .send({ loginId: 'dashboard', password: TEST_PASSWORD })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/password')
+        .set('Authorization', `Bearer ${loginRes.body.tokens.accessToken}`)
+        .send({ currentPassword: TEST_PASSWORD, newPassword: 'abc12345' })
+        .expect(400);
+
+      expect(res.body.message).toContain('올바른 패스워드 형식이 아닙니다.');
+    });
   });
 
   // ─── Full Flow: LOTTE_CARD_BO login → 2FA → refresh → password ─
