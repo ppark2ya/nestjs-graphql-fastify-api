@@ -25,6 +25,7 @@ import { envSchema } from './env.schema';
 import { PubSubModule } from './pubsub/pubsub.module';
 import { LogStreamerProxyModule } from './log-streamer-proxy/log-streamer-proxy.module';
 import { LogHistoryModule } from './log-history/log-history.module';
+import { KioskAdminProxyModule } from './kiosk-admin-proxy/kiosk-admin-proxy.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { LogHistoryModule } from './log-history/log-history.module';
     PubSubModule,
     LogStreamerProxyModule,
     LogHistoryModule,
+    KioskAdminProxyModule,
   ],
   providers: [
     {
