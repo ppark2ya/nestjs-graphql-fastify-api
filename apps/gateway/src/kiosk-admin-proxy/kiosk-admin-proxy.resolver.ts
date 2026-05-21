@@ -10,7 +10,7 @@ export class KioskAdminProxyResolver {
   @Query(() => KioskAdminReleaseCurrencyTerminals, {
     description: '통화별 외화환전 가능 단말기 목록 조회',
   })
-  async kioskAdminReleaseCurrencyTerminals(
+  async getReleaseCurrencyTerminals(
     @Args('currencyCode', { type: () => CurrencyCode })
     currencyCode: CurrencyCode,
   ): Promise<KioskAdminReleaseCurrencyTerminals> {

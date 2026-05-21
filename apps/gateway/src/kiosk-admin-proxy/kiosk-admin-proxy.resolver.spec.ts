@@ -35,7 +35,7 @@ describe('KioskAdminProxyResolver', () => {
     mockService.getReleaseCurrencyTerminals.mockResolvedValue(response);
 
     await expect(
-      resolver.kioskAdminReleaseCurrencyTerminals(CurrencyCode.USD),
+      resolver.getReleaseCurrencyTerminals(CurrencyCode.USD),
     ).resolves.toEqual(response);
 
     expect(mockService.getReleaseCurrencyTerminals).toHaveBeenCalledWith(

@@ -9,14 +9,14 @@ import { KioskAdminReleaseCurrencyTerminals } from './models/kiosk-admin-release
 
 @Injectable()
 export class KioskAdminProxyService {
-  private readonly kioskAdminBaseUrl: string;
+  private readonly kioskAdminUrl: string;
 
   constructor(
     private readonly httpService: HttpService,
     private readonly circuitBreaker: CircuitBreakerService,
     private readonly configService: ConfigService<Env>,
   ) {
-    this.kioskAdminBaseUrl = this.configService.getOrThrow('KIOSK_ADMIN_URL', {
+    this.kioskAdminUrl = this.configService.getOrThrow('KIOSK_ADMIN_URL', {
       infer: true,
     });
   }
@@ -27,7 +27,7 @@ export class KioskAdminProxyService {
     return this.circuitBreaker.fire('kiosk-admin', async () => {
       const res = await firstValueFrom(
         this.httpService.get<KioskAdminReleaseCurrencyTerminals>(
-          `${this.kioskAdminBaseUrl}/terminal/release-currency/${currencyCode}/terminals`,
+          `${this.kioskAdminUrl}/admin-api/terminal/release-currency/${currencyCode}/terminals`,
         ),
       );
       if (!res || typeof res.data === 'undefined') {

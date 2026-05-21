@@ -246,7 +246,7 @@ type Query {
   containers: [Container!]!
 
   """통화별 외화환전 가능 단말기 목록 조회"""
-  kioskAdminReleaseCurrencyTerminals(currencyCode: CurrencyCode!): KioskAdminReleaseCurrencyTerminals!
+  getReleaseCurrencyTerminals(currencyCode: CurrencyCode!): KioskAdminReleaseCurrencyTerminals!
 
   """로그 앱 목록 조회"""
   logApps: [LogApp!]!

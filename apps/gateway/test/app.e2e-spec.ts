@@ -93,7 +93,7 @@ describe('Gateway GraphQL (e2e)', () => {
       payload: {
         query: `
           query KioskTerminals($currencyCode: CurrencyCode!) {
-            kioskAdminReleaseCurrencyTerminals(currencyCode: $currencyCode) {
+            getReleaseCurrencyTerminals(currencyCode: $currencyCode) {
               exchangeRate
               terminalInfos {
                 terminalNo
@@ -114,7 +114,7 @@ describe('Gateway GraphQL (e2e)', () => {
     expect(response.statusCode).toBe(200);
     const body = JSON.parse(response.body);
     expect(body.errors).toBeUndefined();
-    expect(body.data.kioskAdminReleaseCurrencyTerminals).toEqual({
+    expect(body.data.getReleaseCurrencyTerminals).toEqual({
       exchangeRate: 1390.25,
       terminalInfos: [
         {
@@ -129,7 +129,7 @@ describe('Gateway GraphQL (e2e)', () => {
       ],
     });
     expect(httpService.get).toHaveBeenCalledWith(
-      'http://localhost:4004/terminal/release-currency/USD/terminals',
+      'http://localhost:4004/admin-api/terminal/release-currency/USD/terminals',
     );
   });
 });

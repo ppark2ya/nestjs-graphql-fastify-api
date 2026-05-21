@@ -12,7 +12,7 @@ function createKioskAxiosError(): AxiosError {
     'Request failed',
     'ERR_BAD_RESPONSE',
     {
-      url: 'http://kiosk-admin:4004/terminal/release-currency/USD/terminals',
+      url: 'http://kiosk-admin:4004/admin-api/terminal/release-currency/USD/terminals',
     } as InternalAxiosRequestConfig,
     undefined,
     {
@@ -25,7 +25,7 @@ function createKioskAxiosError(): AxiosError {
       statusText: 'Not Found',
       headers: {},
       config: {
-        url: 'http://kiosk-admin:4004/terminal/release-currency/USD/terminals',
+        url: 'http://kiosk-admin:4004/admin-api/terminal/release-currency/USD/terminals',
       } as InternalAxiosRequestConfig,
     },
   );
@@ -77,7 +77,7 @@ describe('KioskAdminProxyService', () => {
     ).resolves.toEqual(response);
 
     expect(httpService.get).toHaveBeenCalledWith(
-      'http://kiosk-admin:4004/terminal/release-currency/USD/terminals',
+      'http://kiosk-admin:4004/admin-api/terminal/release-currency/USD/terminals',
     );
     expect(circuitBreaker.fire).toHaveBeenCalledWith(
       'kiosk-admin',
