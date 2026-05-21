@@ -2,14 +2,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-input AddNumbersInput {
-  """첫 번째 숫자"""
-  a: Int!
-
-  """두 번째 숫자"""
-  b: Int!
-}
-
 type AuthToken {
   """JWT 액세스 토큰"""
   accessToken: String!
@@ -210,43 +202,18 @@ type Mutation {
   verifyTwoFactor(input: TotpVerifyInput!): AuthToken!
 }
 
-type Post {
-  body: String!
-  id: Int!
-  title: String!
-  userId: Int!
-}
-
 type Query {
-  """Add two numbers"""
-  add(input: AddNumbersInput!): Int!
-
   """Get resource usage statistics for specified containers"""
   containerStats(containerIds: [String!]!): [ContainerStats!]!
 
   """List all Docker containers"""
   containers: [Container!]!
 
-  """Echo the input message"""
-  echo(message: String!): String!
-
-  """Health check query"""
-  health: String!
-
-  """Returns hello message"""
-  hello: String!
-
   """로그 앱 목록 조회"""
   logApps: [LogApp!]!
 
   """로그 검색"""
   logSearch(input: LogSearchInput!): LogSearchResult!
-
-  """Get posts from JSONPlaceholder REST API"""
-  posts: [Post!]!
-
-  """Get posts by user ID (uses DataLoader)"""
-  postsByUser(userId: Int!): [Post!]!
 }
 
 input RefreshTokenInput {
