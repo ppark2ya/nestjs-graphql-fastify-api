@@ -4,15 +4,38 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { of } from 'rxjs';
+import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { of, throwError } from 'rxjs';
 import { AppModule } from './../src/app.module';
 import { LogStreamerProxyService } from '../src/log-streamer-proxy/log-streamer-proxy.service';
 import { PUB_SUB } from '../src/pubsub/pubsub.provider';
+
+function createAuthUnauthorizedError(): AxiosError {
+  return new AxiosError(
+    'Request failed',
+    'ERR_BAD_REQUEST',
+    { url: 'http://localhost:4001/auth/password' } as InternalAxiosRequestConfig,
+    undefined,
+    {
+      data: {
+        message: 'Unauthorized',
+        statusCode: 401,
+      },
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: {},
+      config: {
+        url: 'http://localhost:4001/auth/password',
+      } as InternalAxiosRequestConfig,
+    },
+  );
+}
 
 describe('Gateway GraphQL (e2e)', () => {
   let app: NestFastifyApplication;
   let httpService: {
     get: jest.Mock;
+    post: jest.Mock;
     axiosRef: {
       interceptors: {
         request: { use: jest.Mock };
@@ -24,6 +47,7 @@ describe('Gateway GraphQL (e2e)', () => {
   beforeEach(async () => {
     httpService = {
       get: jest.fn(),
+      post: jest.fn(),
       axiosRef: {
         interceptors: {
           request: { use: jest.fn() },
@@ -130,6 +154,88 @@ describe('Gateway GraphQL (e2e)', () => {
     });
     expect(httpService.get).toHaveBeenCalledWith(
       'http://localhost:4004/admin-api/terminal/release-currency/USD/terminals',
+    );
+  });
+
+  it('changes password publicly by forwarding Authorization to the auth service', async () => {
+    httpService.post.mockReturnValue(of({ data: { success: true } }));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/graphql',
+      headers: { authorization: 'Bearer access-token' },
+      payload: {
+        query: `
+          mutation ChangePassword($input: ChangePasswordInput!) {
+            changePassword(input: $input)
+          }
+        `,
+        variables: {
+          input: {
+            currentPassword: 'password123',
+            newPassword: 'newpass1234',
+          },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.errors).toBeUndefined();
+    expect(body.data.changePassword).toBe(true);
+    expect(httpService.post).toHaveBeenCalledWith(
+      'http://localhost:4001/auth/password',
+      {
+        currentPassword: 'password123',
+        newPassword: 'newpass1234',
+      },
+      {
+        headers: { Authorization: 'Bearer access-token' },
+      },
+    );
+  });
+
+  it('propagates auth-service 401 when changePassword has no Authorization header', async () => {
+    httpService.post.mockReturnValue(
+      throwError(() => createAuthUnauthorizedError()),
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/graphql',
+      payload: {
+        query: `
+          mutation ChangePassword($input: ChangePasswordInput!) {
+            changePassword(input: $input)
+          }
+        `,
+        variables: {
+          input: {
+            currentPassword: 'password123',
+            newPassword: 'newpass1234',
+          },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data).toBeNull();
+    expect(body.errors?.[0]?.message).toBe('Unauthorized');
+    expect(body.errors?.[0]?.extensions).toMatchObject({
+      code: 'UNAUTHENTICATED',
+      statusCode: 401,
+      downstreamService: 'auth',
+    });
+    expect(httpService.post).toHaveBeenCalledWith(
+      'http://localhost:4001/auth/password',
+      {
+        currentPassword: 'password123',
+        newPassword: 'newpass1234',
+      },
+      {
+        headers: {},
+      },
     );
   });
 });

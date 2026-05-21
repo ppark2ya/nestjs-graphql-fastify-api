@@ -37,10 +37,7 @@ export const REFRESH_TOKEN_MUTATION = gql`
 
 export const CHANGE_PASSWORD_MUTATION = gql`
   mutation ChangePassword($input: ChangePasswordInput!) {
-    changePassword(input: $input) {
-      success
-      message
-    }
+    changePassword(input: $input)
   }
 `;
 
@@ -81,8 +78,5 @@ export interface RefreshTokenResponse {
 }
 
 export interface ChangePasswordResponse {
-  changePassword: {
-    success: boolean;
-    message: string;
-  };
+  changePassword: boolean;
 }

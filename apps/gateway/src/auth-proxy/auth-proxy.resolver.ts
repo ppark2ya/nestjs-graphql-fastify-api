@@ -6,7 +6,6 @@ import { RefreshTokenInput } from './dto/refresh-token.input';
 import { ChangePasswordInput } from './dto/change-password.input';
 import { LoginResult } from './models/login-result.model';
 import { AuthToken } from './models/auth-token.model';
-import { FastifyRequest } from 'fastify';
 import { Public } from '../auth/public.decorator';
 import { GraphQLContext } from '../types/graphql-context.interface';
 
@@ -47,15 +46,15 @@ export class AuthProxyResolver {
     return this.authProxyService.refreshToken(input.refreshToken);
   }
 
+  @Public()
   @Mutation(() => Boolean, { description: '패스워드 변경' })
   async changePassword(
     @Args('input') input: ChangePasswordInput,
     @Context() ctx: GraphQLContext,
   ): Promise<boolean> {
-    const userId = (ctx.req as FastifyRequest & { user?: { userId: number } })
-      .user?.userId;
+    const authorization = ctx.req.headers.authorization;
     const result = await this.authProxyService.changePassword(
-      Number(userId),
+      typeof authorization === 'string' ? authorization : undefined,
       input.currentPassword,
       input.newPassword,
     );
