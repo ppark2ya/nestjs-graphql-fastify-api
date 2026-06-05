@@ -2,8 +2,6 @@ import {
   Controller,
   Post,
   Body,
-  Headers,
-  UseGuards,
   Req,
   UsePipes,
   Inject,
@@ -12,7 +10,6 @@ import {
 import { FastifyRequest } from 'fastify';
 import { AuthService } from './auth.service';
 import { MockAuthService } from './auth-mock.service';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ZodValidationPipe } from './zod-validation.pipe';
 import { AuthErrorFilter } from './filters/auth-error.filter';
 import {
@@ -25,6 +22,7 @@ import {
   type RefreshTokenDto,
   type ChangePasswordDto,
 } from './dto/auth.dto';
+import type { LoginRequestMeta } from '../login-history/login-history.service';
 
 type AuthServiceType = AuthService | MockAuthService;
 
@@ -37,20 +35,28 @@ export class AuthController {
 
   @Post('login')
   @UsePipes(new ZodValidationPipe(LoginSchema))
-  async login(
-    @Body() body: LoginDto,
-    @Headers('x-user-type') userType: string,
-  ) {
-    return this.authService.login(body.loginId, body.password, userType);
+  async login(@Body() body: LoginDto, @Req() req: FastifyRequest) {
+    const userType = this.headerValue(req, 'x-user-type') ?? '';
+    return this.authService.login(
+      body.loginId,
+      body.password,
+      userType,
+      this.loginRequestMeta(req),
+    );
   }
 
   @Post('2fa/verify')
   @UsePipes(new ZodValidationPipe(TotpVerifySchema))
   async verifyTwoFactor(
     @Body() body: TotpVerifyDto,
-    @Headers('x-2fa-token') twoFactorToken: string,
+    @Req() req: FastifyRequest,
   ) {
-    return this.authService.verifyTwoFactor(twoFactorToken, body.totpCode);
+    const twoFactorToken = this.headerValue(req, 'x-2fa-token') ?? '';
+    return this.authService.verifyTwoFactor(
+      twoFactorToken,
+      body.totpCode,
+      this.loginRequestMeta(req),
+    );
   }
 
   @Post('refresh')
@@ -60,16 +66,44 @@ export class AuthController {
   }
 
   @Post('password')
-  @UseGuards(JwtAuthGuard)
   @UsePipes(new ZodValidationPipe(ChangePasswordSchema))
   async changePassword(
     @Body() body: ChangePasswordDto,
-    @Req() req: FastifyRequest & { user: { userId: number } },
+    @Req() req: FastifyRequest,
   ) {
     return this.authService.changePassword(
-      Number(req.user.userId),
+      {
+        accessToken: this.bearerToken(req),
+        passwordChangeToken: this.headerValue(req, 'x-password-change-token'),
+      },
       body.currentPassword,
       body.newPassword,
     );
+  }
+
+  private loginRequestMeta(req: FastifyRequest): LoginRequestMeta {
+    return {
+      clientIp: this.clientIp(req),
+      accessChannel: this.headerValue(req, 'x-access-channel') ?? null,
+    };
+  }
+
+  private clientIp(req: FastifyRequest): string {
+    const forwardedFor = this.headerValue(req, 'x-forwarded-for')
+      ?.split(',')[0]
+      ?.trim();
+    const realIp = this.headerValue(req, 'x-real-ip')?.trim();
+    return forwardedFor || realIp || req.ip || 'unknown';
+  }
+
+  private headerValue(req: FastifyRequest, name: string): string | undefined {
+    const value = req.headers[name];
+    return Array.isArray(value) ? value[0] : value;
+  }
+
+  private bearerToken(req: FastifyRequest): string | undefined {
+    const authorization = this.headerValue(req, 'authorization')?.trim();
+    const [scheme, token] = authorization?.split(/\s+/, 2) ?? [];
+    return scheme?.toLowerCase() === 'bearer' && token ? token : undefined;
   }
 }

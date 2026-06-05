@@ -7,11 +7,14 @@ import { JwtTokenService } from './jwt.service';
 import { TotpService } from './totp.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AccountModule } from '../account/account.module';
+import { LoginHistoryModule } from '../login-history/login-history.module';
 
 const useMockAuth = process.env.USE_MOCK_AUTH === 'true';
 
 @Module({
-  imports: useMockAuth ? [PassportModule] : [PassportModule, AccountModule],
+  imports: useMockAuth
+    ? [PassportModule]
+    : [PassportModule, AccountModule, LoginHistoryModule],
   controllers: [AuthController],
   providers: [
     {

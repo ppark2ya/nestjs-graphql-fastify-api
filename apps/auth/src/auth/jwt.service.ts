@@ -84,6 +84,19 @@ export class JwtTokenService implements OnModuleInit {
       .sign(this.privateKey);
   }
 
+  async signPasswordChangeToken(
+    sub: string,
+    userType: string,
+  ): Promise<string> {
+    return new SignJWT({ sub, type: 'password_change', userType })
+      .setProtectedHeader({ alg: AUTH_CONSTANTS.JWT_ALGORITHM })
+      .setIssuedAt()
+      .setExpirationTime(AUTH_CONSTANTS.TWO_FACTOR_TOKEN_EXPIRY)
+      .setIssuer(AUTH_CONSTANTS.JWT_ISSUER)
+      .setSubject(sub)
+      .sign(this.privateKey);
+  }
+
   async verifyToken(token: string): Promise<JwtPayload> {
     const { payload } = await jwtVerify(token, this.publicKey, {
       issuer: AUTH_CONSTANTS.JWT_ISSUER,
@@ -101,6 +114,22 @@ export class JwtTokenService implements OnModuleInit {
     });
     if ((payload as { type?: string }).type !== '2fa') {
       throw new Error('Invalid 2FA token type');
+    }
+    return {
+      sub: payload.sub as string,
+      userType: (payload as { userType?: string }).userType as string,
+    };
+  }
+
+  async verifyPasswordChangeToken(
+    token: string,
+  ): Promise<{ sub: string; userType: string }> {
+    const { payload } = await jwtVerify(token, this.publicKey, {
+      issuer: AUTH_CONSTANTS.JWT_ISSUER,
+      algorithms: [AUTH_CONSTANTS.JWT_ALGORITHM],
+    });
+    if ((payload as { type?: string }).type !== 'password_change') {
+      throw new Error('Invalid password change token type');
     }
     return {
       sub: payload.sub as string,

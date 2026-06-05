@@ -3,6 +3,7 @@ import type { AuthResponse, AuthTokens } from '@monorepo/shared';
 import { AuthErrorException } from './filters/auth-error.filter';
 import { AUTH_ERROR } from './constants/auth-error';
 import { UserType } from './enums/user-type.enum';
+import type { LoginRequestMeta } from '../login-history/login-history.service';
 
 const SPRING_COMPATIBLE_ROLE_TYPES = new Set([
   'SUPER_ADMIN',
@@ -61,7 +62,7 @@ const generateMockToken = (payload: object, prefix: string): string => {
 
 const parseMockTokenPayload = (
   token: string,
-): { sub?: number | string } | null => {
+): { sub?: number | string; type?: string } | null => {
   try {
     const [, data] = token.split('.');
     if (!data) return null;
@@ -79,6 +80,7 @@ export class MockAuthService {
     loginId: string,
     password: string,
     userType: string,
+    _meta?: LoginRequestMeta,
   ): Promise<AuthResponse> {
     const account = MOCK_ACCOUNTS.find(
       (a) => a.loginId === loginId && a.userType === userType,
@@ -112,6 +114,7 @@ export class MockAuthService {
   async verifyTwoFactor(
     twoFactorToken: string,
     totpCode: string,
+    _meta?: LoginRequestMeta,
   ): Promise<AuthTokens> {
     if (!twoFactorToken.startsWith('mock2fa.')) {
       throw new AuthErrorException(
@@ -162,11 +165,13 @@ export class MockAuthService {
   }
 
   async changePassword(
-    userId: number,
+    credential: { accessToken?: string; passwordChangeToken?: string },
     currentPassword: string,
     _newPassword: string, // eslint-disable-line @typescript-eslint/no-unused-vars
   ): Promise<{ success: boolean }> {
-    const account = MOCK_ACCOUNTS.find((a) => a.id === userId);
+    const token = credential.passwordChangeToken ?? credential.accessToken;
+    const payload = token ? parseMockTokenPayload(token) : null;
+    const account = MOCK_ACCOUNTS.find((a) => a.id === Number(payload?.sub));
     if (!account || account.password !== currentPassword) {
       throw new AuthErrorException(
         AUTH_ERROR.INVALID_CREDENTIALS.code,

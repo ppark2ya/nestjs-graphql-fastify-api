@@ -109,6 +109,29 @@ describe('AxiosExceptionFilter', () => {
     expect(error.extensions).not.toHaveProperty('authErrorCode');
   });
 
+  it('propagates password change token from auth errors', () => {
+    const error = filter.catch(
+      createAxiosError(
+        {
+          code: '11004',
+          message: '비밀번호 변경 후 90일이 경과되었습니다.',
+          passwordChangeToken: 'password-change-token',
+        },
+        400,
+      ),
+    );
+
+    expect(error.message).toBe('비밀번호 변경 후 90일이 경과되었습니다.');
+    expect(error.extensions).toMatchObject({
+      code: 'BAD_REQUEST',
+      statusCode: 400,
+      errorCode: '11004',
+      downstreamService: 'auth',
+      passwordChangeToken: 'password-change-token',
+    });
+    expect(error.extensions).not.toHaveProperty('authErrorCode');
+  });
+
   it('propagates structured auth error JSON string data', () => {
     const error = filter.catch(
       createAxiosError(

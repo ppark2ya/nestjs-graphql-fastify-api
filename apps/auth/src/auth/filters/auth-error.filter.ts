@@ -17,8 +17,12 @@ export class AuthErrorException extends HttpException {
     public readonly errorCode: string,
     public readonly errorMessage: string,
     statusCode: number,
+    public readonly extensions?: Record<string, unknown>,
   ) {
-    super({ code: errorCode, message: errorMessage }, statusCode);
+    super(
+      { code: errorCode, message: errorMessage, ...extensions },
+      statusCode,
+    );
   }
 }
 
@@ -32,6 +36,7 @@ export class AuthErrorFilter implements ExceptionFilter {
     reply.status(status).send({
       code: exception.errorCode,
       message: exception.errorMessage,
+      ...exception.extensions,
       timestamp: formatTimestamp(),
     });
   }

@@ -9,6 +9,7 @@ type ParsedDownstreamError = {
   errorCode?: string;
   rawMessage?: string;
   timestamp?: string;
+  passwordChangeToken?: string;
 };
 
 function parseDownstreamErrorData(data: unknown): ParsedDownstreamError {
@@ -35,6 +36,10 @@ function parseDownstreamErrorData(data: unknown): ParsedDownstreamError {
           : undefined,
     timestamp:
       typeof record.timestamp === 'string' ? record.timestamp : undefined,
+    passwordChangeToken:
+      typeof record.passwordChangeToken === 'string'
+        ? record.passwordChangeToken
+        : undefined,
   };
 }
 
@@ -127,6 +132,9 @@ function toAxiosGraphQLError(
       statusCode: status,
       ...(data.errorCode && { errorCode: data.errorCode }),
       ...(data.timestamp && { timestamp: data.timestamp }),
+      ...(data.passwordChangeToken && {
+        passwordChangeToken: data.passwordChangeToken,
+      }),
       ...(downstreamService && { downstreamService }),
     },
   });

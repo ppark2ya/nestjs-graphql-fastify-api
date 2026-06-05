@@ -51,3 +51,15 @@ export const tbUserGroup = mysqlTable(
   },
   (table) => [uniqueIndex('ux_user_group_01').on(table.name, table.type)],
 );
+
+export const tbLoginHistory = mysqlTable('tb_login_history', {
+  id: bigint('id', { mode: 'number' }).primaryKey().autoincrement(),
+  loginId: varchar('login_id', { length: 63 }).notNull(),
+  accountId: bigint('account_id', { mode: 'number' }),
+  addrIp: varchar('addr_ip', { length: 255 }).notNull(),
+  failCount: int('fail_count'),
+  status: varchar('status', { length: 255 }),
+  accessChannel: varchar('access_channel', { length: 50 }),
+  loginAt: datetime('login_at', { fsp: 6 }),
+  failedAt: datetime('falied_at', { fsp: 6 }),
+});

@@ -9,8 +9,18 @@ import { AccountStatus } from './enums';
 import { TWO_FACTOR_REQUIRED_TYPES } from './enums/user-type.enum';
 import { AUTH_ERROR } from './constants/auth-error';
 import { AuthErrorException } from './filters/auth-error.filter';
+import {
+  LoginHistoryService,
+  type LoginRequestMeta,
+} from '../login-history/login-history.service';
+import { tbAccount } from '../database/schema';
 
 type AccessTokenPayload = Omit<JwtPayload, 'iat' | 'exp' | 'jti'>;
+type ChangePasswordCredential = {
+  accessToken?: string;
+  passwordChangeToken?: string;
+};
+
 const SPRING_COMPATIBLE_ROLE_TYPES = new Set([
   'SUPER_ADMIN',
   'ADMIN',
@@ -23,12 +33,14 @@ export class AuthService {
     private readonly accountService: AccountService,
     private readonly jwtTokenService: JwtTokenService,
     private readonly totpService: TotpService,
+    private readonly loginHistoryService: LoginHistoryService,
   ) {}
 
   async login(
     loginId: string,
     password: string,
     userType: string,
+    meta: LoginRequestMeta,
   ): Promise<AuthResponse> {
     const account = await this.accountService.findByLoginIdAndUserType(
       loginId,
@@ -38,6 +50,14 @@ export class AuthService {
       this.throwAuthError('INVALID_CREDENTIALS');
     }
 
+    if (
+      account.status === (AccountStatus.LOCKED as string) ||
+      (account.failCount ?? 0) >= AUTH_CONSTANTS.MAX_FAIL_COUNT
+    ) {
+      await this.handleLockedLogin(account, meta);
+      this.throwAuthError('ACCOUNT_LOCKED');
+    }
+
     this.validateAccountStatus(account.status);
 
     const isPasswordValid = await this.verifyPassword(
@@ -45,11 +65,11 @@ export class AuthService {
       account.password,
     );
     if (!isPasswordValid) {
-      await this.handleFailedLogin(account.id, (account.failCount ?? 0) + 1);
+      await this.handleFailedLogin(account, meta, (account.failCount ?? 0) + 1);
       this.throwAuthError('INVALID_CREDENTIALS');
     }
 
-    this.validatePasswordExpiry(account.lastPasswordChangedAt);
+    await this.validatePasswordExpiry(account);
 
     if (TWO_FACTOR_REQUIRED_TYPES.has(userType)) {
       await this.accountService.resetFailCount(account.id);
@@ -61,14 +81,15 @@ export class AuthService {
       return { requiresTwoFactor: true, twoFactorToken, tOtpUrl };
     }
 
-    await this.accountService.resetFailCountAndUpdateLoginAt(account.id);
     const tokens = await this.issueTokens(account);
+    await this.loginHistoryService.recordSuccess(account, meta);
     return { requiresTwoFactor: false, tokens };
   }
 
   async verifyTwoFactor(
     twoFactorToken: string,
     totpCode: string,
+    meta: LoginRequestMeta,
   ): Promise<AuthTokens> {
     const { sub } = await this.jwtTokenService
       .verifyTwoFactorToken(twoFactorToken)
@@ -86,8 +107,9 @@ export class AuthService {
       this.throwAuthError('INVALID_OTP');
     }
 
-    await this.accountService.resetFailCountAndUpdateLoginAt(account.id);
-    return this.issueTokens(account);
+    const tokens = await this.issueTokens(account);
+    await this.loginHistoryService.recordSuccess(account, meta);
+    return tokens;
   }
 
   async refreshTokens(refreshToken: string): Promise<AuthTokens> {
@@ -106,11 +128,12 @@ export class AuthService {
   }
 
   async changePassword(
-    userId: number,
+    credential: ChangePasswordCredential,
     currentPassword: string,
     newPassword: string,
   ): Promise<{ success: boolean }> {
-    const account = await this.accountService.findById(userId);
+    const accountId = await this.resolveChangePasswordAccountId(credential);
+    const account = await this.accountService.findById(accountId);
     if (!account) {
       this.throwAuthError('INVALID_CREDENTIALS');
     }
@@ -145,25 +168,87 @@ export class AuthService {
     }
   }
 
-  private validatePasswordExpiry(lastChanged: Date | null): void {
+  private async validatePasswordExpiry(
+    account: typeof tbAccount.$inferSelect,
+  ): Promise<void> {
+    const lastChanged = account.lastPasswordChangedAt;
     if (!lastChanged) return;
 
     const daysSinceChange = Math.floor(
       (Date.now() - new Date(lastChanged).getTime()) / (1000 * 60 * 60 * 24),
     );
     if (daysSinceChange >= AUTH_CONSTANTS.PASSWORD_EXPIRY_DAYS) {
-      this.throwAuthError('PASSWORD_EXPIRED');
+      const passwordChangeToken =
+        await this.jwtTokenService.signPasswordChangeToken(
+          String(account.id),
+          account.userType,
+        );
+      this.throwAuthError('PASSWORD_EXPIRED', { passwordChangeToken });
     }
   }
 
+  private async resolveChangePasswordAccountId({
+    accessToken,
+    passwordChangeToken,
+  }: ChangePasswordCredential): Promise<number> {
+    if (passwordChangeToken) {
+      const payload = await this.jwtTokenService
+        .verifyPasswordChangeToken(passwordChangeToken)
+        .catch(() => {
+          this.throwAuthError('TOKEN_EXPIRED');
+        });
+      return Number(payload.sub);
+    }
+
+    if (accessToken) {
+      const payload = await this.jwtTokenService
+        .verifyToken(accessToken)
+        .catch(() => {
+          this.throwAuthError('TOKEN_EXPIRED');
+        });
+      if ((payload as { type?: string }).type) {
+        this.throwAuthError('TOKEN_EXPIRED');
+      }
+      return Number(payload.sub);
+    }
+
+    this.throwAuthError('TOKEN_EXPIRED');
+  }
+
   private async handleFailedLogin(
-    accountId: number,
+    account: typeof tbAccount.$inferSelect,
+    meta: LoginRequestMeta,
     newFailCount: number,
   ): Promise<void> {
-    await this.accountService.incrementFailCount(accountId);
+    await this.accountService.incrementFailCount(account.id);
+    const status =
+      newFailCount >= AUTH_CONSTANTS.MAX_FAIL_COUNT
+        ? AccountStatus.LOCKED
+        : account.status;
     if (newFailCount >= AUTH_CONSTANTS.MAX_FAIL_COUNT) {
-      await this.accountService.lockAccount(accountId);
+      await this.accountService.lockAccount(account.id);
     }
+    await this.loginHistoryService.recordFailure(
+      account,
+      meta,
+      newFailCount,
+      status,
+    );
+  }
+
+  private async handleLockedLogin(
+    account: typeof tbAccount.$inferSelect,
+    meta: LoginRequestMeta,
+  ): Promise<void> {
+    if (account.status !== (AccountStatus.LOCKED as string)) {
+      await this.accountService.lockAccount(account.id);
+    }
+    await this.loginHistoryService.recordFailure(
+      account,
+      meta,
+      account.failCount ?? AUTH_CONSTANTS.MAX_FAIL_COUNT,
+      AccountStatus.LOCKED,
+    );
   }
 
   private async verifyPassword(
@@ -295,8 +380,16 @@ export class AuthService {
     return SPRING_COMPATIBLE_ROLE_TYPES.has(roleType) ? roleType : undefined;
   }
 
-  private throwAuthError(key: keyof typeof AUTH_ERROR): never {
+  private throwAuthError(
+    key: keyof typeof AUTH_ERROR,
+    extensions?: Record<string, unknown>,
+  ): never {
     const error = AUTH_ERROR[key];
-    throw new AuthErrorException(error.code, error.message, error.status);
+    throw new AuthErrorException(
+      error.code,
+      error.message,
+      error.status,
+      extensions,
+    );
   }
 }

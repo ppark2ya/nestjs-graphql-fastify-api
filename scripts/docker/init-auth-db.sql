@@ -42,6 +42,22 @@ CREATE TABLE IF NOT EXISTS `tb_account` (
   UNIQUE KEY `ux_account_01` (`login_id`,`user_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- tb_login_history
+CREATE TABLE IF NOT EXISTS `tb_login_history` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `login_id` varchar(63) NOT NULL COMMENT '로그인 ID',
+  `account_id` bigint DEFAULT NULL COMMENT '사용자',
+  `addr_ip` varchar(255) NOT NULL COMMENT '로그인 아이피',
+  `fail_count` int DEFAULT NULL COMMENT '로그인 실패 카운트',
+  `status` varchar(255) DEFAULT NULL COMMENT '사용자 상태',
+  `access_channel` varchar(50) DEFAULT NULL COMMENT '접근 채널',
+  `login_at` datetime(6) DEFAULT NULL COMMENT '로그인 시간',
+  `falied_at` datetime(6) DEFAULT NULL COMMENT '로그인 실패 시간',
+  PRIMARY KEY (`id`),
+  KEY `idx_login_history_account_id` (`account_id`),
+  KEY `idx_login_history_login_id` (`login_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 -- 테스트용 계정 데이터 (패스워드: admin123 → bcryptjs hash)
 INSERT INTO `tb_user_group` (`id`, `name`, `type`, `use_yn`, `created_adm`, `created_at`)
 VALUES
