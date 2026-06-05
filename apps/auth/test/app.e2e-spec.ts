@@ -19,6 +19,10 @@ import { JwtTokenService } from '../src/auth/jwt.service';
 import { TotpService } from '../src/auth/totp.service';
 import { JwtStrategy } from '../src/auth/strategies/jwt.strategy';
 import { AccountService } from '../src/account/account.service';
+import {
+  LoginHistoryService,
+  type LoginRequestMeta,
+} from '../src/login-history/login-history.service';
 
 const OTP_SECRET = 'JBSWY3DPEHPK3PXP';
 const TEST_PASSWORD = 'password123';
@@ -37,6 +41,17 @@ interface TestAccount {
   lastPasswordChangedAt: Date | null;
   lastLoginAt: Date | null;
   email: string | null;
+}
+
+interface TestLoginHistory {
+  loginId: string;
+  accountId: number;
+  addrIp: string;
+  failCount: number;
+  status: string | null;
+  accessChannel: string | null;
+  loginAt: Date | null;
+  failedAt: Date | null;
 }
 
 function createTestAccounts(): TestAccount[] {
@@ -247,9 +262,60 @@ class TestAccountService {
   }
 }
 
+class TestLoginHistoryService {
+  private histories: TestLoginHistory[] = [];
+
+  reset() {
+    this.histories = [];
+  }
+
+  getAll() {
+    return this.histories;
+  }
+
+  async recordSuccess(
+    account: TestAccount,
+    meta: LoginRequestMeta,
+    loginAt = new Date(),
+  ) {
+    account.failCount = 0;
+    account.lastLoginAt = loginAt;
+    this.histories.push({
+      loginId: account.loginId.toString('utf8'),
+      accountId: account.id,
+      addrIp: meta.clientIp?.trim() || 'unknown',
+      failCount: 0,
+      status: account.status,
+      accessChannel: meta.accessChannel ?? null,
+      loginAt,
+      failedAt: null,
+    });
+  }
+
+  async recordFailure(
+    account: TestAccount,
+    meta: LoginRequestMeta,
+    failCount: number,
+    status: string | null,
+    failedAt = new Date(),
+  ) {
+    this.histories.push({
+      loginId: account.loginId.toString('utf8'),
+      accountId: account.id,
+      addrIp: meta.clientIp?.trim() || 'unknown',
+      failCount,
+      status,
+      accessChannel: meta.accessChannel ?? null,
+      loginAt: null,
+      failedAt,
+    });
+  }
+}
+
 describe('Auth E2E - Full Login Process', () => {
   let app: NestFastifyApplication;
   let testAccountService: TestAccountService;
+  let testLoginHistoryService: TestLoginHistoryService;
   let tmpKeyDir: string;
 
   beforeAll(async () => {
@@ -270,6 +336,7 @@ describe('Auth E2E - Full Login Process', () => {
 
     // 4. Create test account service (in-memory mock)
     testAccountService = new TestAccountService();
+    testLoginHistoryService = new TestLoginHistoryService();
 
     // 5. Build test module (real services, mock DB)
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -278,6 +345,7 @@ describe('Auth E2E - Full Login Process', () => {
       providers: [
         { provide: 'AUTH_SERVICE', useClass: AuthService },
         { provide: AccountService, useValue: testAccountService },
+        { provide: LoginHistoryService, useValue: testLoginHistoryService },
         JwtTokenService,
         TotpService,
         JwtStrategy,
@@ -298,6 +366,7 @@ describe('Auth E2E - Full Login Process', () => {
 
   beforeEach(() => {
     testAccountService.reset();
+    testLoginHistoryService.reset();
   });
 
   // ─── POST /auth/login ───────────────────────────────────────────
@@ -307,6 +376,8 @@ describe('Auth E2E - Full Login Process', () => {
       const res = await request(app.getHttpServer())
         .post('/auth/login')
         .set('x-user-type', 'DASHBOARD')
+        .set('x-forwarded-for', '203.0.113.10, 10.0.0.1')
+        .set('x-access-channel', 'http://admin-bo.test')
         .send({ loginId: 'dashboard', password: TEST_PASSWORD })
         .expect(201);
 
@@ -315,6 +386,19 @@ describe('Auth E2E - Full Login Process', () => {
       expect(res.body.tokens.accessToken).toBeDefined();
       expect(res.body.tokens.refreshToken).toBeDefined();
       expect(res.body.tokens.expiresIn).toBeDefined();
+
+      const histories = testLoginHistoryService.getAll();
+      expect(histories).toHaveLength(1);
+      expect(histories[0]).toMatchObject({
+        loginId: 'dashboard',
+        accountId: 2,
+        addrIp: '203.0.113.10',
+        failCount: 0,
+        status: 'ACTIVE',
+        accessChannel: 'http://admin-bo.test',
+        failedAt: null,
+      });
+      expect(histories[0].loginAt).toBeInstanceOf(Date);
     });
 
     it('LOTTE_CARD_BO 로그인 (2FA 필요) → twoFactorToken 반환', async () => {
@@ -327,18 +411,32 @@ describe('Auth E2E - Full Login Process', () => {
       expect(res.body.requiresTwoFactor).toBe(true);
       expect(res.body.twoFactorToken).toBeDefined();
       expect(res.body.tokens).toBeUndefined();
+      expect(testLoginHistoryService.getAll()).toHaveLength(0);
     });
 
     it('잘못된 비밀번호 → 11010 INVALID_CREDENTIALS', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/login')
         .set('x-user-type', 'DASHBOARD')
+        .set('x-forwarded-for', '198.51.100.10')
         .send({ loginId: 'dashboard', password: 'wrongpassword' })
         .expect(401);
 
       expect(res.body.code).toBe('11010');
       expect(res.body.message).toBeDefined();
       expect(res.body.timestamp).toBeDefined();
+
+      const histories = testLoginHistoryService.getAll();
+      expect(histories).toHaveLength(1);
+      expect(histories[0]).toMatchObject({
+        loginId: 'dashboard',
+        accountId: 2,
+        addrIp: '198.51.100.10',
+        failCount: 1,
+        status: 'ACTIVE',
+        loginAt: null,
+      });
+      expect(histories[0].failedAt).toBeInstanceOf(Date);
     });
 
     it('존재하지 않는 계정 → 11010 INVALID_CREDENTIALS', async () => {
@@ -446,6 +544,21 @@ describe('Auth E2E - Full Login Process', () => {
         .expect(403);
 
       expect(res.body.code).toBe('11005');
+
+      const histories = testLoginHistoryService.getAll();
+      expect(histories).toHaveLength(6);
+      expect(histories[4]).toMatchObject({
+        loginId: 'locktest',
+        failCount: 5,
+        status: 'LOCKED',
+        loginAt: null,
+      });
+      expect(histories[5]).toMatchObject({
+        loginId: 'locktest',
+        failCount: 5,
+        status: 'LOCKED',
+        loginAt: null,
+      });
     });
   });
 
@@ -469,6 +582,8 @@ describe('Auth E2E - Full Login Process', () => {
       const verifyRes = await request(app.getHttpServer())
         .post('/auth/2fa/verify')
         .set('x-2fa-token', twoFactorToken)
+        .set('x-real-ip', '203.0.113.20')
+        .set('x-access-channel', 'http://admin-bo.test')
         .send({ totpCode })
         .expect(201);
 
@@ -484,6 +599,19 @@ describe('Auth E2E - Full Login Process', () => {
       expect(payload.userType).toBe('LOTTE_CARD_BO');
       expect(payload.roleType).toBeUndefined();
       expect(payload.jti).toEqual(expect.any(String));
+
+      const histories = testLoginHistoryService.getAll();
+      expect(histories).toHaveLength(1);
+      expect(histories[0]).toMatchObject({
+        loginId: 'lottecard',
+        accountId: 9,
+        addrIp: '203.0.113.20',
+        failCount: 0,
+        status: 'ACTIVE',
+        accessChannel: 'http://admin-bo.test',
+        failedAt: null,
+      });
+      expect(histories[0].loginAt).toBeInstanceOf(Date);
     });
 
     it('ADMIN_BO 계정은 roleType을 포함해 토큰 발급', async () => {
@@ -711,6 +839,7 @@ describe('Auth E2E - Full Login Process', () => {
       expect(refreshRes.body.accessToken).not.toBe(
         loginRes.body.tokens.accessToken,
       );
+      expect(testLoginHistoryService.getAll()).toHaveLength(1);
     });
 
     it('잘못된 refresh token → 11012 TOKEN_EXPIRED', async () => {
@@ -751,6 +880,7 @@ describe('Auth E2E - Full Login Process', () => {
         .expect(201);
 
       expect(changeRes.body.success).toBe(true);
+      expect(testLoginHistoryService.getAll()).toHaveLength(1);
 
       // Step 3: 새 비밀번호로 로그인 성공 확인
       const reLoginRes = await request(app.getHttpServer())
@@ -761,6 +891,7 @@ describe('Auth E2E - Full Login Process', () => {
 
       expect(reLoginRes.body.requiresTwoFactor).toBe(false);
       expect(reLoginRes.body.tokens.accessToken).toBeDefined();
+      expect(testLoginHistoryService.getAll()).toHaveLength(2);
     });
 
     it('현재 비밀번호 틀림 → 11010 INVALID_CREDENTIALS', async () => {
@@ -835,6 +966,7 @@ describe('Auth E2E - Full Login Process', () => {
 
       expect(refreshRes.body.accessToken).toBeDefined();
       expect(refreshRes.body.refreshToken).toBeDefined();
+      expect(testLoginHistoryService.getAll()).toHaveLength(1);
 
       // Step 4: 패스워드 변경 (Step 2에서 받은 accessToken 사용)
       const changeRes = await request(app.getHttpServer())
@@ -844,6 +976,7 @@ describe('Auth E2E - Full Login Process', () => {
         .expect(201);
 
       expect(changeRes.body.success).toBe(true);
+      expect(testLoginHistoryService.getAll()).toHaveLength(1);
     });
   });
 });

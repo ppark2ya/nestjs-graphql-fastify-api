@@ -24,22 +24,24 @@ export class AuthProxyService {
     loginId: string,
     password: string,
     userType: string,
+    metaHeaders: Record<string, string> = {},
   ): Promise<AuthResponse> {
     return this.post<AuthResponse>(
       '/auth/login',
       { loginId, password },
-      { 'X-User-Type': userType },
+      { ...metaHeaders, 'X-User-Type': userType },
     );
   }
 
   async verifyTwoFactor(
     twoFactorToken: string,
     totpCode: string,
+    metaHeaders: Record<string, string> = {},
   ): Promise<AuthTokens> {
     return this.post<AuthTokens>(
       '/auth/2fa/verify',
       { totpCode },
-      { 'X-2FA-Token': twoFactorToken },
+      { ...metaHeaders, 'X-2FA-Token': twoFactorToken },
     );
   }
 

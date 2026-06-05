@@ -3,6 +3,7 @@ import type { AuthResponse, AuthTokens } from '@monorepo/shared';
 import { AuthErrorException } from './filters/auth-error.filter';
 import { AUTH_ERROR } from './constants/auth-error';
 import { UserType } from './enums/user-type.enum';
+import type { LoginRequestMeta } from '../login-history/login-history.service';
 
 const SPRING_COMPATIBLE_ROLE_TYPES = new Set([
   'SUPER_ADMIN',
@@ -79,6 +80,7 @@ export class MockAuthService {
     loginId: string,
     password: string,
     userType: string,
+    _meta?: LoginRequestMeta,
   ): Promise<AuthResponse> {
     const account = MOCK_ACCOUNTS.find(
       (a) => a.loginId === loginId && a.userType === userType,
@@ -112,6 +114,7 @@ export class MockAuthService {
   async verifyTwoFactor(
     twoFactorToken: string,
     totpCode: string,
+    _meta?: LoginRequestMeta,
   ): Promise<AuthTokens> {
     if (!twoFactorToken.startsWith('mock2fa.')) {
       throw new AuthErrorException(

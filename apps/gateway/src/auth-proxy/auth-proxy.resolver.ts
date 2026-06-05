@@ -20,9 +20,13 @@ export class AuthProxyResolver {
     @Args('input') input: LoginInput,
     @Context() ctx: GraphQLContext,
   ): Promise<LoginResult> {
-    const userType =
-      (ctx.req.headers['x-user-type'] as string | undefined) ?? '';
-    return this.authProxyService.login(input.loginId, input.password, userType);
+    const userType = this.headerValue(ctx.req, 'x-user-type') ?? '';
+    return this.authProxyService.login(
+      input.loginId,
+      input.password,
+      userType,
+      this.authMetaHeaders(ctx.req),
+    );
   }
 
   @Public()
@@ -31,11 +35,11 @@ export class AuthProxyResolver {
     @Args('input') input: TotpVerifyInput,
     @Context() ctx: GraphQLContext,
   ): Promise<AuthToken> {
-    const twoFactorToken =
-      (ctx.req.headers['x-2fa-token'] as string | undefined) ?? '';
+    const twoFactorToken = this.headerValue(ctx.req, 'x-2fa-token') ?? '';
     return this.authProxyService.verifyTwoFactor(
       twoFactorToken,
       input.totpCode,
+      this.authMetaHeaders(ctx.req),
     );
   }
 
@@ -60,5 +64,31 @@ export class AuthProxyResolver {
       input.newPassword,
     );
     return result.success;
+  }
+
+  private authMetaHeaders(req: FastifyRequest): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const forwardedFor = this.headerValue(req, 'x-forwarded-for');
+    const realIp = this.headerValue(req, 'x-real-ip');
+    const accessChannel = this.headerValue(req, 'x-access-channel');
+
+    if (forwardedFor) {
+      headers['X-Forwarded-For'] = forwardedFor;
+    } else if (req.ip) {
+      headers['X-Forwarded-For'] = req.ip;
+    }
+    if (realIp) {
+      headers['X-Real-IP'] = realIp;
+    }
+    if (accessChannel) {
+      headers['X-Access-Channel'] = accessChannel;
+    }
+
+    return headers;
+  }
+
+  private headerValue(req: FastifyRequest, name: string): string | undefined {
+    const value = req.headers[name];
+    return Array.isArray(value) ? value[0] : value;
   }
 }
