@@ -4,4 +4,5 @@ export interface AuthResponse {
   requiresTwoFactor: boolean;
   tokens?: AuthTokens;
   twoFactorToken?: string;
+  tOtpUrl?: string | null;
 }

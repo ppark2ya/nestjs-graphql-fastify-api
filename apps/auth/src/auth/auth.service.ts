@@ -20,6 +20,7 @@ type ChangePasswordCredential = {
   accessToken?: string;
   passwordChangeToken?: string;
 };
+
 const SPRING_COMPATIBLE_ROLE_TYPES = new Set([
   'SUPER_ADMIN',
   'ADMIN',
@@ -71,11 +72,13 @@ export class AuthService {
     await this.validatePasswordExpiry(account);
 
     if (TWO_FACTOR_REQUIRED_TYPES.has(userType)) {
+      await this.accountService.resetFailCount(account.id);
       const twoFactorToken = await this.jwtTokenService.signTwoFactorToken(
         String(account.id),
         userType,
       );
-      return { requiresTwoFactor: true, twoFactorToken };
+      const tOtpUrl = await this.createTotpRegistrationUrlIfRequired(account);
+      return { requiresTwoFactor: true, twoFactorToken, tOtpUrl };
     }
 
     const tokens = await this.issueTokens(account);
@@ -260,6 +263,36 @@ export class AuthService {
   private hashPassword(plain: string): string {
     const hash = bcryptjs.hashSync(plain, 10);
     return `{bcrypt}${hash}`;
+  }
+
+  private async createTotpRegistrationUrlIfRequired(account: {
+    id: number;
+    loginId: Buffer | string;
+    name: string | null;
+    otpSecretKey: string | null;
+    lastLoginAt: Date | null;
+  }): Promise<string | null> {
+    if (account.otpSecretKey !== null && account.lastLoginAt !== null) {
+      return null;
+    }
+
+    const otpSecretKey = this.totpService.generateSecret();
+    await this.accountService.updateOtpSecretKey(account.id, otpSecretKey);
+
+    return this.totpService.generateKeyUri(
+      this.normalizeTotpAccountName(account),
+      otpSecretKey,
+    );
+  }
+
+  private normalizeTotpAccountName(account: {
+    loginId: Buffer | string;
+    name: string | null;
+  }): string {
+    return (
+      account.name?.trim() ||
+      this.requireNonBlank(this.normalizeLoginId(account.loginId), 'loginId')
+    );
   }
 
   private async issueTokens(account: {

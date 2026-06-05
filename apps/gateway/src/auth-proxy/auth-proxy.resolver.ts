@@ -1,4 +1,5 @@
 import { Resolver, Mutation, Args, Context } from '@nestjs/graphql';
+import { FastifyRequest } from 'fastify';
 import { AuthProxyService } from './auth-proxy.service';
 import { LoginInput } from './dto/login.input';
 import { TotpVerifyInput } from './dto/totp-verify.input';
@@ -6,7 +7,6 @@ import { RefreshTokenInput } from './dto/refresh-token.input';
 import { ChangePasswordInput } from './dto/change-password.input';
 import { LoginResult } from './models/login-result.model';
 import { AuthToken } from './models/auth-token.model';
-import { FastifyRequest } from 'fastify';
 import { Public } from '../auth/public.decorator';
 import { GraphQLContext } from '../types/graphql-context.interface';
 
@@ -86,11 +86,6 @@ export class AuthProxyResolver {
     return headers;
   }
 
-  private headerValue(req: FastifyRequest, name: string): string | undefined {
-    const value = req.headers[name];
-    return Array.isArray(value) ? value[0] : value;
-  }
-
   private authPasswordHeaders(req: FastifyRequest): Record<string, string> {
     const headers: Record<string, string> = {};
     const authorization = this.headerValue(req, 'authorization');
@@ -107,5 +102,10 @@ export class AuthProxyResolver {
     }
 
     return headers;
+  }
+
+  private headerValue(req: FastifyRequest, name: string): string | undefined {
+    const value = req.headers[name];
+    return Array.isArray(value) ? value[0] : value;
   }
 }

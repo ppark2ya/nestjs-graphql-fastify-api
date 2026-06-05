@@ -44,7 +44,7 @@ test.describe('Login Page', () => {
               extensions: {
                 code: 'UNAUTHENTICATED',
                 statusCode: 401,
-                authErrorCode: '11010',
+                errorCode: '11010',
                 downstreamService: 'auth',
               },
             },
@@ -98,7 +98,7 @@ test.describe('OTP Input', () => {
                 extensions: {
                   code: 'UNAUTHENTICATED',
                   statusCode: 401,
-                  authErrorCode: '11011',
+                  errorCode: '11011',
                   downstreamService: 'auth',
                 },
               },

@@ -45,10 +45,24 @@ export class AccountService {
       .where(eq(tbAccount.id, id));
   }
 
+  async resetFailCount(id: number) {
+    await this.db
+      .update(tbAccount)
+      .set({ failCount: 0 })
+      .where(eq(tbAccount.id, id));
+  }
+
   async resetFailCountAndUpdateLoginAt(id: number) {
     await this.db
       .update(tbAccount)
       .set({ failCount: 0, lastLoginAt: new Date() })
+      .where(eq(tbAccount.id, id));
+  }
+
+  async updateOtpSecretKey(id: number, otpSecretKey: string) {
+    await this.db
+      .update(tbAccount)
+      .set({ otpSecretKey })
       .where(eq(tbAccount.id, id));
   }
 

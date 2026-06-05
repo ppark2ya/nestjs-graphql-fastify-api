@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { AxiosError } from 'axios';
+import { AxiosError, isAxiosError } from 'axios';
 import CircuitBreaker from 'opossum';
 
 const DEFAULT_OPTIONS: CircuitBreaker.Options = {
@@ -14,13 +14,29 @@ const DEFAULT_OPTIONS: CircuitBreaker.Options = {
 export class CircuitBreakerService {
   private readonly breakers = new Map<string, CircuitBreaker>();
 
-  private isStructuredAuthError(error: unknown): boolean {
-    if (!(error instanceof AxiosError)) {
+  private isStructuredDownstreamError(error: unknown): boolean {
+    const axiosError = this.findAxiosErrorWithResponse(error);
+    if (!axiosError) {
       return false;
     }
 
-    const data = this.parseErrorData(error.response?.data);
+    const data = this.parseErrorData(axiosError.response?.data);
     return Boolean(data.code && data.message);
+  }
+
+  private findAxiosErrorWithResponse(error: unknown): AxiosError | null {
+    let current = error;
+    let fallback: AxiosError | null = null;
+
+    while (isAxiosError(current)) {
+      fallback = current;
+      if (current.response) {
+        return current;
+      }
+      current = current.cause;
+    }
+
+    return fallback;
   }
 
   private parseErrorData(data: unknown): { code?: string; message?: string } {
@@ -38,7 +54,12 @@ export class CircuitBreakerService {
 
     const record = data as Record<string, unknown>;
     return {
-      code: typeof record.code === 'string' ? record.code : undefined,
+      code:
+        typeof record.errorCode === 'string'
+          ? record.errorCode
+          : typeof record.code === 'string'
+            ? record.code
+            : undefined,
       message: typeof record.message === 'string' ? record.message : undefined,
     };
   }
@@ -49,8 +70,7 @@ export class CircuitBreakerService {
       breaker = new CircuitBreaker((fn: () => Promise<unknown>) => fn(), {
         ...DEFAULT_OPTIONS,
         name: domain,
-        errorFilter: (error) =>
-          domain === 'auth-server' && this.isStructuredAuthError(error),
+        errorFilter: (error) => this.isStructuredDownstreamError(error),
       });
       this.breakers.set(domain, breaker);
     }

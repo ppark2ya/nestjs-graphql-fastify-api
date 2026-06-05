@@ -5,6 +5,7 @@ export const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   API_KEYS: z.string().default('test-api-key-1,test-api-key-2'),
   AUTH_SERVICE_URL: z.string().url().default('http://localhost:4001'),
+  KIOSK_ADMIN_URL: z.string().url().default('http://localhost:4004'),
   GW_URL: z.string().url().default('http://localhost:4000'),
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().default(6379),

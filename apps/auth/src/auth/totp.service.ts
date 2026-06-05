@@ -8,7 +8,7 @@ export class TotpService {
   }
 
   generateKeyUri(username: string, secret: string): string {
-    return authenticator.keyuri(username, 'AuthServer', secret);
+    return authenticator.keyuri(username, 'MX_ADMIN', secret);
   }
 
   verify(token: string, secret: string): boolean {

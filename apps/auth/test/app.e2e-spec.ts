@@ -77,7 +77,7 @@ function createTestAccounts(): TestAccount[] {
       otpSecretKey: OTP_SECRET,
       failCount: 0,
       lastPasswordChangedAt: new Date(),
-      lastLoginAt: null,
+      lastLoginAt: new Date(),
       email: null,
     },
     {
@@ -103,6 +103,51 @@ function createTestAccounts(): TestAccount[] {
       userType: 'LOTTE_CARD_BO',
       roleType: null,
       customerNo: 'LC001',
+      status: 'ACTIVE',
+      otpSecretKey: OTP_SECRET,
+      failCount: 0,
+      lastPasswordChangedAt: new Date(),
+      lastLoginAt: new Date(),
+      email: null,
+    },
+    {
+      id: 10,
+      loginId: Buffer.from('newadmin'),
+      password: pw,
+      name: '신규관리자',
+      userType: 'ADMIN_BO',
+      roleType: 'ADMIN',
+      customerNo: 'C010',
+      status: 'ACTIVE',
+      otpSecretKey: null,
+      failCount: 2,
+      lastPasswordChangedAt: new Date(),
+      lastLoginAt: null,
+      email: null,
+    },
+    {
+      id: 11,
+      loginId: Buffer.from('otpreset'),
+      password: pw,
+      name: 'OTP초기화',
+      userType: 'ADMIN_BO',
+      roleType: 'ADMIN',
+      customerNo: 'C011',
+      status: 'ACTIVE',
+      otpSecretKey: null,
+      failCount: 1,
+      lastPasswordChangedAt: new Date(),
+      lastLoginAt: new Date(),
+      email: null,
+    },
+    {
+      id: 12,
+      loginId: Buffer.from('legacyadmin'),
+      password: pw,
+      name: '레거시관리자',
+      userType: 'ADMIN_BO',
+      roleType: 'ADMIN',
+      customerNo: 'C012',
       status: 'ACTIVE',
       otpSecretKey: OTP_SECRET,
       failCount: 0,
@@ -241,11 +286,25 @@ class TestAccountService {
     }
   }
 
+  async resetFailCount(accountId: number) {
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (account) {
+      account.failCount = 0;
+    }
+  }
+
   async resetFailCountAndUpdateLoginAt(accountId: number) {
     const account = this.accounts.find((a) => a.id === accountId);
     if (account) {
       account.failCount = 0;
       account.lastLoginAt = new Date();
+    }
+  }
+
+  async updateOtpSecretKey(accountId: number, otpSecretKey: string) {
+    const account = this.accounts.find((a) => a.id === accountId);
+    if (account) {
+      account.otpSecretKey = otpSecretKey;
     }
   }
 
@@ -416,8 +475,99 @@ describe('Auth E2E - Full Login Process', () => {
 
       expect(res.body.requiresTwoFactor).toBe(true);
       expect(res.body.twoFactorToken).toBeDefined();
+      expect(res.body.tOtpUrl).toBeNull();
       expect(res.body.tokens).toBeUndefined();
       expect(testLoginHistoryService.getAll()).toHaveLength(0);
+    });
+
+    it('OTP 키와 마지막 로그인 시간이 없으면 tOtpUrl을 반환하고 OTP 키를 저장한다', async () => {
+      const beforeAccount = await testAccountService.findByLoginIdAndUserType(
+        'newadmin',
+        'ADMIN_BO',
+      );
+      expect(beforeAccount?.otpSecretKey).toBeNull();
+      expect(beforeAccount?.lastLoginAt).toBeNull();
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'newadmin', password: TEST_PASSWORD })
+        .expect(201);
+
+      const afterAccount = await testAccountService.findByLoginIdAndUserType(
+        'newadmin',
+        'ADMIN_BO',
+      );
+      expect(res.body.requiresTwoFactor).toBe(true);
+      expect(res.body.twoFactorToken).toBeDefined();
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('otpauth://'));
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('issuer=MX_ADMIN'));
+      expect(decodeURIComponent(res.body.tOtpUrl)).toEqual(
+        expect.stringContaining('MX_ADMIN:신규관리자'),
+      );
+      expect(afterAccount?.otpSecretKey).toEqual(expect.any(String));
+      expect(afterAccount?.lastLoginAt).toBeNull();
+      expect(afterAccount?.failCount).toBe(0);
+    });
+
+    it('OTP 키만 없으면 OR 정책에 따라 tOtpUrl을 반환하고 OTP 키를 저장한다', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'otpreset', password: TEST_PASSWORD })
+        .expect(201);
+
+      const account = await testAccountService.findByLoginIdAndUserType(
+        'otpreset',
+        'ADMIN_BO',
+      );
+      expect(res.body.requiresTwoFactor).toBe(true);
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('otpauth://'));
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('issuer=MX_ADMIN'));
+      expect(decodeURIComponent(res.body.tOtpUrl)).toEqual(
+        expect.stringContaining('MX_ADMIN:OTP초기화'),
+      );
+      expect(account?.otpSecretKey).toEqual(expect.any(String));
+      expect(account?.lastLoginAt).toBeInstanceOf(Date);
+    });
+
+    it('마지막 로그인 시간만 없으면 OR 정책에 따라 OTP 키를 재생성하고 tOtpUrl을 반환한다', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'legacyadmin', password: TEST_PASSWORD })
+        .expect(201);
+
+      const account = await testAccountService.findByLoginIdAndUserType(
+        'legacyadmin',
+        'ADMIN_BO',
+      );
+      expect(res.body.requiresTwoFactor).toBe(true);
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('otpauth://'));
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('issuer=MX_ADMIN'));
+      expect(decodeURIComponent(res.body.tOtpUrl)).toEqual(
+        expect.stringContaining('MX_ADMIN:레거시관리자'),
+      );
+      expect(account?.otpSecretKey).toEqual(expect.any(String));
+      expect(account?.otpSecretKey).not.toBe(OTP_SECRET);
+      expect(account?.lastLoginAt).toBeNull();
+    });
+
+    it('OTP 등록 URL은 이름이 없으면 loginId를 label fallback으로 사용한다', async () => {
+      testAccountService.updateTokenClaims(10, { name: null });
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'newadmin', password: TEST_PASSWORD })
+        .expect(201);
+
+      expect(res.body.requiresTwoFactor).toBe(true);
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('otpauth://'));
+      expect(res.body.tOtpUrl).toEqual(expect.stringContaining('issuer=MX_ADMIN'));
+      expect(decodeURIComponent(res.body.tOtpUrl)).toEqual(
+        expect.stringContaining('MX_ADMIN:newadmin'),
+      );
     });
 
     it('잘못된 비밀번호 → 11010 INVALID_CREDENTIALS', async () => {
@@ -622,6 +772,34 @@ describe('Auth E2E - Full Login Process', () => {
         failedAt: null,
       });
       expect(histories[0].loginAt).toBeInstanceOf(Date);
+    });
+
+    it('2FA 필요 계정은 2FA 검증 성공 후 lastLoginAt을 갱신한다', async () => {
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'ADMIN_BO')
+        .send({ loginId: 'newadmin', password: TEST_PASSWORD })
+        .expect(201);
+
+      const beforeVerify = await testAccountService.findByLoginIdAndUserType(
+        'newadmin',
+        'ADMIN_BO',
+      );
+      expect(beforeVerify?.lastLoginAt).toBeNull();
+      expect(beforeVerify?.otpSecretKey).toEqual(expect.any(String));
+
+      const totpCode = authenticator.generate(beforeVerify!.otpSecretKey!);
+      await request(app.getHttpServer())
+        .post('/auth/2fa/verify')
+        .set('x-2fa-token', loginRes.body.twoFactorToken)
+        .send({ totpCode })
+        .expect(201);
+
+      const afterVerify = await testAccountService.findByLoginIdAndUserType(
+        'newadmin',
+        'ADMIN_BO',
+      );
+      expect(afterVerify?.lastLoginAt).toBeInstanceOf(Date);
     });
 
     it('ADMIN_BO 계정은 roleType을 포함해 토큰 발급', async () => {
@@ -1018,6 +1196,22 @@ describe('Auth E2E - Full Login Process', () => {
         .set('Authorization', `Bearer ${loginRes.body.tokens.accessToken}`)
         .send({ currentPassword: TEST_PASSWORD, newPassword: 'short' })
         .expect(400);
+    });
+
+    it('새 비밀번호가 8자 이상이지만 영문/숫자/특수문자 조합 정책을 만족하지 않으면 400', async () => {
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'DASHBOARD')
+        .send({ loginId: 'dashboard', password: TEST_PASSWORD })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/password')
+        .set('Authorization', `Bearer ${loginRes.body.tokens.accessToken}`)
+        .send({ currentPassword: TEST_PASSWORD, newPassword: 'abc12345' })
+        .expect(400);
+
+      expect(res.body.message).toContain('올바른 패스워드 형식이 아닙니다.');
     });
   });
 
