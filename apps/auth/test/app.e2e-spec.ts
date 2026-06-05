@@ -8,7 +8,13 @@ import { PassportModule } from '@nestjs/passport';
 import request from 'supertest';
 import * as bcryptjs from 'bcryptjs';
 import { authenticator } from 'otplib';
-import { generateKeyPair, exportPKCS8, exportSPKI, decodeJwt } from 'jose';
+import {
+  generateKeyPair,
+  exportPKCS8,
+  exportSPKI,
+  decodeJwt,
+  SignJWT,
+} from 'jose';
 import { writeFileSync, mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -497,6 +503,10 @@ describe('Auth E2E - Full Login Process', () => {
         .expect(400);
 
       expect(res.body.code).toBe('11004');
+      expect(res.body.passwordChangeToken).toEqual(expect.any(String));
+      expect(res.body.tokens).toBeUndefined();
+      expect(res.body.twoFactorToken).toBeUndefined();
+      expect(testLoginHistoryService.getAll()).toHaveLength(0);
     });
 
     it('loginId 누락 → 400 Validation Error', async () => {
@@ -862,6 +872,85 @@ describe('Auth E2E - Full Login Process', () => {
   // ─── POST /auth/password ───────────────────────────────────────
 
   describe('POST /auth/password', () => {
+    it('패스워드 만료 토큰으로 패스워드 변경 성공', async () => {
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'DASHBOARD')
+        .send({ loginId: 'expired', password: TEST_PASSWORD })
+        .expect(400);
+
+      const passwordChangeToken = loginRes.body.passwordChangeToken;
+      expect(passwordChangeToken).toBeDefined();
+
+      const changeRes = await request(app.getHttpServer())
+        .post('/auth/password')
+        .set('x-password-change-token', passwordChangeToken)
+        .send({ currentPassword: TEST_PASSWORD, newPassword: 'newpass1234' })
+        .expect(201);
+
+      expect(changeRes.body.success).toBe(true);
+      expect(testLoginHistoryService.getAll()).toHaveLength(0);
+
+      const reLoginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'DASHBOARD')
+        .send({ loginId: 'expired', password: 'newpass1234' })
+        .expect(201);
+
+      expect(reLoginRes.body.requiresTwoFactor).toBe(false);
+      expect(reLoginRes.body.tokens.accessToken).toBeDefined();
+      expect(testLoginHistoryService.getAll()).toHaveLength(1);
+    });
+
+    it('잘못된 패스워드 만료 토큰 → 11012 TOKEN_EXPIRED', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/password')
+        .set('x-password-change-token', 'invalid.token.here')
+        .send({ currentPassword: TEST_PASSWORD, newPassword: 'newpass1234' })
+        .expect(401);
+
+      expect(res.body.code).toBe('11012');
+    });
+
+    it('2FA 토큰을 패스워드 만료 토큰으로 사용하면 → 11012 TOKEN_EXPIRED', async () => {
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'LOTTE_CARD_BO')
+        .send({ loginId: 'lottecard', password: TEST_PASSWORD })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/password')
+        .set('x-password-change-token', loginRes.body.twoFactorToken)
+        .send({ currentPassword: TEST_PASSWORD, newPassword: 'newpass1234' })
+        .expect(401);
+
+      expect(res.body.code).toBe('11012');
+    });
+
+    it('다른 key로 서명한 패스워드 만료 토큰 → 11012 TOKEN_EXPIRED', async () => {
+      const { privateKey: otherPrivateKey } = await generateKeyPair('RS256');
+      const passwordChangeToken = await new SignJWT({
+        sub: '7',
+        type: 'password_change',
+        userType: 'DASHBOARD',
+      })
+        .setProtectedHeader({ alg: 'RS256' })
+        .setIssuedAt()
+        .setExpirationTime('5m')
+        .setIssuer('auth-server')
+        .setSubject('7')
+        .sign(otherPrivateKey);
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/password')
+        .set('x-password-change-token', passwordChangeToken)
+        .send({ currentPassword: TEST_PASSWORD, newPassword: 'newpass1234' })
+        .expect(401);
+
+      expect(res.body.code).toBe('11012');
+    });
+
     it('패스워드 변경 성공', async () => {
       // Step 1: 로그인
       const loginRes = await request(app.getHttpServer())

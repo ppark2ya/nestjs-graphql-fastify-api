@@ -2,7 +2,6 @@ import {
   Controller,
   Post,
   Body,
-  UseGuards,
   Req,
   UsePipes,
   Inject,
@@ -11,7 +10,6 @@ import {
 import { FastifyRequest } from 'fastify';
 import { AuthService } from './auth.service';
 import { MockAuthService } from './auth-mock.service';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ZodValidationPipe } from './zod-validation.pipe';
 import { AuthErrorFilter } from './filters/auth-error.filter';
 import {
@@ -68,14 +66,16 @@ export class AuthController {
   }
 
   @Post('password')
-  @UseGuards(JwtAuthGuard)
   @UsePipes(new ZodValidationPipe(ChangePasswordSchema))
   async changePassword(
     @Body() body: ChangePasswordDto,
-    @Req() req: FastifyRequest & { user: { userId: number } },
+    @Req() req: FastifyRequest,
   ) {
     return this.authService.changePassword(
-      Number(req.user.userId),
+      {
+        accessToken: this.bearerToken(req),
+        passwordChangeToken: this.headerValue(req, 'x-password-change-token'),
+      },
       body.currentPassword,
       body.newPassword,
     );
@@ -99,5 +99,11 @@ export class AuthController {
   private headerValue(req: FastifyRequest, name: string): string | undefined {
     const value = req.headers[name];
     return Array.isArray(value) ? value[0] : value;
+  }
+
+  private bearerToken(req: FastifyRequest): string | undefined {
+    const authorization = this.headerValue(req, 'authorization')?.trim();
+    const [scheme, token] = authorization?.split(/\s+/, 2) ?? [];
+    return scheme?.toLowerCase() === 'bearer' && token ? token : undefined;
   }
 }

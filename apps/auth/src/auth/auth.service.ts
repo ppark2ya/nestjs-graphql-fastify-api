@@ -16,6 +16,10 @@ import {
 import { tbAccount } from '../database/schema';
 
 type AccessTokenPayload = Omit<JwtPayload, 'iat' | 'exp' | 'jti'>;
+type ChangePasswordCredential = {
+  accessToken?: string;
+  passwordChangeToken?: string;
+};
 const SPRING_COMPATIBLE_ROLE_TYPES = new Set([
   'SUPER_ADMIN',
   'ADMIN',
@@ -64,7 +68,7 @@ export class AuthService {
       this.throwAuthError('INVALID_CREDENTIALS');
     }
 
-    this.validatePasswordExpiry(account.lastPasswordChangedAt);
+    await this.validatePasswordExpiry(account);
 
     if (TWO_FACTOR_REQUIRED_TYPES.has(userType)) {
       const twoFactorToken = await this.jwtTokenService.signTwoFactorToken(
@@ -121,11 +125,12 @@ export class AuthService {
   }
 
   async changePassword(
-    userId: number,
+    credential: ChangePasswordCredential,
     currentPassword: string,
     newPassword: string,
   ): Promise<{ success: boolean }> {
-    const account = await this.accountService.findById(userId);
+    const accountId = await this.resolveChangePasswordAccountId(credential);
+    const account = await this.accountService.findById(accountId);
     if (!account) {
       this.throwAuthError('INVALID_CREDENTIALS');
     }
@@ -160,15 +165,51 @@ export class AuthService {
     }
   }
 
-  private validatePasswordExpiry(lastChanged: Date | null): void {
+  private async validatePasswordExpiry(
+    account: typeof tbAccount.$inferSelect,
+  ): Promise<void> {
+    const lastChanged = account.lastPasswordChangedAt;
     if (!lastChanged) return;
 
     const daysSinceChange = Math.floor(
       (Date.now() - new Date(lastChanged).getTime()) / (1000 * 60 * 60 * 24),
     );
     if (daysSinceChange >= AUTH_CONSTANTS.PASSWORD_EXPIRY_DAYS) {
-      this.throwAuthError('PASSWORD_EXPIRED');
+      const passwordChangeToken =
+        await this.jwtTokenService.signPasswordChangeToken(
+          String(account.id),
+          account.userType,
+        );
+      this.throwAuthError('PASSWORD_EXPIRED', { passwordChangeToken });
     }
+  }
+
+  private async resolveChangePasswordAccountId({
+    accessToken,
+    passwordChangeToken,
+  }: ChangePasswordCredential): Promise<number> {
+    if (passwordChangeToken) {
+      const payload = await this.jwtTokenService
+        .verifyPasswordChangeToken(passwordChangeToken)
+        .catch(() => {
+          this.throwAuthError('TOKEN_EXPIRED');
+        });
+      return Number(payload.sub);
+    }
+
+    if (accessToken) {
+      const payload = await this.jwtTokenService
+        .verifyToken(accessToken)
+        .catch(() => {
+          this.throwAuthError('TOKEN_EXPIRED');
+        });
+      if ((payload as { type?: string }).type) {
+        this.throwAuthError('TOKEN_EXPIRED');
+      }
+      return Number(payload.sub);
+    }
+
+    this.throwAuthError('TOKEN_EXPIRED');
   }
 
   private async handleFailedLogin(
@@ -306,8 +347,16 @@ export class AuthService {
     return SPRING_COMPATIBLE_ROLE_TYPES.has(roleType) ? roleType : undefined;
   }
 
-  private throwAuthError(key: keyof typeof AUTH_ERROR): never {
+  private throwAuthError(
+    key: keyof typeof AUTH_ERROR,
+    extensions?: Record<string, unknown>,
+  ): never {
     const error = AUTH_ERROR[key];
-    throw new AuthErrorException(error.code, error.message, error.status);
+    throw new AuthErrorException(
+      error.code,
+      error.message,
+      error.status,
+      extensions,
+    );
   }
 }

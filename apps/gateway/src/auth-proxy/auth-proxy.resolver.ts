@@ -57,12 +57,10 @@ export class AuthProxyResolver {
     @Args('input') input: ChangePasswordInput,
     @Context() ctx: GraphQLContext,
   ): Promise<boolean> {
-    const userId = (ctx.req as FastifyRequest & { user?: { userId: number } })
-      .user?.userId;
     const result = await this.authProxyService.changePassword(
-      Number(userId),
       input.currentPassword,
       input.newPassword,
+      this.authPasswordHeaders(ctx.req),
     );
     return result.success;
   }
@@ -91,5 +89,23 @@ export class AuthProxyResolver {
   private headerValue(req: FastifyRequest, name: string): string | undefined {
     const value = req.headers[name];
     return Array.isArray(value) ? value[0] : value;
+  }
+
+  private authPasswordHeaders(req: FastifyRequest): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const authorization = this.headerValue(req, 'authorization');
+    const passwordChangeToken = this.headerValue(
+      req,
+      'x-password-change-token',
+    );
+
+    if (authorization) {
+      headers.Authorization = authorization;
+    }
+    if (passwordChangeToken) {
+      headers['X-Password-Change-Token'] = passwordChangeToken;
+    }
+
+    return headers;
   }
 }

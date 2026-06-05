@@ -8,6 +8,7 @@ type ParsedDownstreamError = {
   message?: string;
   code?: string;
   rawMessage?: string;
+  passwordChangeToken?: string;
 };
 
 function parseDownstreamErrorData(data: unknown): ParsedDownstreamError {
@@ -27,6 +28,10 @@ function parseDownstreamErrorData(data: unknown): ParsedDownstreamError {
   return {
     message: typeof record.message === 'string' ? record.message : undefined,
     code: typeof record.code === 'string' ? record.code : undefined,
+    passwordChangeToken:
+      typeof record.passwordChangeToken === 'string'
+        ? record.passwordChangeToken
+        : undefined,
   };
 }
 
@@ -113,6 +118,9 @@ export class AxiosExceptionFilter implements GqlExceptionFilter {
         ...(data.code && { errorCode: data.code }),
         ...(downstreamService === 'auth' &&
           data.code && { authErrorCode: data.code }),
+        ...(data.passwordChangeToken && {
+          passwordChangeToken: data.passwordChangeToken,
+        }),
         ...(downstreamService && { downstreamService }),
       },
     });

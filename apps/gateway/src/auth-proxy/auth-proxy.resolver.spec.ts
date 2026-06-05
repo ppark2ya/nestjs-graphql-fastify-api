@@ -1,17 +1,19 @@
 import { FastifyRequest } from 'fastify';
 import { AuthProxyResolver } from './auth-proxy.resolver';
 import { AuthProxyService } from './auth-proxy.service';
+import { IS_PUBLIC_KEY } from '../auth/public.decorator';
 
 describe('AuthProxyResolver', () => {
   let resolver: AuthProxyResolver;
   let mockService: jest.Mocked<
-    Pick<AuthProxyService, 'login' | 'verifyTwoFactor'>
+    Pick<AuthProxyService, 'login' | 'verifyTwoFactor' | 'changePassword'>
   >;
 
   beforeEach(() => {
     mockService = {
       login: jest.fn(),
       verifyTwoFactor: jest.fn(),
+      changePassword: jest.fn(),
     };
     resolver = new AuthProxyResolver(
       mockService as unknown as AuthProxyService,
@@ -70,6 +72,37 @@ describe('AuthProxyResolver', () => {
       {
         'X-Forwarded-For': '10.0.0.3',
       },
+    );
+  });
+
+  it('passes password change auth headers to proxy calls', async () => {
+    mockService.changePassword.mockResolvedValue({ success: true });
+
+    await resolver.changePassword(
+      { currentPassword: 'old-password', newPassword: 'new-password' },
+      {
+        req: {
+          headers: {
+            authorization: 'Bearer access-token',
+            'x-password-change-token': 'password-change-token',
+          },
+        } as unknown as FastifyRequest,
+      } as any,
+    );
+
+    expect(mockService.changePassword).toHaveBeenCalledWith(
+      'old-password',
+      'new-password',
+      {
+        Authorization: 'Bearer access-token',
+        'X-Password-Change-Token': 'password-change-token',
+      },
+    );
+  });
+
+  it('marks password change mutation as public', () => {
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, resolver.changePassword)).toBe(
+      true,
     );
   });
 });

@@ -62,7 +62,7 @@ const generateMockToken = (payload: object, prefix: string): string => {
 
 const parseMockTokenPayload = (
   token: string,
-): { sub?: number | string } | null => {
+): { sub?: number | string; type?: string } | null => {
   try {
     const [, data] = token.split('.');
     if (!data) return null;
@@ -165,11 +165,13 @@ export class MockAuthService {
   }
 
   async changePassword(
-    userId: number,
+    credential: { accessToken?: string; passwordChangeToken?: string },
     currentPassword: string,
     _newPassword: string, // eslint-disable-line @typescript-eslint/no-unused-vars
   ): Promise<{ success: boolean }> {
-    const account = MOCK_ACCOUNTS.find((a) => a.id === userId);
+    const token = credential.passwordChangeToken ?? credential.accessToken;
+    const payload = token ? parseMockTokenPayload(token) : null;
+    const account = MOCK_ACCOUNTS.find((a) => a.id === Number(payload?.sub));
     if (!account || account.password !== currentPassword) {
       throw new AuthErrorException(
         AUTH_ERROR.INVALID_CREDENTIALS.code,

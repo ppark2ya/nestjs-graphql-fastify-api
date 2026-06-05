@@ -50,14 +50,18 @@ export class AuthProxyService {
   }
 
   async changePassword(
-    userId: number,
     currentPassword: string,
     newPassword: string,
+    authHeaders: Record<string, string> = {},
   ): Promise<{ success: boolean }> {
-    return this.post<{ success: boolean }>('/auth/password', {
-      currentPassword,
-      newPassword,
-    });
+    return this.post<{ success: boolean }>(
+      '/auth/password',
+      {
+        currentPassword,
+        newPassword,
+      },
+      authHeaders,
+    );
   }
 
   private async post<T>(
