@@ -51,6 +51,7 @@ export class AuthProxyResolver {
     return this.authProxyService.refreshToken(input.refreshToken);
   }
 
+  @Public()
   @Mutation(() => Boolean, { description: '패스워드 변경' })
   async changePassword(
     @Args('input') input: ChangePasswordInput,
