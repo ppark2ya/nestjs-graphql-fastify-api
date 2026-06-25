@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { useSubscription, useQuery } from '@apollo/client/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
@@ -22,8 +22,13 @@ interface Props {
   isActive?: boolean;
 }
 
-export default function LogViewer({ containerId, containerName, isActive = true }: Props) {
-  const { logs, addLog, clearLogs, lineCount, batchStartIndex } = useLogBuffer<LogEntry>();
+export default function LogViewer({
+  containerId,
+  containerName,
+  isActive = true,
+}: Props) {
+  const { logs, addLog, clearLogs, lineCount, batchStartIndex } =
+    useLogBuffer<LogEntry>();
   const {
     query: grepQuery,
     setQuery: setGrepQuery,
@@ -45,12 +50,7 @@ export default function LogViewer({ containerId, containerName, isActive = true 
   const [isPaused, setIsPaused] = useState(false);
   const togglePause = () => setIsPaused((prev) => !prev);
 
-  // Freeze displayed logs when paused to prevent virtualizer scroll shifts
-  const frozenLogsRef = useRef(filteredLogs);
-  if (!isPaused) {
-    frozenLogsRef.current = filteredLogs;
-  }
-  const displayedLogs = frozenLogsRef.current;
+  const displayedLogs = filteredLogs;
 
   const virtualizer = useVirtualizer({
     count: displayedLogs.length,
@@ -59,13 +59,17 @@ export default function LogViewer({ containerId, containerName, isActive = true 
     overscan: 20,
   });
 
-  const { scrollRef, isFollowing, handleScroll, scrollToBottom: _scrollToBottom } =
-    useAutoScroll({
-      virtualizer,
-      itemCount: displayedLogs.length,
-      enabled: !isGrepping,
-      isPaused,
-    });
+  const {
+    scrollRef,
+    isFollowing,
+    handleScroll,
+    scrollToBottom: _scrollToBottom,
+  } = useAutoScroll({
+    virtualizer,
+    itemCount: displayedLogs.length,
+    enabled: !isGrepping,
+    isPaused,
+  });
 
   const scrollToBottom = () => {
     setIsPaused(false);
@@ -85,6 +89,7 @@ export default function LogViewer({ containerId, containerName, isActive = true 
     CONTAINER_LOG_SUBSCRIPTION,
     {
       variables: { containerId },
+      skip: isPaused,
       onData: ({ data }) => {
         if (data.data?.containerLog) {
           addLog(data.data.containerLog);
@@ -98,7 +103,7 @@ export default function LogViewer({ containerId, containerName, isActive = true 
     if (isFindMode && currentMatchLogIndex !== null) {
       virtualizer.scrollToIndex(currentMatchLogIndex, { align: 'center' });
     }
-  }, [isFindMode, currentMatchLogIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isFindMode, currentMatchLogIndex, virtualizer]);
 
   // Keyboard navigation: n (next) / Shift+N (prev) in find mode
   const handleKeyDown = useCallback(
@@ -126,7 +131,8 @@ export default function LogViewer({ containerId, containerName, isActive = true 
   // Build a lookup for which match position belongs to which log index
   const getMatchPositionForLog = useCallback(
     (logIndex: number): number | undefined => {
-      if (!isFindMode || !isGrepping || currentMatchLogIndex === null) return undefined;
+      if (!isFindMode || !isGrepping || currentMatchLogIndex === null)
+        return undefined;
       if (logIndex !== currentMatchLogIndex) return undefined;
       return currentMatchPositionInLine;
     },
@@ -147,8 +153,7 @@ export default function LogViewer({ containerId, containerName, isActive = true 
           </span>
           {stats && (
             <span className="text-xs text-muted-foreground font-mono ml-2">
-              CPU {stats.cpuPercent.toFixed(1)}% ·{' '}
-              {formatBytes(stats.memUsage)}
+              CPU {stats.cpuPercent.toFixed(1)}% · {formatBytes(stats.memUsage)}
               {stats.memLimit > 0 ? `/${formatBytes(stats.memLimit)}` : ''}
             </span>
           )}
@@ -253,7 +258,9 @@ export default function LogViewer({ containerId, containerName, isActive = true 
                 ref={virtualizer.measureElement}
                 data-index={virtualRow.index}
                 className={
-                  isFollowing && !isGrepping && virtualRow.index >= batchStartIndex
+                  isFollowing &&
+                  !isGrepping &&
+                  virtualRow.index >= batchStartIndex
                     ? 'animate-log-enter'
                     : undefined
                 }
@@ -268,7 +275,9 @@ export default function LogViewer({ containerId, containerName, isActive = true 
                 <LogRow
                   log={displayedLogs[virtualRow.index]}
                   query={isFindMode && isGrepping ? debouncedQuery : undefined}
-                  currentMatchPositionInLine={getMatchPositionForLog(virtualRow.index)}
+                  currentMatchPositionInLine={getMatchPositionForLog(
+                    virtualRow.index,
+                  )}
                 />
               </div>
             ))}

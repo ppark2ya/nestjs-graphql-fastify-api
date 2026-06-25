@@ -76,8 +76,8 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
   private readonly connections = new Map<string, LogStreamerConnection>();
   private dnsRefreshInterval: ReturnType<typeof setInterval> | null = null;
   private isShuttingDown = false;
-  private activeSubscriptions = new Set<string>();
-  private activeServiceSubscriptions = new Set<string>();
+  private activeSubscriptions = new Map<string, number>();
+  private activeServiceSubscriptions = new Map<string, number>();
 
   constructor(
     private readonly httpService: HttpService,
@@ -158,7 +158,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
           this.logger.log(
             `Re-subscribing ${this.activeSubscriptions.size} active container(s) on [${conn.host}]`,
           );
-          for (const id of this.activeSubscriptions) {
+          for (const id of this.activeSubscriptions.keys()) {
             conn.ws!.send(
               JSON.stringify({ type: 'subscribe', containerId: id }),
             );
@@ -168,7 +168,7 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
           this.logger.log(
             `Re-subscribing ${this.activeServiceSubscriptions.size} active service(s) on [${conn.host}]`,
           );
-          for (const svc of this.activeServiceSubscriptions) {
+          for (const svc of this.activeServiceSubscriptions.keys()) {
             conn.ws!.send(
               JSON.stringify({ type: 'subscribe_service', serviceName: svc }),
             );
@@ -292,9 +292,35 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private retainSubscription(
+    subscriptions: Map<string, number>,
+    key: string,
+  ): boolean {
+    const nextCount = (subscriptions.get(key) ?? 0) + 1;
+    subscriptions.set(key, nextCount);
+    return nextCount === 1;
+  }
+
+  private releaseSubscription(
+    subscriptions: Map<string, number>,
+    key: string,
+  ): boolean {
+    const currentCount = subscriptions.get(key);
+    if (!currentCount) {
+      return false;
+    }
+
+    if (currentCount === 1) {
+      subscriptions.delete(key);
+      return true;
+    }
+
+    subscriptions.set(key, currentCount - 1);
+    return false;
+  }
+
   async subscribeToLogs(containerId: string) {
     const topic = `${LOG_STREAM_TOPIC}.${containerId}`;
-    this.activeSubscriptions.add(containerId);
 
     // 1. Await Redis SUBSCRIBE completion before requesting data
     const preSubId = await this.pubSub.subscribe(topic, () => {});
@@ -305,8 +331,14 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     ) as AsyncIterableIterator<ContainerLogPayload>;
 
     // 3. Now request data from all Log Streamer instances (Redis is ready to receive)
-    const subscribeMsg = JSON.stringify({ type: 'subscribe', containerId });
-    this.broadcastToAll(subscribeMsg);
+    const shouldSubscribeUpstream = this.retainSubscription(
+      this.activeSubscriptions,
+      containerId,
+    );
+    if (shouldSubscribeUpstream) {
+      const subscribeMsg = JSON.stringify({ type: 'subscribe', containerId });
+      this.broadcastToAll(subscribeMsg);
+    }
 
     if (this.connections.size === 0) {
       this.logger.warn(
@@ -326,11 +358,18 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
         return wrapper;
       },
       async return(): Promise<IteratorResult<ContainerLogPayload>> {
-        self.activeSubscriptions.delete(containerId);
-        self.unsubscribeFromLogs(containerId);
-        const result = await originalReturn();
-        self.pubSub.unsubscribe(preSubId);
-        return result;
+        const shouldUnsubscribeUpstream = self.releaseSubscription(
+          self.activeSubscriptions,
+          containerId,
+        );
+        if (shouldUnsubscribeUpstream) {
+          self.unsubscribeFromLogs(containerId);
+        }
+        try {
+          return await originalReturn();
+        } finally {
+          self.pubSub.unsubscribe(preSubId);
+        }
       },
     };
     return wrapper;
@@ -338,7 +377,6 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
 
   async subscribeToServiceLogs(serviceName: string) {
     const topic = `${SERVICE_LOG_TOPIC}.${serviceName}`;
-    this.activeServiceSubscriptions.add(serviceName);
 
     // 1. Await Redis SUBSCRIBE completion before requesting data
     const preSubId = await this.pubSub.subscribe(topic, () => {});
@@ -349,11 +387,17 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
     ) as AsyncIterableIterator<ServiceLogPayload>;
 
     // 3. Send subscribe_service to all Log Streamer instances
-    const subscribeMsg = JSON.stringify({
-      type: 'subscribe_service',
+    const shouldSubscribeUpstream = this.retainSubscription(
+      this.activeServiceSubscriptions,
       serviceName,
-    });
-    this.broadcastToAll(subscribeMsg);
+    );
+    if (shouldSubscribeUpstream) {
+      const subscribeMsg = JSON.stringify({
+        type: 'subscribe_service',
+        serviceName,
+      });
+      this.broadcastToAll(subscribeMsg);
+    }
 
     if (this.connections.size === 0) {
       this.logger.warn(
@@ -373,11 +417,18 @@ export class LogStreamerProxyService implements OnModuleInit, OnModuleDestroy {
         return wrapper;
       },
       async return(): Promise<IteratorResult<ServiceLogPayload>> {
-        self.activeServiceSubscriptions.delete(serviceName);
-        self.unsubscribeFromServiceLogs(serviceName);
-        const result = await originalReturn();
-        self.pubSub.unsubscribe(preSubId);
-        return result;
+        const shouldUnsubscribeUpstream = self.releaseSubscription(
+          self.activeServiceSubscriptions,
+          serviceName,
+        );
+        if (shouldUnsubscribeUpstream) {
+          self.unsubscribeFromServiceLogs(serviceName);
+        }
+        try {
+          return await originalReturn();
+        } finally {
+          self.pubSub.unsubscribe(preSubId);
+        }
       },
     };
     return wrapper;

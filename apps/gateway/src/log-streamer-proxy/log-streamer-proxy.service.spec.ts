@@ -158,8 +158,23 @@ describe('LogStreamerProxyService', () => {
     it('should track containerId in activeSubscriptions', async () => {
       await service.subscribeToLogs('container-abc');
 
-      const activeSubscriptions = (service as any).activeSubscriptions as Set<string>;
-      expect(activeSubscriptions.has('container-abc')).toBe(true);
+      const activeSubscriptions = (service as any).activeSubscriptions as Map<string, number>;
+      expect(activeSubscriptions.get('container-abc')).toBe(1);
+    });
+
+    it('should send one upstream subscribe for duplicate container subscribers', async () => {
+      await service.subscribeToLogs('container-dup');
+      await service.subscribeToLogs('container-dup');
+
+      const activeSubscriptions = (service as any).activeSubscriptions as Map<string, number>;
+      const subscribeCalls = mockWsInstance.send.mock.calls.filter(
+        ([payload]) =>
+          payload ===
+          JSON.stringify({ type: 'subscribe', containerId: 'container-dup' }),
+      );
+
+      expect(activeSubscriptions.get('container-dup')).toBe(2);
+      expect(subscribeCalls).toHaveLength(1);
     });
 
     it('should warn but not throw when WS is not connected', async () => {
@@ -206,8 +221,26 @@ describe('LogStreamerProxyService', () => {
     it('should track serviceName in activeServiceSubscriptions', async () => {
       await service.subscribeToServiceLogs('my-service');
 
-      const active = (service as any).activeServiceSubscriptions as Set<string>;
-      expect(active.has('my-service')).toBe(true);
+      const active = (service as any).activeServiceSubscriptions as Map<string, number>;
+      expect(active.get('my-service')).toBe(1);
+    });
+
+    it('should send one upstream subscribe_service for duplicate service subscribers', async () => {
+      await service.subscribeToServiceLogs('my-service');
+      await service.subscribeToServiceLogs('my-service');
+
+      const active = (service as any).activeServiceSubscriptions as Map<string, number>;
+      const subscribeCalls = mockWsInstance.send.mock.calls.filter(
+        ([payload]) =>
+          payload ===
+          JSON.stringify({
+            type: 'subscribe_service',
+            serviceName: 'my-service',
+          }),
+      );
+
+      expect(active.get('my-service')).toBe(2);
+      expect(subscribeCalls).toHaveLength(1);
     });
 
     it('should cleanup on iterator.return()', async () => {
@@ -217,7 +250,7 @@ describe('LogStreamerProxyService', () => {
 
       await iterator.return!();
 
-      const active = (service as any).activeServiceSubscriptions as Set<string>;
+      const active = (service as any).activeServiceSubscriptions as Map<string, number>;
       expect(active.has('my-service')).toBe(false);
       expect(mockWsInstance.send).toHaveBeenCalledWith(
         JSON.stringify({ type: 'unsubscribe_service', serviceName: 'my-service' }),
@@ -234,9 +267,9 @@ describe('LogStreamerProxyService', () => {
 
     it('should remove containerId from activeSubscriptions', async () => {
       const iterator = await service.subscribeToLogs('container-abc');
-      const activeSubscriptions = (service as any).activeSubscriptions as Set<string>;
+      const activeSubscriptions = (service as any).activeSubscriptions as Map<string, number>;
 
-      expect(activeSubscriptions.has('container-abc')).toBe(true);
+      expect(activeSubscriptions.get('container-abc')).toBe(1);
 
       await iterator.return!();
 
@@ -280,6 +313,52 @@ describe('LogStreamerProxyService', () => {
       await iterator.return!();
 
       expect(mockReturn).toHaveBeenCalled();
+    });
+
+    it('should keep upstream container subscription until the last duplicate subscriber returns', async () => {
+      const firstIterator = await service.subscribeToLogs('container-dup');
+      const secondIterator = await service.subscribeToLogs('container-dup');
+      const activeSubscriptions = (service as any).activeSubscriptions as Map<string, number>;
+
+      expect(activeSubscriptions.get('container-dup')).toBe(2);
+
+      mockWsInstance.send.mockClear();
+      await firstIterator.return!();
+
+      expect(activeSubscriptions.get('container-dup')).toBe(1);
+      expect(mockWsInstance.send).not.toHaveBeenCalledWith(
+        JSON.stringify({ type: 'unsubscribe', containerId: 'container-dup' }),
+      );
+
+      await secondIterator.return!();
+
+      expect(activeSubscriptions.has('container-dup')).toBe(false);
+      expect(mockWsInstance.send).toHaveBeenCalledWith(
+        JSON.stringify({ type: 'unsubscribe', containerId: 'container-dup' }),
+      );
+    });
+
+    it('should keep upstream service subscription until the last duplicate subscriber returns', async () => {
+      const firstIterator = await service.subscribeToServiceLogs('my-service');
+      const secondIterator = await service.subscribeToServiceLogs('my-service');
+      const active = (service as any).activeServiceSubscriptions as Map<string, number>;
+
+      expect(active.get('my-service')).toBe(2);
+
+      mockWsInstance.send.mockClear();
+      await firstIterator.return!();
+
+      expect(active.get('my-service')).toBe(1);
+      expect(mockWsInstance.send).not.toHaveBeenCalledWith(
+        JSON.stringify({ type: 'unsubscribe_service', serviceName: 'my-service' }),
+      );
+
+      await secondIterator.return!();
+
+      expect(active.has('my-service')).toBe(false);
+      expect(mockWsInstance.send).toHaveBeenCalledWith(
+        JSON.stringify({ type: 'unsubscribe_service', serviceName: 'my-service' }),
+      );
     });
   });
 
