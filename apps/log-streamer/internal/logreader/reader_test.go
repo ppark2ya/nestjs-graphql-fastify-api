@@ -142,6 +142,130 @@ func TestSearchWithKeyword(t *testing.T) {
 	}
 }
 
+func TestSearchWithSameDayTimeRange(t *testing.T) {
+	dir := setupTestDir(t)
+	r := NewReader(dir)
+	params := SearchParams{
+		App:      "order-service",
+		From:     "2024-01-15",
+		To:       "2024-01-15",
+		FromTime: "10:00",
+		ToTime:   "10:00:02",
+		Limit:    100,
+	}
+
+	files, err := r.ListFiles(params.App, params.From, params.To)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if matchFilters(LogLine{Timestamp: "2024-01-15 10:03:00.000"}, params) {
+		t.Fatal("matchFilters should reject timestamps after the end time")
+	}
+	lines, _, err := r.searchFile(params, files[0], 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 3 {
+		t.Fatalf("searchFile got %d lines, want 3: %+v", len(lines), lines)
+	}
+
+	result, err := r.Search(params, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Lines) != 3 {
+		t.Fatalf("got %d lines, want 3", len(result.Lines))
+	}
+	if result.Lines[0].Timestamp != "2024-01-15 10:00:00.000" {
+		t.Errorf("first timestamp = %q", result.Lines[0].Timestamp)
+	}
+	if result.Lines[2].Timestamp != "2024-01-15 10:00:02.000" {
+		t.Errorf("last timestamp = %q", result.Lines[2].Timestamp)
+	}
+}
+
+func TestMatchTimeRange(t *testing.T) {
+	params := SearchParams{
+		From:     "2024-01-15",
+		To:       "2024-01-15",
+		FromTime: "10:00",
+		ToTime:   "10:02",
+	}
+
+	if !matchTimeRange("2024-01-15 10:00:00.000", params) {
+		t.Error("start boundary should match")
+	}
+	if !matchTimeRange("2024-01-15 10:02:59.999", params) {
+		t.Error("minute-level end boundary should include the full minute")
+	}
+	if matchTimeRange("2024-01-15 10:03:00.000", params) {
+		t.Error("timestamp after end boundary should not match")
+	}
+
+	secondParams := SearchParams{
+		From:     "2024-01-15",
+		To:       "2024-01-15",
+		FromTime: "10:00",
+		ToTime:   "10:00:02",
+	}
+	if !matchTimeRange("2024-01-15 10:00:02.999", secondParams) {
+		t.Error("second-level end boundary should include the full second")
+	}
+	if matchTimeRange("2024-01-15 10:00:03.000", secondParams) {
+		t.Error("timestamp after second-level end boundary should not match")
+	}
+}
+
+func TestSearchWithMultiDayTimeRange(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "order-service")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	day1 := `2024-01-15 08:59:59.000 INFO  c.e.App - before range
+2024-01-15 09:00:00.000 INFO  c.e.App - start boundary
+`
+	if err := os.WriteFile(filepath.Join(appDir, "app.2024-01-15.log"), []byte(day1), 0644); err != nil {
+		t.Fatal(err)
+	}
+	day2 := `2024-01-16 12:00:00.000 INFO  c.e.App - middle day
+`
+	if err := os.WriteFile(filepath.Join(appDir, "app.2024-01-16.log"), []byte(day2), 0644); err != nil {
+		t.Fatal(err)
+	}
+	day3 := `2024-01-17 11:00:00.000 INFO  c.e.App - end boundary
+2024-01-17 11:00:01.000 INFO  c.e.App - after range
+`
+	if err := os.WriteFile(filepath.Join(appDir, "app.2024-01-17.log"), []byte(day3), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	result, err := r.Search(SearchParams{
+		App:      "order-service",
+		From:     "2024-01-15",
+		To:       "2024-01-17",
+		FromTime: "09:00",
+		ToTime:   "11:00:00",
+		Limit:    100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Lines) != 3 {
+		t.Fatalf("got %d lines, want 3", len(result.Lines))
+	}
+	if !strings.Contains(result.Lines[0].Message, "start boundary") {
+		t.Errorf("first message = %q", result.Lines[0].Message)
+	}
+	if !strings.Contains(result.Lines[2].Message, "end boundary") {
+		t.Errorf("last message = %q", result.Lines[2].Message)
+	}
+}
+
 func TestSearchPagination(t *testing.T) {
 	dir := setupTestDir(t)
 	r := NewReader(dir)
@@ -186,7 +310,7 @@ func TestStats(t *testing.T) {
 	dir := setupTestDir(t)
 	r := NewReader(dir)
 
-	stats, err := r.Stats("order-service", "2024-01-01", "2024-12-31", "test-node")
+	stats, err := r.Stats("order-service", "2024-01-01", "2024-12-31", "", "", "test-node")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +481,7 @@ func TestSearchCompressedFile(t *testing.T) {
 	}
 
 	// 통계 테스트 (gz 파일도 포함)
-	stats, err := r.Stats("my-app", "2024-01-01", "2024-12-31", "test-node")
+	stats, err := r.Stats("my-app", "2024-01-01", "2024-12-31", "", "", "test-node")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,6 +701,109 @@ func TestSearchMultiLineKeywordInContinuation(t *testing.T) {
 	}
 }
 
+func TestSearchTimeRangeUsesMultiLineEntryStartTimestamp(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "spring-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	log1 := `[INFO ] 2026-02-26 15:20:59.999 [CID:old] [source] before range
+    continuation before
+[ERROR] 2026-02-26 15:21:18.000 [CID:def] [source] Request failed
+java.lang.NullPointerException: null
+    at kr.co.dozn.Service.find(Service.java:42)
+[INFO ] 2026-02-26 15:22:00.001 [CID:new] [source] after range
+`
+	if err := os.WriteFile(filepath.Join(appDir, "app-2026-02-26.log"), []byte(log1), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	result, err := r.Search(SearchParams{
+		App:      "spring-app",
+		From:     "2026-02-26",
+		To:       "2026-02-26",
+		FromTime: "15:21",
+		ToTime:   "15:21",
+		Limit:    100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Lines) != 1 {
+		t.Fatalf("got %d lines, want 1", len(result.Lines))
+	}
+	if result.Lines[0].Level != "ERROR" {
+		t.Errorf("level = %q, want ERROR", result.Lines[0].Level)
+	}
+	if !strings.Contains(result.Lines[0].Message, "NullPointerException") {
+		t.Error("matched entry should keep continuation stacktrace")
+	}
+}
+
+func TestSearchTimeRangeParsesJSONAndCommaMillisTimestamps(t *testing.T) {
+	dir := t.TempDir()
+	jsonDir := filepath.Join(dir, "web-app")
+	if err := os.MkdirAll(jsonDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	jsonLog := `{"timestamp":"2024-01-15T10:29:59","level":"info","msg":"before"}
+{"timestamp":"2024-01-15T10:30:00","level":"info","msg":"json in range"}
+`
+	if err := os.WriteFile(filepath.Join(jsonDir, "app.2024-01-15.log"), []byte(jsonLog), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	commaDir := filepath.Join(dir, "spring-app")
+	if err := os.MkdirAll(commaDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	commaLog := `[INFO ] 2024-01-15 10:30:45,123 [source] comma millis in range
+`
+	if err := os.WriteFile(filepath.Join(commaDir, "app.2024-01-15.log"), []byte(commaLog), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	jsonResult, err := r.Search(SearchParams{
+		App:      "web-app",
+		From:     "2024-01-15",
+		To:       "2024-01-15",
+		FromTime: "10:30",
+		ToTime:   "10:30",
+		Limit:    100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jsonResult.Lines) != 1 {
+		t.Fatalf("json result got %d lines, want 1", len(jsonResult.Lines))
+	}
+	if jsonResult.Lines[0].Message != "json in range" {
+		t.Errorf("json message = %q", jsonResult.Lines[0].Message)
+	}
+
+	commaResult, err := r.Search(SearchParams{
+		App:      "spring-app",
+		From:     "2024-01-15",
+		To:       "2024-01-15",
+		FromTime: "10:30",
+		ToTime:   "10:31",
+		Limit:    100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commaResult.Lines) != 1 {
+		t.Fatalf("comma result got %d lines, want 1", len(commaResult.Lines))
+	}
+	if !strings.Contains(commaResult.Lines[0].Message, "comma millis") {
+		t.Errorf("comma message = %q", commaResult.Lines[0].Message)
+	}
+}
+
 func TestStatsMultiLine(t *testing.T) {
 	dir := t.TempDir()
 	appDir := filepath.Join(dir, "spring-app")
@@ -597,7 +824,7 @@ java.lang.Exception: test
 	}
 
 	r := NewReader(dir)
-	stats, err := r.Stats("spring-app", "2026-02-01", "2026-02-28", "test-node")
+	stats, err := r.Stats("spring-app", "2026-02-01", "2026-02-28", "", "", "test-node")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -614,6 +841,36 @@ java.lang.Exception: test
 	}
 	if stats.WarnCount != 1 {
 		t.Errorf("warnCount = %d, want 1", stats.WarnCount)
+	}
+}
+
+func TestStatsWithTimeRange(t *testing.T) {
+	dir := setupTestDir(t)
+	r := NewReader(dir)
+
+	stats, err := r.Stats(
+		"order-service",
+		"2024-01-15",
+		"2024-01-15",
+		"10:00",
+		"10:00:02",
+		"test-node",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if stats.TotalLines != 3 {
+		t.Errorf("totalLines = %d, want 3", stats.TotalLines)
+	}
+	if stats.ErrorCount != 1 {
+		t.Errorf("errorCount = %d, want 1", stats.ErrorCount)
+	}
+	if stats.WarnCount != 1 {
+		t.Errorf("warnCount = %d, want 1", stats.WarnCount)
+	}
+	if stats.InfoCount != 1 {
+		t.Errorf("infoCount = %d, want 1", stats.InfoCount)
 	}
 }
 
@@ -647,7 +904,7 @@ func TestStatsIncludesArchive(t *testing.T) {
 	createGzFile(t, filepath.Join(archiveDir, "app-2024-01-15.log.2.gz"), gzContent)
 
 	r := NewReader(dir)
-	stats, err := r.Stats("my-app", "2024-01-01", "2024-12-31", "test-node")
+	stats, err := r.Stats("my-app", "2024-01-01", "2024-12-31", "", "", "test-node")
 	if err != nil {
 		t.Fatal(err)
 	}

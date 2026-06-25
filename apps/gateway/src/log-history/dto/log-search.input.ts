@@ -8,8 +8,14 @@ export class LogSearchInput {
   @Field(() => String, { description: '시작 날짜 (YYYY-MM-DD)' })
   from: string;
 
+  @Field(() => String, { nullable: true, description: '시작 시간 (HH:mm)' })
+  fromTime?: string;
+
   @Field(() => String, { description: '종료 날짜 (YYYY-MM-DD)' })
   to: string;
+
+  @Field(() => String, { nullable: true, description: '종료 시간 (HH:mm)' })
+  toTime?: string;
 
   @Field(() => String, { nullable: true, description: '로그 레벨 필터' })
   level?: string;

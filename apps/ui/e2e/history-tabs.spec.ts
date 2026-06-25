@@ -113,24 +113,95 @@ test.describe('History Tabs', () => {
     page,
   }) => {
     // Type a keyword in the first tab's visible input
-    const visibleInput = () =>
-      page.locator(
-        'div[style*="display: flex"] input[placeholder="Search..."]',
-      );
+    const keywordInputs = () => page.locator('input[placeholder="Search..."]');
 
-    await visibleInput().fill('test-keyword');
+    await keywordInputs().first().fill('test-keyword');
 
     // Add a second tab (auto-activates)
     await plusBtn(page).click();
 
     // Second tab's visible input should be empty
-    await expect(visibleInput()).toHaveValue('');
+    await expect(keywordInputs().nth(1)).toHaveValue('');
 
     // Switch back to first tab
     await tabButtons(page).first().click();
 
     // First tab's input should still have the value
-    await expect(visibleInput()).toHaveValue('test-keyword');
+    await expect(keywordInputs().first()).toHaveValue('test-keyword');
+  });
+
+  test('should send time range variables when searching logs', async ({
+    page,
+  }) => {
+    let searchVariables: unknown;
+
+    await page.route('**/graphql', async (route) => {
+      const body = route.request().postDataJSON() as {
+        operationName?: string;
+        variables?: unknown;
+      };
+
+      if (body.operationName === 'LogApps') {
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              logApps: [{ name: 'order-service', node: 'node-a' }],
+            },
+          }),
+        });
+        return;
+      }
+
+      if (body.operationName === 'LogSearch') {
+        searchVariables = body.variables;
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              logSearch: {
+                lines: [],
+                hasMore: false,
+                summary: {
+                  totalLines: 0,
+                  errorCount: 0,
+                  warnCount: 0,
+                  infoCount: 0,
+                  fileCount: 1,
+                },
+              },
+            },
+          }),
+        });
+        return;
+      }
+
+      await route.fallback();
+    });
+
+    await injectAuth(page);
+    await page.goto('/admin/history');
+    await expect(tabBar(page)).toBeVisible({ timeout: 5000 });
+
+    await page.locator('[role="combobox"]').first().click();
+    await page.getByText('order-service', { exact: true }).click();
+    await page.locator('input[type="date"]').nth(0).fill('2024-01-15');
+    await page.locator('input[type="date"]').nth(1).fill('2024-01-15');
+    await page.locator('input[type="time"]').nth(0).fill('10:00');
+    await page.locator('input[type="time"]').nth(1).fill('10:30');
+    await page.getByRole('button', { name: /^Search$/ }).click();
+
+    await expect
+      .poll(() => searchVariables)
+      .toMatchObject({
+        input: {
+          app: 'order-service',
+          from: '2024-01-15',
+          to: '2024-01-15',
+          fromTime: '10:00',
+          toTime: '10:30',
+        },
+      });
   });
 
   test('should add up to MAX_SEARCH_TABS tabs', async ({ page }) => {
