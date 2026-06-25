@@ -1,9 +1,15 @@
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
-import { useSubscription, useQuery } from '@apollo/client/react';
+import {
+  useApolloClient,
+  useSubscription,
+  useQuery,
+} from '@apollo/client/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   SERVICE_LOG_SUBSCRIPTION,
+  CONTAINERS_QUERY,
   CONTAINER_STATS_QUERY,
+  Container,
   ServiceLogEntry,
   ServiceGroup,
   ContainerStatsData,
@@ -55,6 +61,7 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
   } = useLogSearch(logs);
 
   const isFindMode = mode === 'find';
+  const [isPaused, setIsPaused] = useState(false);
 
   // Track active containers dynamically via service events
   const [activeContainers, setActiveContainers] = useState<
@@ -90,6 +97,54 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
     return map.get(containerId)!;
   }, []);
 
+  const client = useApolloClient();
+
+  const ensureActiveContainer = useCallback(
+    (containerId: string, nodeName?: string) => {
+      if (!containerId) return;
+      getContainerColor(containerId);
+      setActiveContainers((prev) => {
+        const current = prev.get(containerId);
+        if (current && (!nodeName || current.nodeName === nodeName)) {
+          return prev;
+        }
+
+        const next = new Map(prev);
+        next.set(containerId, { nodeName: nodeName ?? current?.nodeName });
+        return next;
+      });
+    },
+    [getContainerColor],
+  );
+
+  const syncServiceContainers = useCallback(async () => {
+    const { data } = await client.query<{ containers: Container[] }>({
+      query: CONTAINERS_QUERY,
+      fetchPolicy: 'network-only',
+    });
+    const next = new Map<string, { nodeName?: string }>();
+    for (const container of data?.containers ?? []) {
+      if (container.serviceName === service.serviceName) {
+        next.set(container.id, { nodeName: container.nodeName });
+        getContainerColor(container.id);
+      }
+    }
+    setActiveContainers(next);
+  }, [client, getContainerColor, service.serviceName]);
+
+  const resumeStream = useCallback(() => {
+    setIsPaused(false);
+    void syncServiceContainers().catch(() => undefined);
+  }, [syncServiceContainers]);
+
+  const togglePause = useCallback(() => {
+    if (isPaused) {
+      resumeStream();
+    } else {
+      setIsPaused(true);
+    }
+  }, [isPaused, resumeStream]);
+
   const containerIds = useMemo(
     () => Array.from(activeContainers.keys()),
     [activeContainers],
@@ -111,44 +166,30 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
     return map;
   }, [statsData]);
 
-  useSubscription<{ serviceLog: ServiceLogEntry }>(
-    SERVICE_LOG_SUBSCRIPTION,
-    {
-      variables: { serviceName: service.serviceName },
-      onData: ({ data }) => {
-        const entry = data.data?.serviceLog;
-        if (!entry) return;
+  useSubscription<{ serviceLog: ServiceLogEntry }>(SERVICE_LOG_SUBSCRIPTION, {
+    variables: { serviceName: service.serviceName },
+    skip: isPaused,
+    onData: ({ data }) => {
+      const entry = data.data?.serviceLog;
+      if (!entry) return;
 
-        if (entry.event === 'container_started') {
-          setActiveContainers((prev) => {
-            const next = new Map(prev);
-            next.set(entry.containerId, {});
-            return next;
-          });
-          // Ensure color is assigned
-          getContainerColor(entry.containerId);
-        } else if (entry.event === 'container_stopped') {
-          setActiveContainers((prev) => {
-            const next = new Map(prev);
-            next.delete(entry.containerId);
-            return next;
-          });
-        }
+      if (entry.event === 'container_started') {
+        ensureActiveContainer(entry.containerId);
+      } else if (entry.event === 'container_stopped') {
+        setActiveContainers((prev) => {
+          const next = new Map(prev);
+          next.delete(entry.containerId);
+          return next;
+        });
+      } else {
+        ensureActiveContainer(entry.containerId);
+      }
 
-        addLog(entry);
-      },
+      addLog(entry);
     },
-  );
+  });
 
-  const [isPaused, setIsPaused] = useState(false);
-  const togglePause = () => setIsPaused((prev) => !prev);
-
-  // Freeze displayed logs when paused to prevent virtualizer scroll shifts
-  const frozenLogsRef = useRef(filteredLogs);
-  if (!isPaused) {
-    frozenLogsRef.current = filteredLogs;
-  }
-  const displayedLogs = frozenLogsRef.current;
+  const displayedLogs = filteredLogs;
 
   const virtualizer = useVirtualizer({
     count: displayedLogs.length,
@@ -157,16 +198,22 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
     overscan: 20,
   });
 
-  const { scrollRef, isFollowing, handleScroll, scrollToBottom: _scrollToBottom } =
-    useAutoScroll({
-      virtualizer,
-      itemCount: displayedLogs.length,
-      enabled: !isGrepping,
-      isPaused,
-    });
+  const {
+    scrollRef,
+    isFollowing,
+    handleScroll,
+    scrollToBottom: _scrollToBottom,
+  } = useAutoScroll({
+    virtualizer,
+    itemCount: displayedLogs.length,
+    enabled: !isGrepping,
+    isPaused,
+  });
 
   const scrollToBottom = () => {
-    setIsPaused(false);
+    if (isPaused) {
+      resumeStream();
+    }
     _scrollToBottom();
   };
 
@@ -175,7 +222,7 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
     if (isFindMode && currentMatchLogIndex !== null) {
       virtualizer.scrollToIndex(currentMatchLogIndex, { align: 'center' });
     }
-  }, [isFindMode, currentMatchLogIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isFindMode, currentMatchLogIndex, virtualizer]);
 
   // Keyboard navigation: n (next) / Shift+N (prev) in find mode
   const handleKeyDown = useCallback(
@@ -203,7 +250,8 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
   // Build a lookup for which match position belongs to which log index
   const getMatchPositionForLog = useCallback(
     (logIndex: number): number | undefined => {
-      if (!isFindMode || !isGrepping || currentMatchLogIndex === null) return undefined;
+      if (!isFindMode || !isGrepping || currentMatchLogIndex === null)
+        return undefined;
       if (logIndex !== currentMatchLogIndex) return undefined;
       return currentMatchPositionInLine;
     },
@@ -325,8 +373,7 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
               )}
               {s && (
                 <span className="text-muted-foreground/70 font-mono ml-1">
-                  {s.cpuPercent.toFixed(1)}% ·{' '}
-                  {formatBytes(s.memUsage)}
+                  {s.cpuPercent.toFixed(1)}% · {formatBytes(s.memUsage)}
                   {s.memLimit > 0 ? `/${formatBytes(s.memLimit)}` : ''}
                 </span>
               )}
@@ -360,7 +407,7 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
             }}
           >
             {virtualizer.getVirtualItems().map((virtualRow) => {
-              const log = displayedLogs[virtualRow.index] as ServiceLogEntry;
+              const log = displayedLogs[virtualRow.index];
               const isEvent = log.stream === 'event';
               return (
                 <div
@@ -394,8 +441,12 @@ export default function ServiceLogViewer({ service, isActive = true }: Props) {
                       nodeName={
                         activeContainers.get(log.containerId)?.nodeName ?? ''
                       }
-                      query={isFindMode && isGrepping ? debouncedQuery : undefined}
-                      currentMatchPositionInLine={getMatchPositionForLog(virtualRow.index)}
+                      query={
+                        isFindMode && isGrepping ? debouncedQuery : undefined
+                      }
+                      currentMatchPositionInLine={getMatchPositionForLog(
+                        virtualRow.index,
+                      )}
                     />
                   )}
                 </div>
