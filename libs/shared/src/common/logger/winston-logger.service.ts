@@ -1,10 +1,10 @@
 import { Injectable, LoggerService } from '@nestjs/common';
-import { existsSync, mkdirSync, renameSync } from 'fs';
-import { basename, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 import * as winston from 'winston';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import DailyRotateFile = require('winston-daily-rotate-file');
 import { requestContext } from '../context/request-context';
+
 // 레벨별 컬러 매핑
 const levelColors: Record<string, string> = {
   error: '\x1b[31m', // red
@@ -14,6 +14,40 @@ const levelColors: Record<string, string> = {
   verbose: '\x1b[36m', // cyan
 };
 const resetColor = '\x1b[0m';
+const KOREA_TIME_ZONE = 'Asia/Seoul';
+
+const koreaDateTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: KOREA_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  fractionalSecondDigits: 3,
+  hour12: false,
+  hourCycle: 'h23',
+});
+
+function getDateTimePart(
+  parts: Intl.DateTimeFormatPart[],
+  type: Intl.DateTimeFormatPartTypes,
+) {
+  return parts.find((part) => part.type === type)?.value ?? '';
+}
+
+function getKoreaIsoTimestamp(date: Date) {
+  const parts = koreaDateTimeFormatter.formatToParts(date);
+  const year = getDateTimePart(parts, 'year');
+  const month = getDateTimePart(parts, 'month');
+  const day = getDateTimePart(parts, 'day');
+  const hour = getDateTimePart(parts, 'hour');
+  const minute = getDateTimePart(parts, 'minute');
+  const second = getDateTimePart(parts, 'second');
+  const fractionalSecond = getDateTimePart(parts, 'fractionalSecond');
+
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}.${fractionalSecond}+09:00`;
+}
 
 const nestLikeConsoleFormat = winston.format.printf((info) => {
   const { level, message, timestamp, context, ...meta } = info;
@@ -30,11 +64,18 @@ const nestLikeConsoleFormat = winston.format.printf((info) => {
 });
 
 const koreaTimestamp = winston.format.timestamp({
-  format: () => new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }),
+  format: () =>
+    new Date().toLocaleString('sv-SE', { timeZone: KOREA_TIME_ZONE }),
 });
 
 // Winston info에서 제외할 내부 키
-const INTERNAL_KEYS = new Set(['level', 'message', 'splat', 'context', 'trace']);
+const INTERNAL_KEYS = new Set([
+  'level',
+  'message',
+  'splat',
+  'context',
+  'trace',
+]);
 
 /**
  * ECS JSON 포맷 (UTC @timestamp)
@@ -42,9 +83,12 @@ const INTERNAL_KEYS = new Set(['level', 'message', 'splat', 'context', 'trace'])
  */
 const ecsJsonFormat = winston.format.printf((info) => {
   const { level, message, context, trace, ...rest } = info;
+  const now = new Date();
 
   const ecs: Record<string, unknown> = {
-    '@timestamp': new Date().toISOString(),
+    '@timestamp': now.toISOString(),
+    'event.created_kst': getKoreaIsoTimestamp(now),
+    'event.timezone': KOREA_TIME_ZONE,
     'log.level': level,
     message: message as string,
     'ecs.version': '8.11.0',
@@ -68,7 +112,24 @@ const ecsJsonFormat = winston.format.printf((info) => {
   return JSON.stringify(ecs);
 });
 
-const ARCHIVE_DIR = 'logs/archive';
+const LOG_DIR = 'logs';
+const ARCHIVE_DIR = 'archive';
+
+function getAppName() {
+  return process.env.SERVICE_NAME || 'app';
+}
+
+function getLogLevel() {
+  return process.env.NODE_ENV === 'production' ? 'info' : 'debug';
+}
+
+function ensureLogDirectories() {
+  for (const directory of [LOG_DIR, ARCHIVE_DIR]) {
+    if (!existsSync(directory)) {
+      mkdirSync(directory, { recursive: true });
+    }
+  }
+}
 
 @Injectable()
 export class WinstonLoggerService implements LoggerService {
@@ -77,42 +138,50 @@ export class WinstonLoggerService implements LoggerService {
 
   constructor() {
     this.logger = winston.createLogger({
-      level: process.env.LOG_LEVEL || 'info',
+      level: getLogLevel(),
       transports: [
         // 콘솔: NestJS 스타일 포맷
         new winston.transports.Console({
           format: winston.format.combine(koreaTimestamp, nestLikeConsoleFormat),
         }),
         // 파일: JSON 포맷
-        this.createFileTransport(),
+        this.createActiveFileTransport(),
+        this.createArchiveFileTransport(),
       ],
     });
   }
 
-  private createFileTransport(): DailyRotateFile {
-    // archive 디렉토리 생성
-    if (!existsSync(ARCHIVE_DIR)) {
-      mkdirSync(ARCHIVE_DIR, { recursive: true });
-    }
+  private createActiveFileTransport() {
+    ensureLogDirectories();
 
-    const transport = new DailyRotateFile({
-      filename: 'logs/app-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '10m',
-      maxFiles: '14d',
+    const transport = new winston.transports.File({
+      dirname: LOG_DIR,
+      filename: `${getAppName()}.log`,
       format: ecsJsonFormat,
     });
 
-    // 로테이션 시 archive 디렉토리로 이동
-    transport.on('rotate', (oldFilename: string) => {
-      const fileName = basename(oldFilename);
-      const archivePath = join(ARCHIVE_DIR, fileName);
-      try {
-        renameSync(oldFilename, archivePath);
-      } catch {
-        // 파일이 이미 이동되었거나 존재하지 않을 경우 무시
-      }
+    transport.on('error', (error: Error) => {
+      console.error('Winston file transport error:', error);
+    });
+
+    return transport;
+  }
+
+  private createArchiveFileTransport() {
+    ensureLogDirectories();
+
+    const transport = new DailyRotateFile({
+      dirname: ARCHIVE_DIR,
+      filename: `${getAppName()}.%DATE%`,
+      datePattern: 'YYYY-MM-DD',
+      extension: '.log',
+      zippedArchive: true,
+      maxSize: '10m',
+      format: ecsJsonFormat,
+    });
+
+    transport.on('error', (error: Error) => {
+      console.error('Winston daily rotate file transport error:', error);
     });
 
     return transport;
@@ -125,9 +194,7 @@ export class WinstonLoggerService implements LoggerService {
 
   private getRequestMeta(): Record<string, unknown> {
     const store = requestContext.getStore();
-    return store?.correlationId
-      ? { correlationId: store.correlationId }
-      : {};
+    return store?.correlationId ? { correlationId: store.correlationId } : {};
   }
 
   log(message: any, context?: string): void {
