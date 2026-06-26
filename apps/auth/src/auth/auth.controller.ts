@@ -4,12 +4,11 @@ import {
   Body,
   Req,
   UsePipes,
-  Inject,
   UseFilters,
 } from '@nestjs/common';
 import { FastifyRequest } from 'fastify';
+import { resolveAccessChannelOrigin } from '@monorepo/shared/common/http/access-channel';
 import { AuthService } from './auth.service';
-import { MockAuthService } from './auth-mock.service';
 import { ZodValidationPipe } from './zod-validation.pipe';
 import { AuthErrorFilter } from './filters/auth-error.filter';
 import {
@@ -24,14 +23,10 @@ import {
 } from './dto/auth.dto';
 import type { LoginRequestMeta } from '../login-history/login-history.service';
 
-type AuthServiceType = AuthService | MockAuthService;
-
 @Controller('auth')
 @UseFilters(AuthErrorFilter)
 export class AuthController {
-  constructor(
-    @Inject('AUTH_SERVICE') private readonly authService: AuthServiceType,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Post('login')
   @UsePipes(new ZodValidationPipe(LoginSchema))
@@ -84,7 +79,7 @@ export class AuthController {
   private loginRequestMeta(req: FastifyRequest): LoginRequestMeta {
     return {
       clientIp: this.clientIp(req),
-      accessChannel: this.headerValue(req, 'x-access-channel') ?? null,
+      accessChannel: resolveAccessChannelOrigin(req.headers),
     };
   }
 

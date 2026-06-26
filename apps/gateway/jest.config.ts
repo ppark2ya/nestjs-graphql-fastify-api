@@ -8,6 +8,7 @@ const config: Config = {
     '^.+\\.(t|j)s$': [
       '@swc/jest',
       {
+        swcrc: false,
         jsc: {
           parser: {
             syntax: 'typescript',

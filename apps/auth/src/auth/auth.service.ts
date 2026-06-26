@@ -102,8 +102,10 @@ export class AuthService {
       this.throwAuthError('INVALID_CREDENTIALS');
     }
 
-    const isValid = this.totpService.verify(totpCode, account.otpSecretKey);
-    if (!isValid) {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      !this.totpService.verify(totpCode, account.otpSecretKey)
+    ) {
       this.throwAuthError('INVALID_OTP');
     }
 

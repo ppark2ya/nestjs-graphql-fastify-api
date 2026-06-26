@@ -10,17 +10,14 @@ import { RequestContextMiddleware } from '@monorepo/shared/common/middleware/req
 import { LoggingInterceptor } from '@monorepo/shared/common/interceptor/logging.interceptor';
 import { envSchema } from './env.schema';
 
-const useMockAuth = process.env.USE_MOCK_AUTH === 'true';
-
-const dbModules = useMockAuth ? [] : [DatabaseModule, AccountModule];
-
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validate: (config) => envSchema.parse(config),
     }),
-    ...dbModules,
+    DatabaseModule,
+    AccountModule,
     AuthModule,
   ],
   providers: [

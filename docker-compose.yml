@@ -116,13 +116,11 @@ services:
     environment:
       - NODE_ENV=production
       - AUTH_HTTP_PORT=4001
-      - DATABASE_HOST=${DB_HOST}
-      - DATABASE_PORT=${DB_PORT:-3306}
-      - DATABASE_USER=${DB_USER}
-      - DATABASE_PASSWORD=${DB_PASSWORD}
-      - DATABASE_NAME=${DB_NAME}
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
       - JWT_PUBLIC_KEY_PATH=/run/secrets/jwt_public_key
       - JWT_PRIVATE_KEY_PATH=/run/secrets/jwt_private_key
     secrets:

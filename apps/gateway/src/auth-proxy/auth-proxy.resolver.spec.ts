@@ -20,7 +20,7 @@ describe('AuthProxyResolver', () => {
     );
   });
 
-  it('passes auth metadata headers to login proxy calls', async () => {
+  it('passes browser UI origin from forwarded headers to login proxy calls', async () => {
     mockService.login.mockResolvedValue({
       requiresTwoFactor: true,
       twoFactorToken: '2fa-token',
@@ -32,8 +32,10 @@ describe('AuthProxyResolver', () => {
         headers: {
           'x-user-type': 'PRIVATE_BO',
           'x-forwarded-for': '203.0.113.10, 10.0.0.2',
+          'x-forwarded-host': 'abc.mx-dozn.co.kr',
+          'x-forwarded-proto': 'https',
           'x-real-ip': '198.51.100.10',
-          'x-access-channel': 'http://admin-bo.test',
+          'x-access-channel': 'https://legacy-channel.example.com',
         },
       } as unknown as FastifyRequest,
     } as any);
@@ -44,8 +46,41 @@ describe('AuthProxyResolver', () => {
       'PRIVATE_BO',
       {
         'X-Forwarded-For': '203.0.113.10, 10.0.0.2',
+        'X-Forwarded-Host': 'abc.mx-dozn.co.kr',
+        'X-Forwarded-Proto': 'https',
         'X-Real-IP': '198.51.100.10',
-        'X-Access-Channel': 'http://admin-bo.test',
+        'X-Access-Channel': 'https://abc.mx-dozn.co.kr',
+      },
+    );
+  });
+
+  it('falls back to x-access-channel and normalizes it to an origin', async () => {
+    mockService.login.mockResolvedValue({
+      requiresTwoFactor: false,
+      tokens: {
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        expiresIn: 900,
+      },
+    });
+
+    await resolver.login({ loginId: 'admin', password: 'password123' }, {
+      req: {
+        ip: '10.0.0.2',
+        headers: {
+          'x-user-type': 'PRIVATE_BO',
+          'x-access-channel': 'https://fallback.mx-dozn.co.kr/login?next=/',
+        },
+      } as unknown as FastifyRequest,
+    } as any);
+
+    expect(mockService.login).toHaveBeenCalledWith(
+      'admin',
+      'password123',
+      'PRIVATE_BO',
+      {
+        'X-Forwarded-For': '10.0.0.2',
+        'X-Access-Channel': 'https://fallback.mx-dozn.co.kr',
       },
     );
   });

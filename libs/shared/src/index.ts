@@ -10,6 +10,9 @@ export { AUTH_CONSTANTS } from './constants/auth.constants';
 export { requestContext } from './common/context/request-context';
 export type { RequestStore } from './common/context/request-context';
 
+// Common - HTTP
+export { resolveAccessChannelOrigin } from './common/http/access-channel';
+
 // Common - Middleware
 export {
   CorrelationIdMiddleware,
