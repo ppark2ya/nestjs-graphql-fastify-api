@@ -64,7 +64,9 @@ export default function SearchPanel({
   const [app, setApp] = useState('');
   const [appOpen, setAppOpen] = useState(false);
   const [from, setFrom] = useState(today());
+  const [fromTime, setFromTime] = useState('');
   const [to, setTo] = useState(today());
+  const [toTime, setToTime] = useState('');
   const [level, setLevel] = useState('');
   const [keyword, setKeyword] = useState('');
   const [node, setNode] = useState('');
@@ -86,7 +88,9 @@ export default function SearchPanel({
         input: {
           app,
           from,
+          fromTime: fromTime || undefined,
           to,
+          toTime: toTime || undefined,
           level: level || undefined,
           keyword: keyword || undefined,
           node: node || undefined,
@@ -97,7 +101,11 @@ export default function SearchPanel({
     });
     setAfterCursor(cursor ?? null);
 
-    const label = [app, level, from].filter(Boolean).join(' · ');
+    const timeLabel =
+      fromTime || toTime ? `${fromTime || '00:00'}~${toTime || '23:59'}` : '';
+    const label = [app, level, [from, timeLabel].filter(Boolean).join(' ')]
+      .filter(Boolean)
+      .join(' · ');
     onLabelChange(label || 'Search');
   };
 
@@ -168,12 +176,30 @@ export default function SearchPanel({
           />
         </div>
         <div className="flex flex-col gap-1">
+          <Label className="text-xs text-muted-foreground">Start</Label>
+          <Input
+            type="time"
+            value={fromTime}
+            onChange={(e) => setFromTime(e.target.value)}
+            className="bg-secondary h-8 text-sm w-28"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
           <Label className="text-xs text-muted-foreground">To</Label>
           <Input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
             className="bg-secondary h-8 text-sm"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs text-muted-foreground">End</Label>
+          <Input
+            type="time"
+            value={toTime}
+            onChange={(e) => setToTime(e.target.value)}
+            className="bg-secondary h-8 text-sm w-28"
           />
         </div>
 

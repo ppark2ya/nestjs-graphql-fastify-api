@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // 파일명에서 날짜 추출 정규식: app.2024-01-15.log 또는 2024-01-15.log
@@ -18,6 +19,17 @@ var dateInFilename = regexp.MustCompile(`(\d{4}-\d{2}-\d{2})`)
 
 // 로테이션 번호 추출 정규식
 var rotationNumPattern = regexp.MustCompile(`\.(\d+)(?:\.log|\.gz)$|\.log\.(\d+)(?:\.gz)?$`)
+
+var logTimestampLayouts = []string{
+	time.RFC3339Nano,
+	"2006-01-02T15:04:05.999999999",
+	"2006-01-02T15:04:05.000",
+	"2006-01-02T15:04:05",
+	"2006-01-02 15:04:05.999999999",
+	"2006-01-02 15:04:05.000",
+	"2006-01-02 15:04:05,000",
+	"2006-01-02 15:04:05",
+}
 
 // Reader - 로그 파일 리더
 type Reader struct {
@@ -401,7 +413,7 @@ func parserTypeName(p Parser) string {
 }
 
 // Stats - 로그 통계 (파일별 레벨 카운트)
-func (r *Reader) Stats(app, from, to, nodeName string) (*LogStats, error) {
+func (r *Reader) Stats(app, from, to, fromTime, toTime, nodeName string) (*LogStats, error) {
 	files, err := r.ListFiles(app, from, to)
 	if err != nil {
 		slog.Error("stats: list files failed", "app", app, "error", err)
@@ -412,9 +424,16 @@ func (r *Reader) Stats(app, from, to, nodeName string) (*LogStats, error) {
 		Node:      nodeName,
 		FileCount: len(files),
 	}
+	params := SearchParams{
+		App:      app,
+		From:     from,
+		To:       to,
+		FromTime: fromTime,
+		ToTime:   toTime,
+	}
 
 	for _, f := range files {
-		if err := r.countFile(f.fullPath, stats); err != nil {
+		if err := r.countFile(f.fullPath, stats, params); err != nil {
 			slog.Warn("stats: file count error", "file", f.Name, "error", err)
 			continue
 		}
@@ -424,7 +443,7 @@ func (r *Reader) Stats(app, from, to, nodeName string) (*LogStats, error) {
 }
 
 // countFile - 단일 파일 라인/레벨 카운트 (multi-line 그룹핑 지원)
-func (r *Reader) countFile(path string, stats *LogStats) error {
+func (r *Reader) countFile(path string, stats *LogStats, params SearchParams) error {
 	reader, err := r.openFile(path)
 	if err != nil {
 		return err
@@ -436,11 +455,18 @@ func (r *Reader) countFile(path string, stats *LogStats) error {
 
 	var parser Parser
 	var currentLevel string // 진행 중인 multi-line 엔트리의 레벨
-	inEntry := false       // 현재 multi-line 엔트리 진행 중 여부
+	var currentTimestamp string
+	inEntry := false // 현재 multi-line 엔트리 진행 중 여부
 
 	// flushCount - 진행 중인 엔트리를 통계에 반영
 	flushCount := func() {
 		if !inEntry {
+			return
+		}
+		if !matchTimeRange(currentTimestamp, params) {
+			inEntry = false
+			currentLevel = ""
+			currentTimestamp = ""
 			return
 		}
 		stats.TotalLines++
@@ -456,6 +482,7 @@ func (r *Reader) countFile(path string, stats *LogStats) error {
 		}
 		inEntry = false
 		currentLevel = ""
+		currentTimestamp = ""
 	}
 
 	for scanner.Scan() {
@@ -473,10 +500,13 @@ func (r *Reader) countFile(path string, stats *LogStats) error {
 			// 새로운 구조화된 엔트리 → 이전 엔트리 카운트
 			flushCount()
 			currentLevel = parsed.Level
+			currentTimestamp = parsed.Timestamp
 			inEntry = true
 		} else if !inEntry {
 			// 독립 raw line
-			stats.TotalLines++
+			if matchTimeRange("", params) {
+				stats.TotalLines++
+			}
 		}
 		// continuation line (inEntry && Timestamp=="")은 무시 (부모 엔트리에 포함)
 	}
@@ -506,5 +536,89 @@ func matchFilters(line LogLine, params SearchParams) bool {
 		return false
 	}
 
+	return matchTimeRange(line.Timestamp, params)
+}
+
+func matchTimeRange(timestamp string, params SearchParams) bool {
+	if !hasTimeFilter(params) {
+		return true
+	}
+	if timestamp == "" {
+		return false
+	}
+
+	t, ok := parseLogTimestamp(timestamp)
+	if !ok {
+		return false
+	}
+
+	if from, ok := parseTimeBound(params.From, params.FromTime, false); ok && t.Before(from) {
+		return false
+	}
+	if to, ok := parseTimeBound(params.To, params.ToTime, true); ok && t.After(to) {
+		return false
+	}
+
 	return true
+}
+
+func hasTimeFilter(params SearchParams) bool {
+	return strings.TrimSpace(params.FromTime) != "" || strings.TrimSpace(params.ToTime) != ""
+}
+
+func parseLogTimestamp(value string) (time.Time, bool) {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return time.Time{}, false
+	}
+
+	for _, layout := range logTimestampLayouts {
+		if t, err := time.ParseInLocation(layout, normalized, time.Local); err == nil {
+			return t, true
+		}
+	}
+
+	return time.Time{}, false
+}
+
+func parseTimeBound(date, clock string, end bool) (time.Time, bool) {
+	date = strings.TrimSpace(date)
+	if date == "" {
+		return time.Time{}, false
+	}
+
+	clock = strings.TrimSpace(clock)
+	if clock == "" {
+		if end {
+			clock = "23:59:59.999"
+		} else {
+			clock = "00:00:00.000"
+		}
+	} else {
+		switch len(clock) {
+		case len("15:04"):
+			if end {
+				clock += ":59.999"
+			} else {
+				clock += ":00.000"
+			}
+		case len("15:04:05"):
+			if end {
+				clock += ".999"
+			} else {
+				clock += ".000"
+			}
+		}
+	}
+
+	for _, layout := range []string{
+		"2006-01-02 15:04:05.000",
+		"2006-01-02 15:04:05",
+	} {
+		if t, err := time.ParseInLocation(layout, date+" "+clock, time.Local); err == nil {
+			return t, true
+		}
+	}
+
+	return time.Time{}, false
 }

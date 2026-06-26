@@ -85,20 +85,34 @@ export class LogHistoryService {
 
   async search(input: LogSearchInput): Promise<LogSearchResult> {
     const hosts = await this.discoverLogStreamerUrls();
+    const searchParams: Record<string, string | number | undefined> = {
+      app: input.app,
+      from: input.from,
+      to: input.to,
+      level: input.level,
+      keyword: input.keyword,
+      after: input.after,
+      limit: input.limit ?? 100,
+    };
+    const statsParams: Record<string, string | undefined> = {
+      app: input.app,
+      from: input.from,
+      to: input.to,
+    };
+    if (input.fromTime) {
+      searchParams.fromTime = input.fromTime;
+      statsParams.fromTime = input.fromTime;
+    }
+    if (input.toTime) {
+      searchParams.toTime = input.toTime;
+      statsParams.toTime = input.toTime;
+    }
 
     const searchPromises = hosts.map((host) =>
       this.circuitBreaker.fire('log-history', async () => {
         const res = await firstValueFrom(
           this.httpService.get<LogSearchResponse>(`${host}/api/logs/search`, {
-            params: {
-              app: input.app,
-              from: input.from,
-              to: input.to,
-              level: input.level,
-              keyword: input.keyword,
-              after: input.after,
-              limit: input.limit ?? 100,
-            },
+            params: searchParams,
             timeout: 30000,
           }),
         );
@@ -110,11 +124,7 @@ export class LogHistoryService {
       this.circuitBreaker.fire('log-history', async () => {
         const res = await firstValueFrom(
           this.httpService.get<LogStatsResponse>(`${host}/api/logs/stats`, {
-            params: {
-              app: input.app,
-              from: input.from,
-              to: input.to,
-            },
+            params: statsParams,
             timeout: 30000,
           }),
         );

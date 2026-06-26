@@ -112,19 +112,23 @@ func (h *LogFilesHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := logreader.SearchParams{
-		App:     app,
-		From:    q.Get("from"),
-		To:      q.Get("to"),
-		Level:   q.Get("level"),
-		Keyword: q.Get("keyword"),
-		After:   q.Get("after"),
-		Limit:   limit,
+		App:      app,
+		From:     q.Get("from"),
+		To:       q.Get("to"),
+		FromTime: q.Get("fromTime"),
+		ToTime:   q.Get("toTime"),
+		Level:    q.Get("level"),
+		Keyword:  q.Get("keyword"),
+		After:    q.Get("after"),
+		Limit:    limit,
 	}
 
 	slog.Info("search request",
 		"app", params.App,
 		"from", params.From,
 		"to", params.To,
+		"fromTime", params.FromTime,
+		"toTime", params.ToTime,
 		"level", params.Level,
 		"keyword", params.Keyword,
 		"limit", params.Limit,
@@ -162,7 +166,14 @@ func (h *LogFilesHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := h.reader.Stats(app, q.Get("from"), q.Get("to"), h.resolveNodeName())
+	stats, err := h.reader.Stats(
+		app,
+		q.Get("from"),
+		q.Get("to"),
+		q.Get("fromTime"),
+		q.Get("toTime"),
+		h.resolveNodeName(),
+	)
 	if err != nil {
 		slog.Error("stats failed", "app", app, "error", err, "duration", time.Since(start))
 		w.WriteHeader(http.StatusInternalServerError)
