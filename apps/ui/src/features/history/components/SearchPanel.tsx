@@ -31,9 +31,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, Check, ChevronRight, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import {
+  Search,
+  Check,
+  ChevronRight,
+  ChevronDown,
+  ChevronsUpDown,
+  Database,
+  X,
+} from 'lucide-react';
 import {
   LOG_SEARCH_QUERY,
+  LOG_SQL_BUFFER_QUERY,
   LogApp,
   HistoryLogLine,
   LogSearchResult,
@@ -69,12 +78,18 @@ export default function SearchPanel({
   const [keyword, setKeyword] = useState('');
   const [node, setNode] = useState('');
   const [afterCursor, setAfterCursor] = useState<string | null>(null);
+  const [sqlPanelOpen, setSqlPanelOpen] = useState(false);
 
   const [executeSearch, { data: searchData, loading }] = useLazyQuery<{
     logSearch: LogSearchResult;
   }>(LOG_SEARCH_QUERY, { fetchPolicy: 'network-only' });
+  const [executeSqlBuffer, { data: sqlData, loading: sqlLoading }] =
+    useLazyQuery<{
+      logSqlBuffer: LogSearchResult;
+    }>(LOG_SQL_BUFFER_QUERY, { fetchPolicy: 'network-only' });
 
   const result = searchData?.logSearch;
+  const sqlResult = sqlData?.logSqlBuffer;
 
   const nodes = Array.from(new Set(appsData.map((a) => a.node)));
   const apps = Array.from(new Set(appsData.map((a) => a.name))).sort();
@@ -92,6 +107,7 @@ export default function SearchPanel({
           node: node || undefined,
           after: cursor || undefined,
           limit: 100,
+          kind: 'ecs',
         },
       },
     });
@@ -107,6 +123,23 @@ export default function SearchPanel({
     if (lastLine.timestamp) {
       handleSearch(lastLine.timestamp);
     }
+  };
+
+  const handleSqlLogs = () => {
+    if (!app) return;
+    setSqlPanelOpen(true);
+    executeSqlBuffer({
+      variables: {
+        input: {
+          app,
+          from,
+          to,
+          keyword: keyword || undefined,
+          node: node || undefined,
+          limit: 500,
+        },
+      },
+    });
   };
 
   return (
@@ -251,6 +284,16 @@ export default function SearchPanel({
           <Search className="h-4 w-4" />
           {loading ? 'Searching...' : 'Search'}
         </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleSqlLogs}
+          disabled={!app || sqlLoading}
+          title="Show SQL logs"
+        >
+          <Database className="h-4 w-4" />
+          {sqlLoading ? 'Loading SQL...' : 'SQL Logs'}
+        </Button>
       </div>
 
       {/* Loading Progress */}
@@ -290,6 +333,55 @@ export default function SearchPanel({
         </div>
       )}
 
+      {sqlPanelOpen && (
+        <div className="border-b border-border bg-background">
+          <div className="px-4 py-2 flex items-center gap-3 border-b border-border">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Database className="h-4 w-4" />
+              <span>SQL Logs</span>
+            </div>
+            {sqlResult && (
+              <span className="text-xs text-muted-foreground">
+                Showing {sqlResult.lines.length} recent entries
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-7 w-7"
+              onClick={() => setSqlPanelOpen(false)}
+              title="Close SQL logs"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {sqlLoading && (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex gap-3 items-center">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-4 w-14" />
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-28" />
+                  </div>
+                ))}
+              </div>
+            )}
+            {!sqlLoading && sqlResult && sqlResult.lines.length === 0 && (
+              <div className="px-4 py-6 text-sm text-muted-foreground">
+                No matching SQL logs found
+              </div>
+            )}
+            {!sqlLoading && sqlResult && sqlResult.lines.length > 0 && (
+              <LogTable lines={sqlResult.lines} />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Log Table */}
       <div className="flex-1 overflow-y-auto">
         {loading && !result && (
@@ -320,23 +412,7 @@ export default function SearchPanel({
         )}
 
         {result && result.lines.length > 0 && (
-          <Table className="text-xs">
-            <TableHeader className="sticky top-0 bg-secondary">
-              <TableRow>
-                <TableHead className="px-3 py-2 w-44">Timestamp</TableHead>
-                <TableHead className="px-2 py-2 w-16">Level</TableHead>
-                <TableHead className="px-2 py-2 w-40">Source</TableHead>
-                <TableHead className="px-3 py-2">Message</TableHead>
-                <TableHead className="px-2 py-2 w-28">Node</TableHead>
-                <TableHead className="px-2 py-2 w-36">File</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {result.lines.map((line, i) => (
-                <LogRow key={`${line.file}:${line.lineNo}:${i}`} line={line} />
-              ))}
-            </TableBody>
-          </Table>
+          <LogTable lines={result.lines} />
         )}
       </div>
 
@@ -354,6 +430,28 @@ export default function SearchPanel({
         </div>
       )}
     </div>
+  );
+}
+
+function LogTable({ lines }: { lines: HistoryLogLine[] }) {
+  return (
+    <Table className="text-xs">
+      <TableHeader className="sticky top-0 bg-secondary">
+        <TableRow>
+          <TableHead className="px-3 py-2 w-44">Timestamp</TableHead>
+          <TableHead className="px-2 py-2 w-16">Level</TableHead>
+          <TableHead className="px-2 py-2 w-40">Source</TableHead>
+          <TableHead className="px-3 py-2">Message</TableHead>
+          <TableHead className="px-2 py-2 w-28">Node</TableHead>
+          <TableHead className="px-2 py-2 w-36">File</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {lines.map((line, i) => (
+          <LogRow key={`${line.file}:${line.lineNo}:${i}`} line={line} />
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 
@@ -408,7 +506,10 @@ function LogRow({ line }: { line: HistoryLogLine }) {
         <TableCell className="px-2 py-1 text-purple-400 text-[10px] whitespace-nowrap">
           {line.node}
         </TableCell>
-        <TableCell className="px-2 py-1 text-muted-foreground text-[10px] truncate max-w-35">
+        <TableCell
+          className="px-2 py-1 text-muted-foreground text-[10px] truncate max-w-35"
+          title={line.file}
+        >
           {line.file}
         </TableCell>
       </TableRow>

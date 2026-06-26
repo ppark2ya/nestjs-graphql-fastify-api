@@ -6,6 +6,7 @@ import { CircuitBreakerService } from '../circuit-breaker/circuit-breaker.servic
 import { Env } from '../env.schema';
 import { discoverLogStreamers } from '../common/discover-log-streamers';
 import { LogSearchInput } from './dto/log-search.input';
+import { LogSqlBufferInput } from './dto/log-sql-buffer.input';
 import { LogSearchResult } from './models/log-search-result.model';
 import { LogApp } from './models/log-app.model';
 import { LogLine } from './models/log-line.model';
@@ -85,6 +86,7 @@ export class LogHistoryService {
 
   async search(input: LogSearchInput): Promise<LogSearchResult> {
     const hosts = await this.discoverLogStreamerUrls();
+    const kind = input.kind ?? 'ecs';
 
     const searchPromises = hosts.map((host) =>
       this.circuitBreaker.fire('log-history', async () => {
@@ -98,6 +100,7 @@ export class LogHistoryService {
               keyword: input.keyword,
               after: input.after,
               limit: input.limit ?? 100,
+              kind,
             },
             timeout: 30000,
           }),
@@ -114,6 +117,7 @@ export class LogHistoryService {
               app: input.app,
               from: input.from,
               to: input.to,
+              kind,
             },
             timeout: 30000,
           }),
@@ -161,6 +165,67 @@ export class LogHistoryService {
     return { lines: allLines, hasMore, summary };
   }
 
+  async sqlBuffer(input: LogSqlBufferInput): Promise<LogSearchResult> {
+    const hosts = await this.discoverLogStreamerUrls();
+    const limit = input.limit ?? 500;
+
+    const results = await Promise.allSettled(
+      hosts.map((host) =>
+        this.circuitBreaker.fire('log-history', async () => {
+          const res = await firstValueFrom(
+            this.httpService.get<LogSearchResponse>(
+              `${host}/api/logs/sql-buffer`,
+              {
+                params: {
+                  app: input.app,
+                  from: input.from,
+                  to: input.to,
+                  keyword: input.keyword,
+                  limit,
+                },
+                timeout: 30000,
+              },
+            ),
+          );
+          return res.data;
+        }),
+      ),
+    );
+
+    let allLines: LogLine[] = [];
+    let hasMore = false;
+    for (const result of results) {
+      if (result.status !== 'fulfilled') continue;
+      const data = result.value;
+
+      if (input.node && data.node !== input.node) continue;
+
+      const linesWithNode = (data.lines ?? []).map((line) => ({
+        ...line,
+        node: data.node,
+      }));
+      allLines = allLines.concat(linesWithNode);
+      if (data.hasMore) hasMore = true;
+    }
+
+    allLines.sort((a, b) => {
+      const ta = a.timestamp ?? '';
+      const tb = b.timestamp ?? '';
+      return ta.localeCompare(tb);
+    });
+
+    if (allLines.length > limit) {
+      allLines = allLines.slice(allLines.length - limit);
+      hasMore = true;
+    }
+
+    return {
+      lines: allLines,
+      hasMore,
+      summary: this.buildSummary(allLines),
+    };
+  }
+
   private async discoverLogStreamerUrls(): Promise<string[]> {
     const hosts = await discoverLogStreamers(this.logStreamerBaseUrl);
     return hosts.map((ip) => `http://${ip}:${this.logStreamerPort}`);
@@ -191,6 +256,35 @@ export class LogHistoryService {
       summary.fileCount += data.fileCount;
     }
 
+    return summary;
+  }
+
+  private buildSummary(lines: LogLine[]): LogSummary {
+    const files = new Set<string>();
+    const summary: LogSummary = {
+      totalLines: lines.length,
+      errorCount: 0,
+      warnCount: 0,
+      infoCount: 0,
+      fileCount: 0,
+    };
+
+    for (const line of lines) {
+      files.add(`${line.node}:${line.file}`);
+      switch ((line.level ?? '').toUpperCase()) {
+        case 'ERROR':
+          summary.errorCount++;
+          break;
+        case 'WARN':
+        case 'WARNING':
+          summary.warnCount++;
+          break;
+        case 'INFO':
+          summary.infoCount++;
+          break;
+      }
+    }
+    summary.fileCount = files.size;
     return summary;
   }
 }

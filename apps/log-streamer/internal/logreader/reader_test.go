@@ -3,11 +3,17 @@ package logreader
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func ecsLine(ts, level, logger, message string) string {
+	return fmt.Sprintf(`{"@timestamp":%q,"log.level":%q,"log.logger":%q,"message":%q,"ecs.version":"1.6.0","service.name":"test-service"}`,
+		ts, level, logger, message)
+}
 
 func setupTestDir(t *testing.T) string {
 	t.Helper()
@@ -18,12 +24,14 @@ func setupTestDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 
-	log1 := `2024-01-15 10:00:00.000 INFO  c.e.App - Server started
-2024-01-15 10:00:01.000 ERROR c.e.OrderService - Order failed: timeout
-2024-01-15 10:00:02.000 WARN  c.e.DB - Slow query detected
-2024-01-15 10:00:03.000 INFO  c.e.App - Request completed
-2024-01-15 10:00:04.000 ERROR c.e.PaymentService - Payment declined
-`
+	log1 := strings.Join([]string{
+		ecsLine("2024-01-15T10:00:00.000Z", "info", "c.e.App", "Server started"),
+		ecsLine("2024-01-15T10:00:01.000Z", "error", "c.e.OrderService", "Order failed: timeout"),
+		ecsLine("2024-01-15T10:00:02.000Z", "warn", "c.e.DB", "Slow query detected"),
+		ecsLine("2024-01-15T10:00:03.000Z", "info", "c.e.App", "Request completed"),
+		ecsLine("2024-01-15T10:00:04.000Z", "error", "c.e.PaymentService", "Payment declined"),
+		"",
+	}, "\n")
 	if err := os.WriteFile(filepath.Join(appDir, "app.2024-01-15.log"), []byte(log1), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -33,9 +41,11 @@ func setupTestDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 
-	log2 := `{"timestamp":"2024-01-15T10:00:00","level":"info","msg":"server started"}
-{"timestamp":"2024-01-15T10:00:01","level":"error","msg":"unhandled error"}
-`
+	log2 := strings.Join([]string{
+		ecsLine("2024-01-15T10:00:00.000Z", "info", "web.App", "server started"),
+		ecsLine("2024-01-15T10:00:01.000Z", "error", "web.App", "unhandled error"),
+		"",
+	}, "\n")
 	if err := os.WriteFile(filepath.Join(nextDir, "app.2024-01-15.log"), []byte(log2), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +196,7 @@ func TestStats(t *testing.T) {
 	dir := setupTestDir(t)
 	r := NewReader(dir)
 
-	stats, err := r.Stats("order-service", "2024-01-01", "2024-12-31", "test-node")
+	stats, err := r.Stats("order-service", "2024-01-01", "2024-12-31", "test-node", LogKindECS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,6 +216,166 @@ func TestStats(t *testing.T) {
 
 // --- 새로운 테스트 케이스 ---
 
+func TestSearchDefaultsToECSJSONOnly(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "mixed-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	mixed := strings.Join([]string{
+		ecsLine("2026-02-26T10:00:00.000Z", "info", "app.Logger", "ecs system log"),
+		"2026-02-26 10:00:01.000 INFO app.Logger - pattern layout should be ignored",
+		`{"timestamp":"2026-02-26T10:00:02.000Z","level":"info","message":"plain json should be ignored"}`,
+		ecsLine("2026-02-26T10:00:03.000Z", "error", "app.Logger", "second ecs log"),
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(appDir, "mixed-2026-02-26.log"), []byte(mixed), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	sql := `[INFO ] 2026-02-26 10:00:04.000 [CID:abc] [source] select 1
+`
+	if err := os.WriteFile(filepath.Join(appDir, "mixed-sql.2026-02-26.log"), []byte(sql), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	result, err := r.Search(SearchParams{
+		App:   "mixed-app",
+		From:  "2026-02-01",
+		To:    "2026-02-28",
+		Limit: 100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Lines) != 2 {
+		t.Fatalf("got %d lines, want 2 ECS JSON lines", len(result.Lines))
+	}
+	for _, line := range result.Lines {
+		if strings.Contains(line.Message, "pattern") || strings.Contains(line.Message, "plain json") {
+			t.Fatalf("non-ECS line returned: %+v", line)
+		}
+		if strings.Contains(line.File, "-sql.") {
+			t.Fatalf("SQL file returned in default ECS search: %+v", line)
+		}
+	}
+}
+
+func TestSearchSQLKindUsesOnlySQLLogsAndGroupsMultiline(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "mixed-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(appDir, "mixed-2026-02-26.log"), []byte(ecsLine("2026-02-26T10:00:00.000Z", "info", "app.Logger", "ecs system log")+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	sql := `[INFO ] 2026-02-26 10:00:04.000 [CID:abc] [TRACE:xyz] [admin] [sql.Source] conn-1 [statement] | 20 ms
+    select
+        *
+    from tb_trans
+[INFO ] 2026-02-26 10:00:05.000 [CID:abc] [TRACE:xyz] [admin] [sql.Source] done
+`
+	if err := os.WriteFile(filepath.Join(appDir, "mixed-sql.2026-02-26.log"), []byte(sql), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	result, err := r.Search(SearchParams{
+		App:   "mixed-app",
+		From:  "2026-02-01",
+		To:    "2026-02-28",
+		Kind:  LogKindSQL,
+		Limit: 100,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Lines) != 2 {
+		t.Fatalf("got %d lines, want 2 SQL entries", len(result.Lines))
+	}
+	if result.Lines[0].File != "mixed-sql.2026-02-26.log" {
+		t.Fatalf("unexpected file: %q", result.Lines[0].File)
+	}
+	if !strings.Contains(result.Lines[0].Message, "from tb_trans") {
+		t.Fatalf("SQL continuation lines were not grouped: %q", result.Lines[0].Message)
+	}
+}
+
+func TestSQLBufferKeepsRecentMatchingEntries(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "sql-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	var entries []string
+	for i := 1; i <= 4; i++ {
+		entries = append(entries, fmt.Sprintf("[INFO ] 2026-02-26 10:00:0%d.000 [CID:%d] [source] select %d from tb_trans", i, i, i))
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "sql-app-sql.2026-02-26.log"), []byte(strings.Join(entries, "\n")+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	result, err := r.SQLBuffer(SQLBufferParams{
+		App:     "sql-app",
+		From:    "2026-02-01",
+		To:      "2026-02-28",
+		Keyword: "tb_trans",
+		Limit:   2,
+	}, "test-node")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Lines) != 2 {
+		t.Fatalf("got %d lines, want recent 2 entries", len(result.Lines))
+	}
+	if !strings.Contains(result.Lines[0].Message, "select 3") || !strings.Contains(result.Lines[1].Message, "select 4") {
+		t.Fatalf("buffer did not keep recent entries: %+v", result.Lines)
+	}
+}
+
+func TestStatsECSCountsOnlyFilesWithECSEntries(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "mixed-app")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(appDir, "ecs-2026-02-26.log"), []byte(ecsLine("2026-02-26T10:00:00.000Z", "warn", "app.Logger", "ecs log")+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "pattern-2026-02-26.log"), []byte("2026-02-26 10:00:01.000 INFO app.Logger - ignored\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appDir, "mixed-sql.2026-02-26.log"), []byte("[INFO ] 2026-02-26 10:00:02.000 [source] select 1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewReader(dir)
+	stats, err := r.Stats("mixed-app", "2026-02-01", "2026-02-28", "test-node", LogKindECS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if stats.FileCount != 1 {
+		t.Errorf("fileCount = %d, want 1", stats.FileCount)
+	}
+	if stats.TotalLines != 1 {
+		t.Errorf("totalLines = %d, want 1", stats.TotalLines)
+	}
+	if stats.WarnCount != 1 {
+		t.Errorf("warnCount = %d, want 1", stats.WarnCount)
+	}
+}
+
 func TestSearchMultiChunkSameDay(t *testing.T) {
 	dir := t.TempDir()
 	appDir := filepath.Join(dir, "my-app")
@@ -214,17 +384,21 @@ func TestSearchMultiChunkSameDay(t *testing.T) {
 	}
 
 	// 활성 로그
-	active := `2024-01-15 10:00:00.000 INFO  c.e.App - Active log line
-2024-01-15 10:00:01.000 ERROR c.e.App - Active error
-`
+	active := strings.Join([]string{
+		ecsLine("2024-01-15T10:00:00.000Z", "info", "c.e.App", "Active log line"),
+		ecsLine("2024-01-15T10:00:01.000Z", "error", "c.e.App", "Active error"),
+		"",
+	}, "\n")
 	if err := os.WriteFile(filepath.Join(appDir, "app-2024-01-15.log"), []byte(active), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	// 사이즈 로테이션 청크 (winston 스타일 .log.1)
-	chunk1 := `2024-01-15 09:00:00.000 INFO  c.e.App - Rotated chunk line
-2024-01-15 09:00:01.000 WARN  c.e.App - Rotated warning
-`
+	chunk1 := strings.Join([]string{
+		ecsLine("2024-01-15T09:00:00.000Z", "info", "c.e.App", "Rotated chunk line"),
+		ecsLine("2024-01-15T09:00:01.000Z", "warn", "c.e.App", "Rotated warning"),
+		"",
+	}, "\n")
 	if err := os.WriteFile(filepath.Join(appDir, "app-2024-01-15.log.1"), []byte(chunk1), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -264,16 +438,17 @@ func TestSearchArchiveDirectory(t *testing.T) {
 	}
 
 	// 앱 루트 활성 로그
-	active := `2024-01-15 10:00:00.000 INFO  c.e.App - Active line
-`
+	active := ecsLine("2024-01-15T10:00:00.000Z", "info", "c.e.App", "Active line") + "\n"
 	if err := os.WriteFile(filepath.Join(appDir, "app-2024-01-15.log"), []byte(active), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	// archive 디렉토리 로그
-	archived := `2024-01-15 08:00:00.000 ERROR c.e.App - Archived error
-2024-01-15 08:00:01.000 INFO  c.e.App - Archived info
-`
+	archived := strings.Join([]string{
+		ecsLine("2024-01-15T08:00:00.000Z", "error", "c.e.App", "Archived error"),
+		ecsLine("2024-01-15T08:00:01.000Z", "info", "c.e.App", "Archived info"),
+		"",
+	}, "\n")
 	if err := os.WriteFile(filepath.Join(archiveDir, "app-2024-01-15.log.1"), []byte(archived), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -315,16 +490,17 @@ func TestSearchCompressedFile(t *testing.T) {
 	}
 
 	// 활성 로그
-	active := `2024-01-15 10:00:00.000 INFO  c.e.App - Active line
-`
+	active := ecsLine("2024-01-15T10:00:00.000Z", "info", "c.e.App", "Active line") + "\n"
 	if err := os.WriteFile(filepath.Join(appDir, "app-2024-01-15.log"), []byte(active), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	// gz 압축 파일 (archive 내)
-	gzContent := `2024-01-15 08:00:00.000 ERROR c.e.App - Compressed error
-2024-01-15 08:00:01.000 WARN  c.e.App - Compressed warning
-`
+	gzContent := strings.Join([]string{
+		ecsLine("2024-01-15T08:00:00.000Z", "error", "c.e.App", "Compressed error"),
+		ecsLine("2024-01-15T08:00:01.000Z", "warn", "c.e.App", "Compressed warning"),
+		"",
+	}, "\n")
 	createGzFile(t, filepath.Join(archiveDir, "app-2024-01-15.log.gz"), gzContent)
 
 	r := NewReader(dir)
@@ -451,7 +627,7 @@ java.lang.NullPointerException: null
     at kr.co.dozn.mx.service.OrderService.find(OrderService.java:42)
     at kr.co.dozn.mx.controller.OrderController.list(OrderController.java:28)
 `
-	if err := os.WriteFile(filepath.Join(appDir, "app-2026-02-26.log"), []byte(log1), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(appDir, "app-sql.2026-02-26.log"), []byte(log1), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -462,6 +638,7 @@ java.lang.NullPointerException: null
 		App:   "spring-app",
 		From:  "2026-02-01",
 		To:    "2026-02-28",
+		Kind:  LogKindSQL,
 		Limit: 100,
 	}, "test-node")
 	if err != nil {
@@ -514,7 +691,7 @@ func TestSearchMultiLineLevelFilter(t *testing.T) {
 java.lang.NullPointerException: null
     at kr.co.dozn.Service.find(Service.java:42)
 `
-	if err := os.WriteFile(filepath.Join(appDir, "app-2026-02-26.log"), []byte(log1), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(appDir, "app-sql.2026-02-26.log"), []byte(log1), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -526,6 +703,7 @@ java.lang.NullPointerException: null
 		From:  "2026-02-01",
 		To:    "2026-02-28",
 		Level: "ERROR",
+		Kind:  LogKindSQL,
 		Limit: 100,
 	}, "test-node")
 	if err != nil {
@@ -551,7 +729,7 @@ func TestSearchMultiLineKeywordInContinuation(t *testing.T) {
     select count(t1_0.id) from tb_trans where status='FOREIGN_WON'
 [INFO ] 2026-02-26 15:21:17.940 [CID:abc] [k.c.d.LoggingInterceptor] RESPONSE ok
 `
-	if err := os.WriteFile(filepath.Join(appDir, "app-2026-02-26.log"), []byte(log1), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(appDir, "app-sql.2026-02-26.log"), []byte(log1), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -563,6 +741,7 @@ func TestSearchMultiLineKeywordInContinuation(t *testing.T) {
 		From:    "2026-02-01",
 		To:      "2026-02-28",
 		Keyword: "FOREIGN_WON",
+		Kind:    LogKindSQL,
 		Limit:   100,
 	}, "test-node")
 	if err != nil {
@@ -592,12 +771,12 @@ func TestStatsMultiLine(t *testing.T) {
 java.lang.Exception: test
 [WARN ] 2026-02-26 15:21:19.000 [CID:ghi] [source] warn entry
 `
-	if err := os.WriteFile(filepath.Join(appDir, "app-2026-02-26.log"), []byte(log1), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(appDir, "app-sql.2026-02-26.log"), []byte(log1), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	r := NewReader(dir)
-	stats, err := r.Stats("spring-app", "2026-02-01", "2026-02-28", "test-node")
+	stats, err := r.Stats("spring-app", "2026-02-01", "2026-02-28", "test-node", LogKindSQL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -626,24 +805,27 @@ func TestStatsIncludesArchive(t *testing.T) {
 	}
 
 	// 활성 로그: 2 lines (1 ERROR, 1 INFO)
-	active := `2024-01-15 10:00:00.000 INFO  c.e.App - Active info
-2024-01-15 10:00:01.000 ERROR c.e.App - Active error
-`
+	active := strings.Join([]string{
+		ecsLine("2024-01-15T10:00:00.000Z", "info", "c.e.App", "Active info"),
+		ecsLine("2024-01-15T10:00:01.000Z", "error", "c.e.App", "Active error"),
+		"",
+	}, "\n")
 	if err := os.WriteFile(filepath.Join(appDir, "app-2024-01-15.log"), []byte(active), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	// archive 비압축: 2 lines (1 WARN, 1 ERROR)
-	archived := `2024-01-15 09:00:00.000 WARN  c.e.App - Archived warn
-2024-01-15 09:00:01.000 ERROR c.e.App - Archived error
-`
+	archived := strings.Join([]string{
+		ecsLine("2024-01-15T09:00:00.000Z", "warn", "c.e.App", "Archived warn"),
+		ecsLine("2024-01-15T09:00:01.000Z", "error", "c.e.App", "Archived error"),
+		"",
+	}, "\n")
 	if err := os.WriteFile(filepath.Join(archiveDir, "app-2024-01-15.log.1"), []byte(archived), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	// archive gz 압축: 1 line (1 DEBUG)
-	gzContent := `2024-01-15 08:00:00.000 DEBUG c.e.App - Compressed debug
-`
+	gzContent := ecsLine("2024-01-15T08:00:00.000Z", "debug", "c.e.App", "Compressed debug") + "\n"
 	createGzFile(t, filepath.Join(archiveDir, "app-2024-01-15.log.2.gz"), gzContent)
 
 	r := NewReader(dir)
@@ -733,9 +915,11 @@ func TestSearchTopLevelArchive(t *testing.T) {
 	if err := os.MkdirAll(topArchive, 0755); err != nil {
 		t.Fatal(err)
 	}
-	archiveContent := `2024-01-15 10:00:00.000 ERROR c.e.App - Archived error from top
-2024-01-15 10:00:01.000 INFO  c.e.App - Archived info from top
-`
+	archiveContent := strings.Join([]string{
+		ecsLine("2024-01-15T10:00:00.000Z", "error", "c.e.App", "Archived error from top"),
+		ecsLine("2024-01-15T10:00:01.000Z", "info", "c.e.App", "Archived info from top"),
+		"",
+	}, "\n")
 	if err := os.WriteFile(filepath.Join(topArchive, "app.2024-01-15_1.log"), []byte(archiveContent), 0644); err != nil {
 		t.Fatal(err)
 	}

@@ -30,6 +30,7 @@ func New(dockerClient *docker.Client, logReader *logreader.Reader) *chi.Mux {
 			r.Get("/apps", h.Apps)
 			r.Get("/files", h.Files)
 			r.Get("/search", h.Search)
+			r.Get("/sql-buffer", h.SQLBuffer)
 			r.Get("/stats", h.Stats)
 		})
 	})

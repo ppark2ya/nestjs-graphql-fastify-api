@@ -197,6 +197,32 @@ func extractRotationNum(filename string) int {
 	return 0
 }
 
+func normalizeKind(kind string) string {
+	if strings.EqualFold(kind, LogKindSQL) {
+		return LogKindSQL
+	}
+	return LogKindECS
+}
+
+func isSQLLogFile(name string) bool {
+	base := filepath.Base(name)
+	return strings.Contains(base, "-sql.")
+}
+
+func filterFilesByKind(files []LogFile, kind string) []LogFile {
+	filtered := make([]LogFile, 0, len(files))
+	for _, f := range files {
+		isSQL := isSQLLogFile(f.Name)
+		if kind == LogKindSQL && isSQL {
+			filtered = append(filtered, f)
+		}
+		if kind == LogKindECS && !isSQL {
+			filtered = append(filtered, f)
+		}
+	}
+	return filtered
+}
+
 // gzipReadCloser - gzip 파일 리더 (Reader + Closer)
 type gzipReadCloser struct {
 	gz   *gzip.Reader
@@ -231,12 +257,14 @@ func (r *Reader) Search(params SearchParams, nodeName string) (*SearchResult, er
 	if params.Limit <= 0 {
 		params.Limit = 100
 	}
+	params.Kind = normalizeKind(params.Kind)
 
 	files, err := r.ListFiles(params.App, params.From, params.To)
 	if err != nil {
 		slog.Error("search: list files failed", "app", params.App, "error", err)
 		return nil, err
 	}
+	files = filterFilesByKind(files, params.Kind)
 
 	// 파일 발견 결과를 Info 레벨로 출력 (프로덕션 진단 필수)
 	fileNames := make([]string, len(files))
@@ -247,6 +275,7 @@ func (r *Reader) Search(params SearchParams, nodeName string) (*SearchResult, er
 		"app", params.App,
 		"from", params.From,
 		"to", params.To,
+		"kind", params.Kind,
 		"fileCount", len(files),
 		"files", fileNames,
 	)
@@ -263,7 +292,13 @@ func (r *Reader) Search(params SearchParams, nodeName string) (*SearchResult, er
 		}
 
 		remaining := params.Limit - len(result.Lines)
-		lines, hasMore, err := r.searchFile(params, f, remaining)
+		var lines []LogLine
+		var hasMore bool
+		if params.Kind == LogKindECS {
+			lines, hasMore, err = r.searchECSFile(params, f, remaining)
+		} else {
+			lines, hasMore, err = r.searchFile(params, f, remaining)
+		}
 		if err != nil {
 			slog.Warn("search: file read error", "file", f.Name, "error", err)
 			continue
@@ -386,6 +421,168 @@ func (r *Reader) searchFile(params SearchParams, f LogFile, limit int) ([]LogLin
 	return lines, false, scanner.Err()
 }
 
+// searchECSFile - 단일 파일에서 ECS JSON 엔트리만 검색한다.
+func (r *Reader) searchECSFile(params SearchParams, f LogFile, limit int) ([]LogLine, bool, error) {
+	path := f.fullPath
+	reader, err := r.openFile(path)
+	if err != nil {
+		slog.Error("search ecs file: open failed", "path", path, "error", err)
+		return nil, false, err
+	}
+	defer reader.Close()
+
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	var lines []LogLine
+	lineNo := 0
+	ecsCount := 0
+	ignoredCount := 0
+
+	for scanner.Scan() {
+		lineNo++
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		parsed, ok := ParseECSJSONLine(line)
+		if !ok {
+			ignoredCount++
+			continue
+		}
+		ecsCount++
+		parsed.File = f.Name
+		parsed.LineNo = lineNo
+
+		if matchFilters(parsed, params) {
+			lines = append(lines, parsed)
+			if len(lines) >= limit {
+				slog.Info("search ecs file: scan stopped at limit",
+					"file", f.Name,
+					"matchedEntries", len(lines),
+					"ecsEntries", ecsCount,
+					"ignoredLines", ignoredCount,
+				)
+				return lines, true, scanner.Err()
+			}
+		}
+	}
+
+	slog.Info("search ecs file: scan completed",
+		"file", f.Name,
+		"totalLines", lineNo,
+		"ecsEntries", ecsCount,
+		"ignoredLines", ignoredCount,
+		"matchedEntries", len(lines),
+	)
+
+	return lines, false, scanner.Err()
+}
+
+// SQLBuffer - SQL 로그에서 조건에 맞는 최근 엔트리만 bounded buffer로 유지한다.
+func (r *Reader) SQLBuffer(params SQLBufferParams, nodeName string) (*SearchResult, error) {
+	if params.Limit <= 0 {
+		params.Limit = 500
+	}
+
+	files, err := r.ListFiles(params.App, params.From, params.To)
+	if err != nil {
+		slog.Error("sql buffer: list files failed", "app", params.App, "error", err)
+		return nil, err
+	}
+	files = filterFilesByKind(files, LogKindSQL)
+
+	result := &SearchResult{
+		Lines: make([]LogLine, 0, params.Limit),
+		Node:  nodeName,
+	}
+	searchParams := SearchParams{
+		App:     params.App,
+		From:    params.From,
+		To:      params.To,
+		Keyword: params.Keyword,
+		Limit:   params.Limit,
+		Kind:    LogKindSQL,
+	}
+
+	for _, f := range files {
+		if err := r.searchSQLFileIntoBuffer(searchParams, f, params.Limit, &result.Lines); err != nil {
+			slog.Warn("sql buffer: file read error", "file", f.Name, "error", err)
+			continue
+		}
+	}
+
+	return result, nil
+}
+
+func appendRing(buffer *[]LogLine, limit int, line LogLine) {
+	if limit <= 0 {
+		return
+	}
+	if len(*buffer) >= limit {
+		copy((*buffer)[0:], (*buffer)[1:])
+		(*buffer)[limit-1] = line
+		return
+	}
+	*buffer = append(*buffer, line)
+}
+
+func (r *Reader) searchSQLFileIntoBuffer(params SearchParams, f LogFile, limit int, buffer *[]LogLine) error {
+	path := f.fullPath
+	reader, err := r.openFile(path)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	var parser Parser
+	var current *LogLine
+	lineNo := 0
+
+	flush := func() {
+		if current == nil {
+			return
+		}
+		if matchFilters(*current, params) {
+			appendRing(buffer, limit, *current)
+		}
+		current = nil
+	}
+
+	for scanner.Scan() {
+		lineNo++
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		if parser == nil {
+			parser = DetectParser(line)
+		}
+
+		parsed := parser.Parse(line)
+		parsed.File = f.Name
+		parsed.LineNo = lineNo
+
+		if parsed.Timestamp != "" {
+			flush()
+			entry := parsed
+			current = &entry
+		} else if current != nil {
+			current.Message += "\n" + parsed.Message
+		} else if matchFilters(parsed, params) {
+			appendRing(buffer, limit, parsed)
+		}
+	}
+
+	flush()
+	return scanner.Err()
+}
+
 // parserTypeName - 파서 타입 이름 반환
 func parserTypeName(p Parser) string {
 	switch p.(type) {
@@ -401,22 +598,36 @@ func parserTypeName(p Parser) string {
 }
 
 // Stats - 로그 통계 (파일별 레벨 카운트)
-func (r *Reader) Stats(app, from, to, nodeName string) (*LogStats, error) {
+func (r *Reader) Stats(app, from, to, nodeName string, kindValues ...string) (*LogStats, error) {
+	kind := LogKindECS
+	if len(kindValues) > 0 {
+		kind = normalizeKind(kindValues[0])
+	}
+
 	files, err := r.ListFiles(app, from, to)
 	if err != nil {
 		slog.Error("stats: list files failed", "app", app, "error", err)
 		return nil, err
 	}
+	files = filterFilesByKind(files, kind)
 
 	stats := &LogStats{
-		Node:      nodeName,
-		FileCount: len(files),
+		Node: nodeName,
 	}
 
 	for _, f := range files {
-		if err := r.countFile(f.fullPath, stats); err != nil {
+		var entries int
+		if kind == LogKindECS {
+			entries, err = r.countECSFile(f, stats)
+		} else {
+			entries, err = r.countFile(f.fullPath, stats)
+		}
+		if err != nil {
 			slog.Warn("stats: file count error", "file", f.Name, "error", err)
 			continue
+		}
+		if entries > 0 {
+			stats.FileCount++
 		}
 	}
 
@@ -424,10 +635,10 @@ func (r *Reader) Stats(app, from, to, nodeName string) (*LogStats, error) {
 }
 
 // countFile - 단일 파일 라인/레벨 카운트 (multi-line 그룹핑 지원)
-func (r *Reader) countFile(path string, stats *LogStats) error {
+func (r *Reader) countFile(path string, stats *LogStats) (int, error) {
 	reader, err := r.openFile(path)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer reader.Close()
 
@@ -436,13 +647,15 @@ func (r *Reader) countFile(path string, stats *LogStats) error {
 
 	var parser Parser
 	var currentLevel string // 진행 중인 multi-line 엔트리의 레벨
-	inEntry := false       // 현재 multi-line 엔트리 진행 중 여부
+	inEntry := false        // 현재 multi-line 엔트리 진행 중 여부
+	entries := 0
 
 	// flushCount - 진행 중인 엔트리를 통계에 반영
 	flushCount := func() {
 		if !inEntry {
 			return
 		}
+		entries++
 		stats.TotalLines++
 		switch strings.ToUpper(currentLevel) {
 		case "ERROR":
@@ -476,6 +689,7 @@ func (r *Reader) countFile(path string, stats *LogStats) error {
 			inEntry = true
 		} else if !inEntry {
 			// 독립 raw line
+			entries++
 			stats.TotalLines++
 		}
 		// continuation line (inEntry && Timestamp=="")은 무시 (부모 엔트리에 포함)
@@ -484,7 +698,41 @@ func (r *Reader) countFile(path string, stats *LogStats) error {
 	// 파일 끝: 남은 엔트리 카운트
 	flushCount()
 
-	return scanner.Err()
+	return entries, scanner.Err()
+}
+
+func (r *Reader) countECSFile(f LogFile, stats *LogStats) (int, error) {
+	reader, err := r.openFile(f.fullPath)
+	if err != nil {
+		return 0, err
+	}
+	defer reader.Close()
+
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	entries := 0
+	for scanner.Scan() {
+		line, ok := ParseECSJSONLine(scanner.Text())
+		if !ok {
+			continue
+		}
+
+		entries++
+		stats.TotalLines++
+		switch strings.ToUpper(line.Level) {
+		case "ERROR":
+			stats.ErrorCount++
+		case "WARN", "WARNING":
+			stats.WarnCount++
+		case "INFO":
+			stats.InfoCount++
+		case "DEBUG":
+			stats.DebugCount++
+		}
+	}
+
+	return entries, scanner.Err()
 }
 
 // matchFilters - 레벨/키워드/타임스탬프 커서 필터

@@ -1,5 +1,10 @@
 package logreader
 
+const (
+	LogKindECS = "ecs"
+	LogKindSQL = "sql"
+)
+
 // LogApp - 앱 디렉토리 정보
 type LogApp struct {
 	Name string `json:"name"`
@@ -7,8 +12,8 @@ type LogApp struct {
 
 // LogFile - 로그 파일 메타데이터
 type LogFile struct {
-	Name       string `json:"name"`       // 상대 경로 포함 (예: "archive/app-2026-02-22.log.gz")
-	Date       string `json:"date"`       // YYYY-MM-DD (파일명에서 추출)
+	Name       string `json:"name"` // 상대 경로 포함 (예: "archive/app-2026-02-22.log.gz")
+	Date       string `json:"date"` // YYYY-MM-DD (파일명에서 추출)
 	Size       int64  `json:"size"`
 	Compressed bool   `json:"compressed"` // .gz 여부
 	fullPath   string // 실제 파일 경로 (unexported → JSON 미포함)
@@ -34,6 +39,16 @@ type SearchParams struct {
 	Keyword string
 	After   string // 타임스탬프 커서 (이전 페이지의 마지막 타임스탬프)
 	Limit   int    // 기본 100
+	Kind    string // ecs, sql (빈 문자열이면 ecs)
+}
+
+// SQLBufferParams - SQL 로그 bounded buffer 검색 파라미터
+type SQLBufferParams struct {
+	App     string
+	From    string
+	To      string
+	Keyword string
+	Limit   int
 }
 
 // SearchResult - 검색 결과

@@ -180,6 +180,30 @@ input LogSearchInput {
   """결과 수 제한"""
   limit: Int = 100
 
+  """로그 종류 (ecs, sql)"""
+  kind: String = "ecs"
+
+  """노드 필터"""
+  node: String
+
+  """종료 날짜 (YYYY-MM-DD)"""
+  to: String!
+}
+
+"""SQL 로그 buffer 조회 입력"""
+input LogSqlBufferInput {
+  """앱 이름"""
+  app: String!
+
+  """시작 날짜 (YYYY-MM-DD)"""
+  from: String!
+
+  """키워드 검색"""
+  keyword: String
+
+  """결과 수 제한"""
+  limit: Int = 500
+
   """노드 필터"""
   node: String
 
@@ -254,6 +278,9 @@ type Query {
 
   """로그 검색"""
   logSearch(input: LogSearchInput!): LogSearchResult!
+
+  """SQL 로그 buffer 조회"""
+  logSqlBuffer(input: LogSqlBufferInput!): LogSearchResult!
 }
 
 input RefreshTokenInput {

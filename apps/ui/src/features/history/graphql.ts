@@ -34,6 +34,31 @@ export const LOG_SEARCH_QUERY = gql`
   }
 `;
 
+export const LOG_SQL_BUFFER_QUERY = gql`
+  query LogSqlBuffer($input: LogSqlBufferInput!) {
+    logSqlBuffer(input: $input) {
+      lines {
+        timestamp
+        level
+        source
+        message
+        metadata
+        node
+        file
+        lineNo
+      }
+      hasMore
+      summary {
+        totalLines
+        errorCount
+        warnCount
+        infoCount
+        fileCount
+      }
+    }
+  }
+`;
+
 export interface LogApp {
   name: string;
   node: string;

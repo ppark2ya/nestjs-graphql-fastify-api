@@ -163,6 +163,33 @@ func (p *JSONParser) Parse(line string) LogLine {
 	return result
 }
 
+// ParseECSJSONLine - ECS JSON 파일 로그만 파싱한다.
+// History 기본 검색은 PatternLayout/일반 JSON을 제외해야 하므로 ECS 필수 필드가 모두 있어야 한다.
+func ParseECSJSONLine(line string) (LogLine, bool) {
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "{") {
+		return LogLine{}, false
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &data); err != nil {
+		return LogLine{}, false
+	}
+
+	timestamp, okTimestamp := data["@timestamp"].(string)
+	level, okLevel := data["log.level"].(string)
+	message, okMessage := data["message"].(string)
+	if !okTimestamp || !okLevel || !okMessage || timestamp == "" || level == "" || message == "" {
+		return LogLine{}, false
+	}
+
+	lineParsed := (&JSONParser{}).Parse(trimmed)
+	if lineParsed.Timestamp == "" || lineParsed.Level == "" || lineParsed.Message == "" {
+		return LogLine{}, false
+	}
+	return lineParsed, true
+}
+
 func (p *RawParser) Parse(line string) LogLine {
 	return LogLine{Message: line}
 }

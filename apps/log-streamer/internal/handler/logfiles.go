@@ -119,12 +119,14 @@ func (h *LogFilesHandler) Search(w http.ResponseWriter, r *http.Request) {
 		Keyword: q.Get("keyword"),
 		After:   q.Get("after"),
 		Limit:   limit,
+		Kind:    q.Get("kind"),
 	}
 
 	slog.Info("search request",
 		"app", params.App,
 		"from", params.From,
 		"to", params.To,
+		"kind", params.Kind,
 		"level", params.Level,
 		"keyword", params.Keyword,
 		"limit", params.Limit,
@@ -162,7 +164,8 @@ func (h *LogFilesHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := h.reader.Stats(app, q.Get("from"), q.Get("to"), h.resolveNodeName())
+	kind := q.Get("kind")
+	stats, err := h.reader.Stats(app, q.Get("from"), q.Get("to"), h.resolveNodeName(), kind)
 	if err != nil {
 		slog.Error("stats failed", "app", app, "error", err, "duration", time.Since(start))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -172,6 +175,7 @@ func (h *LogFilesHandler) Stats(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("stats completed",
 		"app", app,
+		"kind", kind,
 		"totalLines", stats.TotalLines,
 		"fileCount", stats.FileCount,
 		"errorCount", stats.ErrorCount,
@@ -180,4 +184,60 @@ func (h *LogFilesHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	)
 
 	json.NewEncoder(w).Encode(stats)
+}
+
+// GET /api/logs/sql-buffer?app=xxx&from=...&to=...&keyword=...&limit=...
+func (h *LogFilesHandler) SQLBuffer(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	w.Header().Set("Content-Type", "application/json")
+	q := r.URL.Query()
+
+	app := q.Get("app")
+	if app == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "app parameter required"})
+		return
+	}
+
+	limit := 500
+	if l := q.Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > 2000 {
+		limit = 2000
+	}
+
+	params := logreader.SQLBufferParams{
+		App:     app,
+		From:    q.Get("from"),
+		To:      q.Get("to"),
+		Keyword: q.Get("keyword"),
+		Limit:   limit,
+	}
+
+	slog.Info("sql buffer request",
+		"app", params.App,
+		"from", params.From,
+		"to", params.To,
+		"keyword", params.Keyword,
+		"limit", params.Limit,
+	)
+
+	result, err := h.reader.SQLBuffer(params, h.resolveNodeName())
+	if err != nil {
+		slog.Error("sql buffer failed", "app", params.App, "error", err, "duration", time.Since(start))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	slog.Info("sql buffer completed",
+		"app", params.App,
+		"resultCount", len(result.Lines),
+		"duration", time.Since(start),
+	)
+
+	json.NewEncoder(w).Encode(result)
 }

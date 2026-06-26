@@ -3,6 +3,7 @@ import { LogHistoryService } from './log-history.service';
 import { LogApp } from './models/log-app.model';
 import { LogSearchResult } from './models/log-search-result.model';
 import { LogSearchInput } from './dto/log-search.input';
+import { LogSqlBufferInput } from './dto/log-sql-buffer.input';
 
 @Resolver()
 export class LogHistoryResolver {
@@ -18,5 +19,12 @@ export class LogHistoryResolver {
     @Args('input') input: LogSearchInput,
   ): Promise<LogSearchResult> {
     return this.service.search(input);
+  }
+
+  @Query(() => LogSearchResult, { description: 'SQL 로그 buffer 조회' })
+  async logSqlBuffer(
+    @Args('input') input: LogSqlBufferInput,
+  ): Promise<LogSearchResult> {
+    return this.service.sqlBuffer(input);
   }
 }
