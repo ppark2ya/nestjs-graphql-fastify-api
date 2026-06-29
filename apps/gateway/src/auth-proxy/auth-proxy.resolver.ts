@@ -9,6 +9,7 @@ import { LoginResult } from './models/login-result.model';
 import { AuthToken } from './models/auth-token.model';
 import { Public } from '../auth/public.decorator';
 import { GraphQLContext } from '../types/graphql-context.interface';
+import { resolveAccessChannelOrigin } from '@monorepo/shared/common/http/access-channel';
 
 @Resolver()
 export class AuthProxyResolver {
@@ -68,13 +69,21 @@ export class AuthProxyResolver {
   private authMetaHeaders(req: FastifyRequest): Record<string, string> {
     const headers: Record<string, string> = {};
     const forwardedFor = this.headerValue(req, 'x-forwarded-for');
+    const forwardedHost = this.headerValue(req, 'x-forwarded-host');
+    const forwardedProto = this.headerValue(req, 'x-forwarded-proto');
     const realIp = this.headerValue(req, 'x-real-ip');
-    const accessChannel = this.headerValue(req, 'x-access-channel');
+    const accessChannel = resolveAccessChannelOrigin(req.headers);
 
     if (forwardedFor) {
       headers['X-Forwarded-For'] = forwardedFor;
     } else if (req.ip) {
       headers['X-Forwarded-For'] = req.ip;
+    }
+    if (forwardedHost) {
+      headers['X-Forwarded-Host'] = forwardedHost;
+    }
+    if (forwardedProto) {
+      headers['X-Forwarded-Proto'] = forwardedProto;
     }
     if (realIp) {
       headers['X-Real-IP'] = realIp;

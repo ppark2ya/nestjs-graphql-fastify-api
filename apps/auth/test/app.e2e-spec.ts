@@ -408,7 +408,7 @@ describe('Auth E2E - Full Login Process', () => {
       imports: [ConfigModule.forRoot({ isGlobal: true }), PassportModule],
       controllers: [AuthController],
       providers: [
-        { provide: 'AUTH_SERVICE', useClass: AuthService },
+        AuthService,
         { provide: AccountService, useValue: testAccountService },
         { provide: LoginHistoryService, useValue: testLoginHistoryService },
         JwtTokenService,
@@ -442,7 +442,9 @@ describe('Auth E2E - Full Login Process', () => {
         .post('/auth/login')
         .set('x-user-type', 'DASHBOARD')
         .set('x-forwarded-for', '203.0.113.10, 10.0.0.1')
-        .set('x-access-channel', 'http://admin-bo.test')
+        .set('x-forwarded-host', 'abc.mx-dozn.co.kr')
+        .set('x-forwarded-proto', 'https')
+        .set('x-access-channel', 'https://legacy-channel.example.com')
         .send({ loginId: 'dashboard', password: TEST_PASSWORD })
         .expect(201);
 
@@ -460,10 +462,26 @@ describe('Auth E2E - Full Login Process', () => {
         addrIp: '203.0.113.10',
         failCount: 0,
         status: 'ACTIVE',
-        accessChannel: 'http://admin-bo.test',
+        accessChannel: 'https://abc.mx-dozn.co.kr',
         failedAt: null,
       });
       expect(histories[0].loginAt).toBeInstanceOf(Date);
+    });
+
+    it('forwarded/origin/referer가 없으면 x-access-channel origin을 fallback으로 저장한다', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('x-user-type', 'DASHBOARD')
+        .set('x-access-channel', 'https://fallback.mx-dozn.co.kr/login?next=/')
+        .send({ loginId: 'dashboard', password: TEST_PASSWORD })
+        .expect(201);
+
+      const histories = testLoginHistoryService.getAll();
+      expect(histories).toHaveLength(1);
+      expect(histories[0]).toMatchObject({
+        loginId: 'dashboard',
+        accessChannel: 'https://fallback.mx-dozn.co.kr',
+      });
     });
 
     it('LOTTE_CARD_BO 로그인 (2FA 필요) → twoFactorToken 반환', async () => {
@@ -743,7 +761,9 @@ describe('Auth E2E - Full Login Process', () => {
         .post('/auth/2fa/verify')
         .set('x-2fa-token', twoFactorToken)
         .set('x-real-ip', '203.0.113.20')
-        .set('x-access-channel', 'http://admin-bo.test')
+        .set('x-forwarded-host', 'abc.mx-dozn.co.kr')
+        .set('x-forwarded-proto', 'https')
+        .set('x-access-channel', 'https://legacy-channel.example.com')
         .send({ totpCode })
         .expect(201);
 
@@ -768,7 +788,7 @@ describe('Auth E2E - Full Login Process', () => {
         addrIp: '203.0.113.20',
         failCount: 0,
         status: 'ACTIVE',
-        accessChannel: 'http://admin-bo.test',
+        accessChannel: 'https://abc.mx-dozn.co.kr',
         failedAt: null,
       });
       expect(histories[0].loginAt).toBeInstanceOf(Date);
@@ -958,22 +978,50 @@ describe('Auth E2E - Full Login Process', () => {
       expect(res.body.code).toBe('11013');
     });
 
-    it('잘못된 TOTP 코드 → 11011 INVALID_OTP', async () => {
-      // Step 1: 로그인
+    it('non-production 환경에서는 잘못된 6자리 TOTP 코드도 값 검증 없이 토큰 발급', async () => {
+      const originalNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'test';
+
       const loginRes = await request(app.getHttpServer())
         .post('/auth/login')
         .set('x-user-type', 'LOTTE_CARD_BO')
         .send({ loginId: 'lottecard', password: TEST_PASSWORD })
         .expect(201);
 
-      // Step 2: 잘못된 코드로 검증
-      const res = await request(app.getHttpServer())
-        .post('/auth/2fa/verify')
-        .set('x-2fa-token', loginRes.body.twoFactorToken)
-        .send({ totpCode: '000000' })
-        .expect(401);
+      try {
+        const res = await request(app.getHttpServer())
+          .post('/auth/2fa/verify')
+          .set('x-2fa-token', loginRes.body.twoFactorToken)
+          .send({ totpCode: '000000' })
+          .expect(201);
 
-      expect(res.body.code).toBe('11011');
+        expect(res.body.accessToken).toBeDefined();
+      } finally {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
+    });
+
+    it('production 환경에서는 잘못된 TOTP 코드 → 11011 INVALID_OTP', async () => {
+      const originalNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      try {
+        const loginRes = await request(app.getHttpServer())
+          .post('/auth/login')
+          .set('x-user-type', 'LOTTE_CARD_BO')
+          .send({ loginId: 'lottecard', password: TEST_PASSWORD })
+          .expect(201);
+
+        const res = await request(app.getHttpServer())
+          .post('/auth/2fa/verify')
+          .set('x-2fa-token', loginRes.body.twoFactorToken)
+          .send({ totpCode: '000000' })
+          .expect(401);
+
+        expect(res.body.code).toBe('11011');
+      } finally {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
     });
 
     it('잘못된 2FA 토큰 → 11012 TOKEN_EXPIRED', async () => {

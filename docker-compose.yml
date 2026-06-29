@@ -121,8 +121,6 @@ services:
       - DATABASE_USER=${DB_USER}
       - DATABASE_PASSWORD=${DB_PASSWORD}
       - DATABASE_NAME=${DB_NAME}
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - JWT_PUBLIC_KEY_PATH=/run/secrets/jwt_public_key
       - JWT_PRIVATE_KEY_PATH=/run/secrets/jwt_private_key
     secrets:

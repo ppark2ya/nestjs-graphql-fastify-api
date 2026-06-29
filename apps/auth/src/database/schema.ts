@@ -3,19 +3,19 @@ import {
   varchar,
   int,
   bigint,
-  datetime,
   uniqueIndex,
   varbinary,
 } from 'drizzle-orm/mysql-core';
+import { kstDatetime } from './kst-datetime';
 
 export const tbAccount = mysqlTable(
   'tb_account',
   {
     id: bigint('id', { mode: 'number' }).primaryKey().autoincrement(),
-    createdAt: datetime('created_at', { fsp: 6 }),
+    createdAt: kstDatetime('created_at', { fsp: 6 }),
     email: varchar('email', { length: 64 }),
     failCount: int('fail_count').default(0),
-    lastLoginAt: datetime('last_login_at', { fsp: 6 }),
+    lastLoginAt: kstDatetime('last_login_at', { fsp: 6 }),
     loginId: varbinary('login_id', { length: 63 }).notNull(),
     name: varchar('name', { length: 255 }),
     userType: varchar('user_type', { length: 20 }).notNull(),
@@ -23,8 +23,8 @@ export const tbAccount = mysqlTable(
     status: varchar('status', { length: 255 }),
     otpSecretKey: varchar('otp_secret_key', { length: 20 }),
     customerNo: varchar('customer_no', { length: 40 }),
-    lastPasswordChangedAt: datetime('last_password_changed_at', { fsp: 6 }),
-    updatedAt: datetime('updated_at', { fsp: 6 }),
+    lastPasswordChangedAt: kstDatetime('last_password_changed_at', { fsp: 6 }),
+    updatedAt: kstDatetime('updated_at', { fsp: 6 }),
     ktmsAccessYn: varchar('ktms_access_yn', { length: 2 }),
     userGroupId: bigint('user_group_id', { mode: 'number' }),
     roleType: varchar('role_type', { length: 20 }),
@@ -45,9 +45,9 @@ export const tbUserGroup = mysqlTable(
     useYn: varchar('use_yn', { length: 2 }).notNull(),
     email: varchar('email', { length: 400 }),
     createdAdm: varchar('created_adm', { length: 50 }).notNull(),
-    createdAt: datetime('created_at', { fsp: 6 }).notNull(),
+    createdAt: kstDatetime('created_at', { fsp: 6 }).notNull(),
     updatedAdm: varchar('updated_adm', { length: 50 }),
-    updatedAt: datetime('updated_at', { fsp: 6 }),
+    updatedAt: kstDatetime('updated_at', { fsp: 6 }),
   },
   (table) => [uniqueIndex('ux_user_group_01').on(table.name, table.type)],
 );
@@ -60,6 +60,6 @@ export const tbLoginHistory = mysqlTable('tb_login_history', {
   failCount: int('fail_count'),
   status: varchar('status', { length: 255 }),
   accessChannel: varchar('access_channel', { length: 50 }),
-  loginAt: datetime('login_at', { fsp: 6 }),
-  failedAt: datetime('falied_at', { fsp: 6 }),
+  loginAt: kstDatetime('login_at', { fsp: 6 }),
+  failedAt: kstDatetime('falied_at', { fsp: 6 }),
 });
