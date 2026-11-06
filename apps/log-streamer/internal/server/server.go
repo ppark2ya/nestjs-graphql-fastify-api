@@ -10,6 +10,7 @@ import (
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/config"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/docker"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/logreader"
+	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/loki"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/router"
 )
 
@@ -35,7 +36,19 @@ func New(cfg *config.Config) (*Server, error) {
 
 func (s *Server) Start() error {
 	logReader := logreader.NewReader(s.config.LogDir)
-	r := router.New(s.dockerClient, logReader)
+	var lokiClient *loki.Client
+	if s.config.LokiGatewayURL != "" {
+		var err error
+		lokiClient, err = loki.NewClient(s.config.LokiGatewayURL, s.config.LokiTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid Loki gateway configuration: %w", err)
+		}
+		log := slog.Default()
+		log.Info("Loki history client enabled")
+	} else {
+		slog.Warn("Loki history client disabled: LOKI_GATEWAY_URL is not configured")
+	}
+	r := router.New(s.dockerClient, logReader, lokiClient)
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.config.Port),

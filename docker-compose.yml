@@ -33,6 +33,7 @@ services:
     environment:
       - LOG_STREAMER_PORT=4003
       - LOG_DIR=/opt/logs
+      - LOKI_GATEWAY_URL=${LOKI_GATEWAY_URL:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /opt/logs:/opt/logs:ro

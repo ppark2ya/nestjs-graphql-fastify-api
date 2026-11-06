@@ -3,14 +3,17 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port     int
-	LogLevel string
-	LogDir   string
+	Port           int
+	LogLevel       string
+	LogDir         string
+	LokiGatewayURL string
+	LokiTimeout    time.Duration
 }
 
 func Load() *Config {
@@ -34,9 +37,18 @@ func Load() *Config {
 		logDir = "/opt/logs"
 	}
 
+	lokiTimeout := 30 * time.Second
+	if raw := os.Getenv("LOKI_TIMEOUT_SECONDS"); raw != "" {
+		if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
+			lokiTimeout = time.Duration(seconds) * time.Second
+		}
+	}
+
 	return &Config{
-		Port:     port,
-		LogLevel: logLevel,
-		LogDir:   logDir,
+		Port:           port,
+		LogLevel:       logLevel,
+		LogDir:         logDir,
+		LokiGatewayURL: os.Getenv("LOKI_GATEWAY_URL"),
+		LokiTimeout:    lokiTimeout,
 	}
 }
