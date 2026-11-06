@@ -26,11 +26,11 @@ func (e *UpstreamError) Error() string {
 }
 
 type StreamEntry struct {
-	Timestamp   time.Time
-	TimestampNS string
-	Line        string
-	Labels      map[string]string
-	Fields      map[string]any
+	Timestamp   time.Time         `json:"timestamp"`
+	TimestampNS string            `json:"timestampNs"`
+	Line        string            `json:"line"`
+	Labels      map[string]string `json:"labels"`
+	Fields      map[string]any    `json:"fields,omitempty"`
 }
 
 type queryRangeResponse struct {

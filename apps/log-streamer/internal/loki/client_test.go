@@ -2,11 +2,35 @@ package loki
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
+
+func TestStreamEntryUsesLowerCamelCaseRESTContract(t *testing.T) {
+	encoded, err := json.Marshal(StreamEntry{
+		Timestamp:   time.Unix(0, 100).UTC(),
+		TimestampNS: "100",
+		Line:        "log line",
+		Labels:      map[string]string{"service": "gateway"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var response map[string]any
+	if err := json.Unmarshal(encoded, &response); err != nil {
+		t.Fatal(err)
+	}
+	if response["timestamp"] == nil || response["timestampNs"] != "100" {
+		t.Fatalf("missing REST contract fields: %s", encoded)
+	}
+	if _, found := response["Timestamp"]; found {
+		t.Fatalf("unexpected Go field name in REST response: %s", encoded)
+	}
+}
 
 func TestQueryRangeFlattensAndSortsStreams(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
