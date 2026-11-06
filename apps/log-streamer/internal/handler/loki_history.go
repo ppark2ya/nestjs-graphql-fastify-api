@@ -19,7 +19,6 @@ import (
 
 const (
 	defaultHistoryRange = time.Hour
-	maxHistoryRange     = 24 * time.Hour
 	lokiRetention       = 14 * 24 * time.Hour
 	maxHistoryPageSize  = 200
 	maxCursorEntries    = 1000
@@ -223,9 +222,6 @@ func parseHistoryRange(query url.Values) (time.Time, time.Time, error) {
 	}
 	if !end.After(start) {
 		return time.Time{}, time.Time{}, errors.New("end must be after start")
-	}
-	if end.Sub(start) > maxHistoryRange {
-		return time.Time{}, time.Time{}, errors.New("time range cannot exceed 24 hours")
 	}
 	if start.Before(now.Add(-lokiRetention)) {
 		return time.Time{}, time.Time{}, errors.New("time range is outside the 14-day Loki retention period")

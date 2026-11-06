@@ -27,13 +27,15 @@ func TestBuildQueryEscapesUntrustedInput(t *testing.T) {
 	}
 }
 
-func TestHistoryRangeRejectsMoreThan24Hours(t *testing.T) {
+func TestHistoryRangeAllowsMultipleDaysWithinRetention(t *testing.T) {
+	end := time.Now().UTC().Truncate(time.Second)
+	start := end.Add(-7 * 24 * time.Hour)
 	_, _, err := parseHistoryRange(url.Values{
-		"start": {"2026-01-01T00:00:00Z"},
-		"end":   {"2026-01-02T00:00:01Z"},
+		"start": {start.Format(time.RFC3339)},
+		"end":   {end.Format(time.RFC3339)},
 	})
-	if err == nil || !strings.Contains(err.Error(), "24 hours") {
-		t.Fatalf("expected 24-hour validation error, got %v", err)
+	if err != nil {
+		t.Fatalf("expected range within retention to be allowed, got %v", err)
 	}
 }
 
