@@ -6,10 +6,11 @@ import (
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/handler"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/handler/ws"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/logreader"
+	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/loki"
 	"github.com/your-org/nestjs-graphql-fastify-api/apps/log-streamer/internal/middleware"
 )
 
-func New(dockerClient *docker.Client, logReader *logreader.Reader) *chi.Mux {
+func New(dockerClient *docker.Client, logReader *logreader.Reader, lokiClient *loki.Client) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -31,6 +32,12 @@ func New(dockerClient *docker.Client, logReader *logreader.Reader) *chi.Mux {
 			r.Get("/files", h.Files)
 			r.Get("/search", h.Search)
 			r.Get("/stats", h.Stats)
+		})
+
+		r.Route("/loki", func(r chi.Router) {
+			h := handler.NewLokiHistoryHandler(lokiClient)
+			r.Get("/filter-options", h.FilterOptions)
+			r.Get("/search", h.Search)
 		})
 	})
 
